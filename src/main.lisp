@@ -7,9 +7,13 @@
    (super-collider-server
     :initarg :super-collider-server
     :accessor .super-collider-server)
+   (bpm :initarg :bpm
+        :initform 128.0
+        :accessor .bpm)
    (dexed :accessor .dexed)))
 
 (defmethod initialize-instance :after ((app app) &key)
+  (sc:clock-bpm (.bpm app))
   (sc:defsynth dexed ()
     (sc:out.ar 0 (sc-vst:vst-plugin.ar nil 2 :dexed)))
   (setf (.dexed app)
@@ -96,7 +100,9 @@
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
   (case button
-    (1 (sc-vst:note-on (.dexed *app*) 1 60 80))
+    (1
+     ;; (sc-vst:play-note (.dexed *app*) (sc:clock-quant 4) 1 60 80 2)
+     (sc-vst:note-on (.dexed *app*) 1 60 80))
     (2 (sc-vst:note-off (.dexed *app*) 1 60 80))
     (3 (sc-vst:editor (.dexed *app*)))))
 
