@@ -4,10 +4,18 @@
 
 (defclass app ()
   ((win :initarg :win :accessor .win)
-   (haptic :initarg :haptic :accessor .haptic)))
+   (super-collider-server
+    :initarg :super-collider-server
+    :accessor .super-collider-server)
+   (dexed :accessor .dexed)))
+
+(defmethod initialize-instance :after ((app app) &key)
+  (sc:defsynth dexed ()
+    (sc:out.ar 0 (sc-vst:vst-plugin.ar nil 2 :dexed)))
+  (setf (.dexed app)
+        (sc-vst:vst-controller (sc:synth 'dexed) :dexed "Dexed.vst3")))
 
 (defun main ()
-  (cl-patterns:start-backend :supercollider)
   (sdl2:with-init (:everything)
     (format t "Using SDL Library Version: ~D.~D.~D~%"
             sdl2-ffi:+sdl-major-version+
@@ -15,83 +23,53 @@
             sdl2-ffi:+sdl-patchlevel+)
     (finish-output)
 
-    (sdl2:with-window (win :flags '(:shown :opengl))
+    (sdl2:with-window (win :flags '(:opengl))
       (sdl2:with-gl-context (gl-context win)
-        (let ((controllers ())
-              (haptic ()))
+        ;; basic window/gl setup
+        (format t "Setting up window/gl.~%")
+        (finish-output)
+        (sdl2:gl-make-current win gl-context)
+        (gl:viewport 0 0 800 600)
+        (gl:matrix-mode :projection)
+        (gl:ortho -2 2 -2 2 -2 2)
+        (gl:matrix-mode :modelview)
+        (gl:load-identity)
+        (gl:clear-color 0.0 0.0 1.0 1.0)
+        (gl:clear :color-buffer)
 
-          ;; basic window/gl setup
-          (format t "Setting up window/gl.~%")
-          (finish-output)
-          (sdl2:gl-make-current win gl-context)
-          (gl:viewport 0 0 800 600)
-          (gl:matrix-mode :projection)
-          (gl:ortho -2 2 -2 2 -2 2)
-          (gl:matrix-mode :modelview)
-          (gl:load-identity)
-          (gl:clear-color 0.0 0.0 1.0 1.0)
-          (gl:clear :color-buffer)
+        (sdl2:hide-window win)
+        (sdl2:show-window win)
 
-          (format t "Opening game controllers.~%")
-          (finish-output)
+        ;; main loop
+        (format t "Beginning main loop.~%")
+        (finish-output)
 
-          (sdl2:hide-window win)
-          (sdl2:show-window win)
+        (setf *app* (make-instance
+                     'app
+                     :win win
+                     :super-collider-server (cl-patterns:start-backend :supercollider)))
 
-          ;; open any game controllers
-          (loop :for i :upto (- (sdl2:joystick-count) 1)
-                :do (when (sdl2:game-controller-p i)
-                      (format t "Found gamecontroller: ~a~%"
-                              (sdl2:game-controller-name-for-index i))
-                      (let* ((gc (sdl2:game-controller-open i))
-                             (joy (sdl2:game-controller-get-joystick gc)))
-                        (setf controllers (acons i gc controllers))
-                        (when (sdl2:joystick-is-haptic-p joy)
-                          (let ((h (sdl2:haptic-open-from-joystick joy)))
-                            (setf haptic (acons i h haptic))
-                            (sdl2:rumble-init h))))))
+        (let ((*app* *app*))
+          (sdl2:with-event-loop (:method :poll)
+            (:keydown (:keysym keysym)
+                      (keydown keysym))
 
-          ;; main loop
-          (format t "Beginning main loop.~%")
-          (finish-output)
+            (:keyup (:keysym keysym)
+                    (keyup keysym))
 
+            (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
+                          (mousemotion x y xrel yrel state))
 
-          (let ((*app* (make-instance 'app :win win :haptic haptic)))
+            (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
+                              (mousebuttondown button state clicks x y))
 
-            (sdl2:with-event-loop (:method :poll)
-              (:keydown (:keysym keysym)
-                        (keydown keysym))
+            (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
+                            (mousebuttonup button state clicks x y))
 
-              (:keyup (:keysym keysym)
-                      (keyup keysym))
+            (:idle ()
+                   (idle))
 
-              (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
-                            (mousemotion x y xrel yrel state))
-
-              (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
-                                (mousebuttondown button state clicks x y))
-
-              (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
-                              (mousebuttonup button state clicks x y))
-
-              (:controlleraxismotion
-               (:which controller-id :axis axis-id :value value)
-               (controlleraxismotion controller-id axis-id value))
-
-              (:controllerbuttondown (:which controller-id)
-                                     (controllerbuttondown controller-id))
-
-              (:idle ()
-                     (idle))
-
-              (:quit () t)))
-
-          (format t "Closing opened game controllers.~%")
-          (finish-output)
-          ;; close any game controllers that were opened as well as any haptics
-          (loop :for (i . controller) :in controllers
-                :do (sdl2:game-controller-close controller)
-                    (sdl2:haptic-close (cdr (assoc i haptic)))))))))
+            (:quit () t)))))))
 
 (defun keydown (keysym)
   (let ((scancode (sdl2:scancode-value keysym))
@@ -116,20 +94,15 @@
 
 (defun mousebuttondown (button state clicks x y)
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
-          button state clicks x y))
+          button state clicks x y)
+  (case button
+    (1 (sc-vst:note-on (.dexed *app*) 1 60 80))
+    (2 (sc-vst:note-off (.dexed *app*) 1 60 80))
+    (3 (sc-vst:editor (.dexed *app*)))))
 
 (defun mousebuttonup (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y))
-
-(defun controlleraxismotion (controller-id axis-id value)
-  (format t "Controller axis motion: Controller: ~a, Axis: ~a, Value: ~a~%"
-          controller-id axis-id value))
-
-(defun controllerbuttondown (controller-id)
-  (let ((h (cdr (assoc controller-id (.haptic *app*)))))
-    (when h
-      (sdl2:rumble-play h 1.0 100))))
 
 (defun idle ()
   (gl:clear :color-buffer)
@@ -143,5 +116,5 @@
   (sdl2:gl-swap-window (.win *app*))
   ;; sdl2:with-event-loop はスピンループのようで 1CPU が 100% 使用中になる
   ;; ゆっくりでいいときはスリープいれるといいかもしれない
-  (sleep 0.1)
+  ;;(sleep 0.1)
   )
