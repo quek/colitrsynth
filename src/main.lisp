@@ -47,8 +47,19 @@
       (gl:end))))
 
 (defun main ()
-  (let ((width 800)
-        (height 600))
+  (sb-thread:make-thread 'main-loop))
+
+(defun main-loop ()
+  (let ((*app* (setf *app* (make-instance
+                            'app
+                            :width 800
+                            :height 600
+                            :super-collider-server (cl-patterns:start-backend :supercollider)
+                            :modules (list (make-instance 'module
+                                                          :x 60
+                                                          :y 50
+                                                          :width 100
+                                                          :height 80))))))
     (sdl2:with-init (:everything)
       (format t "Using SDL Library Version: ~D.~D.~D~%"
               sdl2-ffi:+sdl-major-version+
@@ -57,14 +68,15 @@
       (finish-output)
 
       (sdl2:with-window (win :flags '(:opengl))
+        (setf (.win *app*) win)
         (sdl2:with-gl-context (gl-context win)
           ;; basic window/gl setup
           (format t "Setting up window/gl.~%")
           (finish-output)
           (sdl2:gl-make-current win gl-context)
-          (gl:viewport 0 0 width height)
+          (gl:viewport 0 0 (.width *app*) (.height *app*))
           (gl:matrix-mode :projection)
-          (gl:ortho 0 width height 0 -1.0 1.0)
+          (gl:ortho 0 (.width *app*) (.height *app*) 0 -1.0 1.0)
           (gl:matrix-mode :modelview)
           (gl:load-identity)
           (gl:clear-color 0.0 0.0 1.0 1.0)
@@ -77,39 +89,26 @@
           (format t "Beginning main loop.~%")
           (finish-output)
 
-          (setf *app* (make-instance
-                       'app
-                       :win win
-                       :width width
-                       :height height
-                       :super-collider-server (cl-patterns:start-backend :supercollider)
-                       :modules (list (make-instance 'module
-                                                     :x 60
-                                                     :y 50
-                                                     :width 100
-                                                     :height 80))))
+          (sdl2:with-event-loop (:method :poll)
+            (:keydown (:keysym keysym)
+                      (keydown keysym))
 
-          (let ((*app* *app*))
-            (sdl2:with-event-loop (:method :poll)
-              (:keydown (:keysym keysym)
-                        (keydown keysym))
+            (:keyup (:keysym keysym)
+                    (keyup keysym))
 
-              (:keyup (:keysym keysym)
-                      (keyup keysym))
+            (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
+                          (mousemotion x y xrel yrel state))
 
-              (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
-                            (mousemotion x y xrel yrel state))
+            (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
+                              (mousebuttondown button state clicks x y))
 
-              (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
-                                (mousebuttondown button state clicks x y))
+            (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
+                            (mousebuttonup button state clicks x y))
 
-              (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
-                              (mousebuttonup button state clicks x y))
+            (:idle ()
+                   (idle))
 
-              (:idle ()
-                     (idle))
-
-              (:quit () t))))))))
+            (:quit () t)))))))
 
 (defun keydown (keysym)
   (let ((scancode (sdl2:scancode-value keysym))
