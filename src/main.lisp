@@ -6,6 +6,7 @@
   ((win :initarg :win :accessor .win)
    (width :initarg :width :initform 800 :accessor .width)
    (height :initarg :height :initform 600 :accessor .height)
+   (modules :initarg :modules :initform '() :accessor .modules)
    (super-collider-server
     :initarg :super-collider-server
     :accessor .super-collider-server)
@@ -24,17 +25,17 @@
 (defclass module ()
   ((name :initarg :name :initform 10 :accessor .name)
    (color :initarg :color :initform '(0.5 0.5 0.5) :accessor .color)
-   (x :initarg :x :initform 0.0 :accessor .x)
-   (y :initarg :y :initform 0.0 :accessor .y)
-   (width :initarg :width :initform 1.0 :accessor .width)
-   (height :initarg :height :initform 1.0 :accessor .height)))
+   (x :initarg :x :initform 10 :accessor .x)
+   (y :initarg :y :initform 10 :accessor .y)
+   (width :initarg :width :initform 100 :accessor .width)
+   (height :initarg :height :initform 80 :accessor .height)))
 
 (defmethod show ((module module))
   (with-slots (color x y width height) module
-    (let* ((x1 (- x 400))
+    (let* ((x1 x)
            (x2 (+ x1 width))
-           (y2 (- 300 y))
-           (y1 (- y2 height)))
+           (y1 y)
+           (y2 (+ y1 height)))
       (gl:begin :triangles)
       (apply #'gl:color color)
       (gl:vertex x1 y2)
@@ -48,63 +49,67 @@
 (defun main ()
   (let ((width 800)
         (height 600))
-   (sdl2:with-init (:everything)
-     (format t "Using SDL Library Version: ~D.~D.~D~%"
-             sdl2-ffi:+sdl-major-version+
-             sdl2-ffi:+sdl-minor-version+
-             sdl2-ffi:+sdl-patchlevel+)
-     (finish-output)
+    (sdl2:with-init (:everything)
+      (format t "Using SDL Library Version: ~D.~D.~D~%"
+              sdl2-ffi:+sdl-major-version+
+              sdl2-ffi:+sdl-minor-version+
+              sdl2-ffi:+sdl-patchlevel+)
+      (finish-output)
 
-     (sdl2:with-window (win :flags '(:opengl))
-       (sdl2:with-gl-context (gl-context win)
-         ;; basic window/gl setup
-         (format t "Setting up window/gl.~%")
-         (finish-output)
-         (sdl2:gl-make-current win gl-context)
-         (gl:viewport 0 0 width height)
-         (gl:matrix-mode :projection)
-         (gl:ortho (- (/ width 2.0)) (/ width 2.0) (- (/ height 2.0)) (/ height 2.0)
-                   -1.0 1.0)
-         (gl:matrix-mode :modelview)
-         (gl:load-identity)
-         (gl:clear-color 0.0 0.0 1.0 1.0)
-         (gl:clear :color-buffer)
+      (sdl2:with-window (win :flags '(:opengl))
+        (sdl2:with-gl-context (gl-context win)
+          ;; basic window/gl setup
+          (format t "Setting up window/gl.~%")
+          (finish-output)
+          (sdl2:gl-make-current win gl-context)
+          (gl:viewport 0 0 width height)
+          (gl:matrix-mode :projection)
+          (gl:ortho 0 width height 0 -1.0 1.0)
+          (gl:matrix-mode :modelview)
+          (gl:load-identity)
+          (gl:clear-color 0.0 0.0 1.0 1.0)
+          (gl:clear :color-buffer)
 
-         (sdl2:hide-window win)
-         (sdl2:show-window win)
+          (sdl2:hide-window win)
+          (sdl2:show-window win)
 
-         ;; main loop
-         (format t "Beginning main loop.~%")
-         (finish-output)
+          ;; main loop
+          (format t "Beginning main loop.~%")
+          (finish-output)
 
-         (setf *app* (make-instance
-                      'app
-                      :win win
-                      :width width
-                      :height height
-                      :super-collider-server (cl-patterns:start-backend :supercollider)))
+          (setf *app* (make-instance
+                       'app
+                       :win win
+                       :width width
+                       :height height
+                       :super-collider-server (cl-patterns:start-backend :supercollider)
+                       :modules (list (make-instance 'module
+                                                     :x 60
+                                                     :y 50
+                                                     :width 100
+                                                     :height 80))))
 
-         (let ((*app* *app*))
-           (sdl2:with-event-loop (:method :poll)
-             (:keydown (:keysym keysym)
-                       (keydown keysym))
+          (let ((*app* *app*))
+            (sdl2:with-event-loop (:method :poll)
+              (:keydown (:keysym keysym)
+                        (keydown keysym))
 
-             (:keyup (:keysym keysym)
-                     (keyup keysym))
+              (:keyup (:keysym keysym)
+                      (keyup keysym))
 
-             (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
-                           (mousemotion x y xrel yrel state))
+              (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
+                            (mousemotion x y xrel yrel state))
 
-             (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
-                               (mousebuttondown button state clicks x y))
+              (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
+                                (mousebuttondown button state clicks x y))
 
-             (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
-                             (mousebuttonup button state clicks x y))
+              (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
+                              (mousebuttonup button state clicks x y))
 
-             (:idle ()
-                    (idle))
+              (:idle ()
+                     (idle))
 
-             (:quit () t))))))))
+              (:quit () t))))))))
 
 (defun keydown (keysym)
   (let ((scancode (sdl2:scancode-value keysym))
@@ -143,19 +148,8 @@
 
 (defun idle ()
   (gl:clear :color-buffer)
-  (gl:begin :triangles)
-  (gl:color 1.0 0.5 0.5)
-  (gl:vertex 1.0 1.0)
-  (gl:vertex -1.0 -1.0)
-  (gl:vertex 1.0 -1.0)
-  (gl:end)
-
-  (show (make-instance 'module
-                       :x 690
-                       :y 500
-                       :width 100
-                       :height 80))
-  
+  (loop for module in (.modules *app*)
+        do (show module))
   (gl:flush)
   (sdl2:gl-swap-window (.win *app*))
   ;; sdl2:with-event-loop はスピンループのようで 1CPU が 100% 使用中になる
