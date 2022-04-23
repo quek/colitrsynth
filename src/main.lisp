@@ -19,6 +19,30 @@
   (setf (.dexed app)
         (sc-vst:vst-controller (sc:synth 'dexed) :dexed "Dexed.vst3")))
 
+(defclass module ()
+  ((name :initarg :name :initform 10 :accessor .name)
+   (color :initarg :color :initform '(0.5 0.5 0.5) :accessor .color)
+   (x :initarg :x :initform 0.0 :accessor .x)
+   (y :initarg :y :initform 0.0 :accessor .y)
+   (width :initarg :width :initform 1.0 :accessor .width)
+   (height :initarg :height :initform 1.0 :accessor .height)))
+
+(defmethod show ((module module))
+  (with-slots (color x y width height) module
+    (let* ((x1 (- x (/ width 2)))
+           (x2 (+ x1 width))
+           (y2 (+ (/ height 2) y))
+           (y1 (- y2 height)))
+      (gl:begin :triangles)
+      (apply #'gl:color color)
+      (gl:vertex x1 y2)
+      (gl:vertex x1 y1)
+      (gl:vertex x2 y2)
+      (gl:vertex x2 y2)
+      (gl:vertex x1 y1)
+      (gl:vertex x2 y1)
+      (gl:end))))
+
 (defun main ()
   (sdl2:with-init (:everything)
     (format t "Using SDL Library Version: ~D.~D.~D~%"
@@ -118,6 +142,13 @@
   (gl:vertex -1.0 -1.0)
   (gl:vertex 1.0 -1.0)
   (gl:end)
+
+  (show (make-instance 'module
+                       :x 0.3
+                       :y 0.2
+                       :width 0.2
+                       :height 0.2))
+  
   (gl:flush)
   (sdl2:gl-swap-window (.win *app*))
   ;; sdl2:with-event-loop はスピンループのようで 1CPU が 100% 使用中になる
