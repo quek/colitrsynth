@@ -4,6 +4,8 @@
 
 (defclass app ()
   ((win :initarg :win :accessor .win)
+   (width :initarg :width :initform 800 :accessor .width)
+   (height :initarg :height :initform 600 :accessor .height)
    (super-collider-server
     :initarg :super-collider-server
     :accessor .super-collider-server)
@@ -29,9 +31,9 @@
 
 (defmethod show ((module module))
   (with-slots (color x y width height) module
-    (let* ((x1 (- x (/ width 2)))
+    (let* ((x1 (- x 400))
            (x2 (+ x1 width))
-           (y2 (+ (/ height 2) y))
+           (y2 (- 300 y))
            (y1 (- y2 height)))
       (gl:begin :triangles)
       (apply #'gl:color color)
@@ -44,60 +46,65 @@
       (gl:end))))
 
 (defun main ()
-  (sdl2:with-init (:everything)
-    (format t "Using SDL Library Version: ~D.~D.~D~%"
-            sdl2-ffi:+sdl-major-version+
-            sdl2-ffi:+sdl-minor-version+
-            sdl2-ffi:+sdl-patchlevel+)
-    (finish-output)
+  (let ((width 800)
+        (height 600))
+   (sdl2:with-init (:everything)
+     (format t "Using SDL Library Version: ~D.~D.~D~%"
+             sdl2-ffi:+sdl-major-version+
+             sdl2-ffi:+sdl-minor-version+
+             sdl2-ffi:+sdl-patchlevel+)
+     (finish-output)
 
-    (sdl2:with-window (win :flags '(:opengl))
-      (sdl2:with-gl-context (gl-context win)
-        ;; basic window/gl setup
-        (format t "Setting up window/gl.~%")
-        (finish-output)
-        (sdl2:gl-make-current win gl-context)
-        (gl:viewport 0 0 800 600)
-        (gl:matrix-mode :projection)
-        (gl:ortho -2 2 -2 2 -2 2)
-        (gl:matrix-mode :modelview)
-        (gl:load-identity)
-        (gl:clear-color 0.0 0.0 1.0 1.0)
-        (gl:clear :color-buffer)
+     (sdl2:with-window (win :flags '(:opengl))
+       (sdl2:with-gl-context (gl-context win)
+         ;; basic window/gl setup
+         (format t "Setting up window/gl.~%")
+         (finish-output)
+         (sdl2:gl-make-current win gl-context)
+         (gl:viewport 0 0 width height)
+         (gl:matrix-mode :projection)
+         (gl:ortho (- (/ width 2.0)) (/ width 2.0) (- (/ height 2.0)) (/ height 2.0)
+                   -1.0 1.0)
+         (gl:matrix-mode :modelview)
+         (gl:load-identity)
+         (gl:clear-color 0.0 0.0 1.0 1.0)
+         (gl:clear :color-buffer)
 
-        (sdl2:hide-window win)
-        (sdl2:show-window win)
+         (sdl2:hide-window win)
+         (sdl2:show-window win)
 
-        ;; main loop
-        (format t "Beginning main loop.~%")
-        (finish-output)
+         ;; main loop
+         (format t "Beginning main loop.~%")
+         (finish-output)
 
-        (setf *app* (make-instance
-                     'app
-                     :win win
-                     :super-collider-server (cl-patterns:start-backend :supercollider)))
+         (setf *app* (make-instance
+                      'app
+                      :win win
+                      :width width
+                      :height height
+                      :super-collider-server (cl-patterns:start-backend :supercollider)))
 
-        (let ((*app* *app*))
-          (sdl2:with-event-loop (:method :poll)
-            (:keydown (:keysym keysym)
-                      (keydown keysym))
+         (let ((*app* *app*))
+           (sdl2:with-event-loop (:method :poll)
+             (:keydown (:keysym keysym)
+                       (keydown keysym))
 
-            (:keyup (:keysym keysym)
-                    (keyup keysym))
+             (:keyup (:keysym keysym)
+                     (keyup keysym))
 
-            (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
-                          (mousemotion x y xrel yrel state))
+             (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
+                           (mousemotion x y xrel yrel state))
 
-            (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
-                              (mousebuttondown button state clicks x y))
+             (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
+                               (mousebuttondown button state clicks x y))
 
-            (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
-                            (mousebuttonup button state clicks x y))
+             (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
+                             (mousebuttonup button state clicks x y))
 
-            (:idle ()
-                   (idle))
+             (:idle ()
+                    (idle))
 
-            (:quit () t)))))))
+             (:quit () t))))))))
 
 (defun keydown (keysym)
   (let ((scancode (sdl2:scancode-value keysym))
@@ -144,10 +151,10 @@
   (gl:end)
 
   (show (make-instance 'module
-                       :x 0.3
-                       :y 0.2
-                       :width 0.2
-                       :height 0.2))
+                       :x 690
+                       :y 500
+                       :width 100
+                       :height 80))
   
   (gl:flush)
   (sdl2:gl-swap-window (.win *app*))
