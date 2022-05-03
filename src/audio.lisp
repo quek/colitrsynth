@@ -45,10 +45,11 @@
    (playing
     :initform nil
     :accessor .playing)
-   (last-time
+   (start-time
     :initform 0.0d0
-    :accessor .last-time
+    :accessor .start-time
     :type double-float)
+   (current-time :initform 0.0d0 :type double-float :accessor .current-time)
    (stream
     :initform nil
     :accessor .stream)
@@ -61,48 +62,68 @@
     :initarg :output-channels
     :initform 2
     :type fixnum
-    :accessor .output-channels)))
+    :accessor .output-channels)
+   (buffer :accessor .buffer)
+   (bpm :initarg :bpm :initform 128.0d0 :accessor .bpm
+        :type double-float)
+   (patterns :initarg :patterns
+             :initform (list (make-instance 'pattern))
+             :accessor .patterns)))
+
+(defclass pattern ()
+  ((contents :initarg :contents
+             :initform (list a4 e4 g4) :accessor .contents)
+   (index :initform 0 :accessor .index)))
+
+(defmethod play ((pattern pattern))
+  (let* ((current-time (.current-time *audio*))
+         (note (nth (cond ((< current-time 1.0d0) 0)
+                          ((< current-time 2.0d0) 1)
+                          (t 2))
+                    (.contents pattern))))
+    (loop for i below (* (.frames-per-buffer *audio*) 2) by 2
+          for freq = (coerce
+                      (* (sin (/ (the double-float
+                                      (* 2 pi
+                                         (midino-to-freq note)
+                                         (.index pattern)))
+                                 (.sample-rate *audio*)))
+                         0.5)
+                      'single-float)
+          do (setf (cffi:mem-aref (.buffer *audio*) :float i)
+                   freq)
+             (setf (cffi:mem-aref (.buffer *audio*) :float (1+ i))
+                   freq)
+             (incf (.index pattern)))))
 
 (defun proc (input-buffer
              output-buffer
-             frame-per-buffer
              time-info
-             status-flags
-             user-data)
+             status-flags)
   (declare (optimize (speed 3) (safety 0))
            (ignore input-buffer status-flags))
   (let ((current-time (cffi:foreign-slot-value time-info '(:struct pa-stream-callback-time-info)
                                                'current-time)))
     (declare (double-float current-time))
+    (when (= (the double-float (.start-time *audio*)) 0.0d0)
+      (setf (.start-time *audio*) current-time))
+    (setf (.current-time *audio*) (the double-float (- current-time (the double-float (.start-time *audio*)))))
+    (setf (.buffer *audio*) output-buffer)
     ;; (cffi:with-foreign-slots ((input-buffer-adc-time current-time output-buffer-dac-time)
     ;;                           time-info
     ;;                           (:struct pa-stream-callback-time-info))
     ;;   (format t "~&~a ~a ~a" input-buffer-adc-time current-time output-buffer-dac-time))
+    #+nil
     (let* (
-           (delta (- current-time (the double-float (.last-time *audio*))))
+           (delta (- current-time (the double-float (.start-time *audio*))))
            (vol 0.4)
            (env (if (> delta 1.0d0)
                     1.0
                     2.0)))
       (when (> delta 2)
-        (setf (.last-time *audio*) current-time))
-      (loop for i of-type fixnum from 0 below frame-per-buffer
-            for l of-type fixnum = (* i 2)
-            for r of-type fixnum = (1+ l)
-            for sin-arg = (the double-float
-                               (/ (the double-float
-                                       (* 2 pi env
-                                          (cffi:foreign-slot-value user-data '(:struct user-data) 'freq)
-                                          (cffi:foreign-slot-value user-data '(:struct user-data) 'index)))
-                                  (the double-float *sample-rate*)))
-            
-            do (setf (cffi:mem-aref output-buffer :float l)
-                     (* (coerce (sin sin-arg) 'single-float)
-                        vol)
-                     (cffi:mem-aref output-buffer :float r)
-                     (* (coerce (sin (* sin-arg 2)) 'single-float)
-                        vol))
-               (incf (cffi:foreign-slot-value user-data '(:struct user-data) 'index) 1.0))))
+        (setf (.start-time *audio*) current-time))
+      fixnum))
+  (play (car (.patterns *audio*)))
   0)
 
 (cffi:defcallback my-callback :int ((input-buffer :pointer)
@@ -111,13 +132,13 @@
                                     (time-info (:pointer (:struct pa-stream-callback-time-info)))
                                     (status-flags pa-stream-callback-flags)
                                     (user-data :pointer))
+  (declare (ignore frame-per-buffer ;*audio* の方を参照するので無視でいい？
+                   user-data))
   (funcall 'proc
            input-buffer
            output-buffer
-           frame-per-buffer
            time-info
-           status-flags
-           user-data))
+           status-flags))
 
 (defun callback-test ()
   (declare (optimize (speed 3) (safety 0)))
@@ -168,7 +189,7 @@
                         :output-channels (if (zerop (the fixnum (.output-channels *audio*))) nil (.output-channels *audio*))
                         :frames-per-buffer (.frames-per-buffer *audio*)))))
           (setf (.playing *audio*) t)
-          (setf (.last-time *audio*) 0.0d0)
+          (setf (.start-time *audio*) 0.0d0)
           (pa:start-stream (.stream *audio*))
           ;; (loop while *playing* do (pa:pa-sleep 100))
           (pa:pa-sleep 3000))
