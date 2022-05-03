@@ -73,7 +73,8 @@
 (defclass pattern ()
   ((contents :initarg :contents
              :initform (list a4 e4 g4) :accessor .contents)
-   (index :initform 0 :accessor .index)))
+   (phase :initform 0.0d0 :accessor .phase
+          :type double-float)))
 
 (defmethod play ((pattern pattern))
   (let* ((current-time (.current-time *audio*))
@@ -82,19 +83,14 @@
                           (t 2))
                     (.contents pattern))))
     (loop for i below (* (.frames-per-buffer *audio*) 2) by 2
-          for freq = (coerce
-                      (* (sin (/ (the double-float
-                                      (* 2 pi
-                                         (midino-to-freq note)
-                                         (.index pattern)))
-                                 (.sample-rate *audio*)))
-                         0.5)
-                      'single-float)
+          for phase from (.phase pattern) by (/ (* 2 pi (midino-to-freq note))
+                                                (.sample-rate *audio*))
+          for freq = (coerce (* (sin phase) 0.5) 'single-float)
           do (setf (cffi:mem-aref (.buffer *audio*) :float i)
                    freq)
              (setf (cffi:mem-aref (.buffer *audio*) :float (1+ i))
                    freq)
-             (incf (.index pattern)))))
+          finally (setf (.phase pattern) phase))))
 
 (defun proc (input-buffer
              output-buffer
