@@ -109,3 +109,60 @@
   ;; ゆっくりでいいときはスリープいれるといいかもしれない
   (sleep 0.1)
   )
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(in-package :cl-user)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(ql:quickload :cl-wav)
+
+(defun sin-wave-440 ()
+  (declare (optimize (speed 3) (safety 0)))
+  (let* ((inch 0)
+         (outch 1)
+         (sample-rate 48000.0D0)
+         (buffer-size 1024)
+         (buffer (make-array buffer-size :element-type 'single-float)))
+    (portaudio:with-audio
+      (pa:with-default-audio-stream (s inch outch :sample-format :float
+                                                  :sample-rate sample-rate
+                                                  :frames-per-buffer buffer-size)
+        (let ((ph 0.0d0))
+          (loop repeat 50 do
+            (loop for idx from 9 below buffer-size
+                  for val = (coerce (sin ph) 'single-float)
+                  do (setf (aref buffer idx) val)
+                     (incf ph (* (/ 440.0 sample-rate) PI 2)))
+            (portaudio:write-stream s buffer)))))))
+
+(defun play-wav
+    (&optional
+       (file
+        "D:/Samples/Black Lotus Audio x Dianna Artist Pack/Misc Sounds/BLA - Aah 10.wav"))
+  (flet ((find-chunk (name chunks)
+           (find name chunks :test #'string=
+                             :key (lambda (c) (getf c :chunk-id))))
+         (16bit->float (lsb msb)
+           (float (if (= (logand msb #x80) #x80)
+                      (- (- (/ (lognot (+ (ash (logand msb #x7f) 8) lsb))
+                               (expt 2 15)))
+                         1)
+                      (/ (+ (ash msb 8) lsb) (expt 2 15))))))
+    (let* ((wav (wav:read-wav-file file))
+           (data (getf (find-chunk "data" wav) :chunk-date))
+           (buf (make-array (/ (length data) 2) :element-type 'single-float)))
+      (loop for i from 0 below (length data) by 4
+            do (setf (aref buf (/ i 2))
+                     (16bit->float (aref data (+ i 0))
+                                   (aref data (+ i 1)))
+                     (aref buf (1+ (/ i 2)))
+                     (16bit->float (aref data (+ i 2))
+                                   (aref data (+ i 3)))))
+      (portaudio:with-audio
+        (portaudio:with-default-audio-stream
+            (s 0 2 :sample-format :float :sample-rate 44100.0D0
+                   :frames-per-buffer (/ (length buf) 2))
+          (loop (portaudio:write-stream s buf)))))))
