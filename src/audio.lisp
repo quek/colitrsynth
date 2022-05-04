@@ -163,6 +163,28 @@
     (play-children self value value))
   (incf (.phase self)))
 
+(defclass saw-wave (module)
+  ((note :initarg :note :initform off :accessor .note)
+   (phase :initform 0.0d0 :accessor .phase
+          :type double-float)))
+
+(defmethod play ((self saw-wave) note gate)
+  (declare (ignore gate))
+  (let ((value
+          (if (= note off)
+              0.0d0
+              (progn
+                (when (/= (.note self) note)
+                  (setf (.phase self) 0))
+                (setf (.note self) note)
+                (- (* (mod (/ (* (.phase self) (midino-to-freq note))
+                            (.sample-rate *audio*))
+                         1)
+                      2)
+                   1)))))
+    (play-children self value value))
+  (incf (.phase self)))
+
 (defclass adsr (module)
   ((a :initarg :a :initform 0.003d0 :accessor .a)
    (d :initarg :d :initform 0.05d0 :accessor .d)
@@ -266,23 +288,23 @@
          (pattern1 (make-instance 'pattern
                                   :lines (list a4 e4 none g4
                                                a4 off  g4 c4)))
-         (sin-wave1 (make-instance 'sin-wave))
+         (osc1 (make-instance 'sin-wave))
          (adsr1 (make-instance 'adsr :d 0.2d0 :s 0d0))
          (amp1 (make-instance 'amp))
          (pattern2 (make-instance 'pattern
                                   :lines (list a3 e3 none g3
                                                a3 off  g3 c3)))
-         (sin-wave2 (make-instance 'sin-wave))
+         (osc2 (make-instance 'saw-wave))
          (adsr2 (make-instance 'adsr :d 0.7d0 :s 0.8d0))
          (amp2 (make-instance 'amp)))
-    (connect pattern1 sin-wave1)
+    (connect pattern1 osc1)
     (connect pattern1 adsr1)
-    (connect sin-wave1 amp1)
+    (connect osc1 amp1)
     (connect adsr1 amp1)
     (connect amp1 out)
-    (connect pattern2 sin-wave2)
+    (connect pattern2 osc2)
     (connect pattern2 adsr2)
-    (connect sin-wave2 amp2)
+    (connect osc2 amp2)
     (connect adsr2 amp2)
     (connect amp2 out)
     (add-pattern (.sequencer *audio*) pattern1 0)
