@@ -50,6 +50,7 @@
     :accessor .start-time
     :type double-float)
    (current-time :initform 0.0d0 :type double-float :accessor .current-time)
+   (nframes :initform 0 :type fixnum :accessor .nframes)
    (stream
     :initform nil
     :accessor .stream)
@@ -64,39 +65,63 @@
     :type fixnum
     :accessor .output-channels)
    (buffer :accessor .buffer)
-   (bpm :initarg :bpm :initform 128.0d0 :accessor .bpm
+   (bpm :initarg :bpm :initform 120.0d0 :accessor .bpm
         :type double-float)
+   (lpb :initarg :lpb :initform 4 :accessor .lpb)
    (patterns :initarg :patterns
              :initform (list (make-instance 'pattern))
              :accessor .patterns)))
 
+(defun line-and-frame ()
+  (let* ((sec-per-line (/ 60.0d0 (.bpm *audio*) (.lpb *audio*)))
+         (sec-per-frame (/ 1.0d0 (.sample-rate *audio*)))
+         (current-sec (* sec-per-frame (.nframes *audio*))))
+    (multiple-value-bind (line remain) (floor (/ current-sec sec-per-line))
+      (values line (floor (/ remain sec-per-frame))))))
+
 (defclass pattern ()
-  ((contents :initarg :contents
-             :initform (list a4 e4 g4) :accessor .contents)
+  ((length :initarg :length :initform #x40 :accessor .length)
+   (contents :initarg :contents
+             :initform (list a4 a4 e4 g4 a4 e4 g4) :accessor .contents)
+   (children :initform (list (make-instance 'sin-wave)) :accessor .children)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
-(defmethod play ((pattern pattern))
-  (let* ((current-time (.current-time *audio*))
-         (note (nth (cond ((< current-time 1.0d0) 0)
-                          ((< current-time 2.0d0) 1)
-                          (t 2))
-                    (.contents pattern))))
-    (loop for i below (* (.frames-per-buffer *audio*) 2) by 2
-          for phase from (.phase pattern) by (/ (* 2 pi (midino-to-freq note))
-                                                (.sample-rate *audio*))
-          for freq = (coerce (* (sin phase) 0.5) 'single-float)
-          do (setf (cffi:mem-aref (.buffer *audio*) :float i)
-                   freq)
-             (setf (cffi:mem-aref (.buffer *audio*) :float (1+ i))
-                   freq)
-          finally (setf (.phase pattern) phase))))
+(defmethod play ((pattern pattern) line frame)
+  (let* ((note (nth line (.contents pattern))))
+    (if note
+        (loop for i below (* (.frames-per-buffer *audio*) 2) by 2
+              with vco = (midino-to-freq note)
+              for v = (coerce (%play (car (.children pattern)) vco) 'single-float)
+              do (setf (cffi:mem-aref (.buffer *audio*) :float i)
+                       v)
+                 (setf (cffi:mem-aref (.buffer *audio*) :float (1+ i))
+                       v))
+        (loop for i below (* (.frames-per-buffer *audio*) 2) by 2
+              do (setf (cffi:mem-aref (.buffer *audio*) :float i)
+                       0.0)
+                 (setf (cffi:mem-aref (.buffer *audio*) :float (1+ i))
+                       0.0)))))
+
+(defclass sin-wave ()
+  ((freq :initarg :freq :initform 440.0d0 :accessor .freq
+         :type double-float)
+   (phase :initform 0.0d0 :accessor .phase
+          :type double-float)))
+
+(defmethod %play ((sin-wave sin-wave) vco)
+  (prog1
+      (* (sin (* (/ (* 2 pi vco) (.sample-rate *audio*))
+              (.phase sin-wave)))
+         0.6)
+    (incf (.phase sin-wave))))
 
 (defun proc (input-buffer
              output-buffer
+             frame-per-buffer
              time-info
              status-flags)
-  (declare (optimize (speed 3) (safety 0))
+  (declare ;; (optimize (speed 3) (safety 0))
            (ignore input-buffer status-flags))
   (let ((current-time (cffi:foreign-slot-value time-info '(:struct pa-stream-callback-time-info)
                                                'current-time)))
@@ -104,22 +129,11 @@
     (when (= (the double-float (.start-time *audio*)) 0.0d0)
       (setf (.start-time *audio*) current-time))
     (setf (.current-time *audio*) (the double-float (- current-time (the double-float (.start-time *audio*)))))
-    (setf (.buffer *audio*) output-buffer)
-    ;; (cffi:with-foreign-slots ((input-buffer-adc-time current-time output-buffer-dac-time)
-    ;;                           time-info
-    ;;                           (:struct pa-stream-callback-time-info))
-    ;;   (format t "~&~a ~a ~a" input-buffer-adc-time current-time output-buffer-dac-time))
-    #+nil
-    (let* (
-           (delta (- current-time (the double-float (.start-time *audio*))))
-           (vol 0.4)
-           (env (if (> delta 1.0d0)
-                    1.0
-                    2.0)))
-      (when (> delta 2)
-        (setf (.start-time *audio*) current-time))
-      fixnum))
-  (play (car (.patterns *audio*)))
+    (setf (.buffer *audio*) output-buffer))
+
+  (multiple-value-bind (line frame) (line-and-frame)
+   (play (car (.patterns *audio*)) line frame))
+  (incf (.nframes *audio*) frame-per-buffer)
   0)
 
 (cffi:defcallback my-callback :int ((input-buffer :pointer)
@@ -128,16 +142,16 @@
                                     (time-info (:pointer (:struct pa-stream-callback-time-info)))
                                     (status-flags pa-stream-callback-flags)
                                     (user-data :pointer))
-  (declare (ignore frame-per-buffer ;*audio* の方を参照するので無視でいい？
-                   user-data))
+  (declare (ignore user-data))
   (funcall 'proc
            input-buffer
            output-buffer
+           frame-per-buffer
            time-info
            status-flags))
 
 (defun callback-test ()
-  (declare (optimize (speed 3) (safety 0)))
+  ;;(declare (optimize (speed 3) (safety 0)))
   (let ((*audio* (setf *audio* (make-instance 'audio))))
     (portaudio:with-audio
       (cffi:with-foreign-objects ((handle :pointer)
@@ -192,147 +206,3 @@
         (when (.stream *audio*)
           (pa::stop-stream (.stream *audio*))
           (pa:close-stream (.stream *audio*)))))))
-
-(defun midino-to-freq (midino)
-  (declare (optimize (speed 3) (safety 0))
-           (fixnum midino))
-  (the double-float
-       (* 440.0d0
-          (expt 2.0d0
-                (the double-float (/ (coerce (the fixnum (- midino 69)) 'double-float)
-                                     12.0d0))))))
-
-(defconstant c0  12)
-(defconstant c#0 13)
-(defconstant d0  14)
-(defconstant d#0 15)
-(defconstant e0  16)
-(defconstant f0  17)
-(defconstant f#0 18)
-(defconstant g0  19)
-(defconstant g#0 20)
-(defconstant a0  21)
-(defconstant a#0 22)
-(defconstant b0  23)
-
-(defconstant c1  24)
-(defconstant c#1 25)
-(defconstant d1  26)
-(defconstant d#1 27)
-(defconstant e1  28)
-(defconstant f1  29)
-(defconstant f#1 30)
-(defconstant g1  31)
-(defconstant g#1 32)
-(defconstant a1  33)
-(defconstant a#1 34)
-(defconstant b1  35)
-
-(defconstant c2  36)
-(defconstant c#2 37)
-(defconstant d2  38)
-(defconstant d#2 39)
-(defconstant e2  40)
-(defconstant f2  41)
-(defconstant f#2 42)
-(defconstant g2  43)
-(defconstant g#2 44)
-(defconstant a2  45)
-(defconstant a#2 46)
-(defconstant b2  47)
-
-(defconstant c3  48)
-(defconstant c#3 49)
-(defconstant d3  50)
-(defconstant d#3 51)
-(defconstant e3  52)
-(defconstant f3  53)
-(defconstant f#3 54)
-(defconstant g3  55)
-(defconstant g#3 56)
-(defconstant a3  57)
-(defconstant a#3 58)
-(defconstant b3  59)
-
-(defconstant c4  60)
-(defconstant c#4 61)
-(defconstant d4  62)
-(defconstant d#4 63)
-(defconstant e4  64)
-(defconstant f4  65)
-(defconstant f#4 66)
-(defconstant g4  67)
-(defconstant g#4 68)
-(defconstant a4  69)
-(defconstant a#4 70)
-(defconstant b4  71)
-
-(defconstant c5  72)
-(defconstant c#5 73)
-(defconstant d5  74)
-(defconstant d#5 75)
-(defconstant e5  76)
-(defconstant f5  77)
-(defconstant f#5 78)
-(defconstant g5  79)
-(defconstant g#5 80)
-(defconstant a5  81)
-(defconstant a#5 82)
-(defconstant b5  83)
-
-(defconstant c6  84)
-(defconstant c#6 85)
-(defconstant d6  86)
-(defconstant d#6 87)
-(defconstant e6  88)
-(defconstant f6  89)
-(defconstant f#6 90)
-(defconstant g6  91)
-(defconstant g#6 92)
-(defconstant a6  93)
-(defconstant a#6 94)
-(defconstant b6  95)
-
-(defconstant c7  96)
-(defconstant c#7 97)
-(defconstant d7  98)
-(defconstant d#7 99)
-(defconstant e7  100)
-(defconstant f7  101)
-(defconstant f#7 102)
-(defconstant g7  103)
-(defconstant g#7 104)
-(defconstant a7  105)
-(defconstant a#7 106)
-(defconstant b7  107)
-
-(defconstant c8  108)
-(defconstant c#8 109)
-(defconstant d8  110)
-(defconstant d#8 111)
-(defconstant e8  112)
-(defconstant f8  113)
-(defconstant f#8 114)
-(defconstant g8  115)
-(defconstant g#8 116)
-(defconstant a8  117)
-(defconstant a#8 118)
-(defconstant b8  119)
-
-(defconstant c9  120)
-(defconstant c#9 121)
-(defconstant d9  122)
-(defconstant d#9 123)
-(defconstant e9  124)
-(defconstant f9  125)
-(defconstant f#9 126)
-(defconstant g9  127)
-(defconstant g#9 128)
-(defconstant a9  129)
-(defconstant a#9 130)
-(defconstant b9  131)
-
-
-
-
-

@@ -9,5 +9,6 @@
   :serial t
   :components
   ((:file "package")
+   (:file "midi")
    (:file "audio")
    (:file "main")))
