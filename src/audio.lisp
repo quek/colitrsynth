@@ -83,19 +83,31 @@
 
 (defclass sequencer ()
   ((patterns :initarg :patterns :accessor .patterns
-             :initform nil)))
+             :initform nil)
+   (end :initform 0 :accessor .end)))
 
-(defmethod play ((self sequencer) line frame)
-  (loop for i below (.frames-per-buffer *audio*)
-        with out = (.out *audio*)
-        do (loop for pattern in (.patterns self)
-                 do (play pattern line frame))
-           (let ((value (* (.value out) (.volume out))))
-             ;;left
-             (push-to-buffer value)
-             ;;right
-             (push-to-buffer value))
-           (setf (.value out) 0.0d0)))
+(defmethod add-pattern ((self sequencer) (pattern pattern) line)
+  (setf (.end self) (max (.end self)
+                         (+ line (length (.lines pattern)))))
+  (push (cons line pattern) (.patterns self)))
+
+(defun play-sequencer (self line frame)
+  (declare (ignore frame))
+  (if (< (.end self) line)
+      (progn
+        (setf (.playing *audio*) nil)
+       (loop for i below (.frames-per-buffer *audio*)
+             do (push-to-buffer 0)      ;left
+                (push-to-buffer 0)))      ;right
+      (loop for i below (.frames-per-buffer *audio*)
+            with out = (.out *audio*)
+            do (loop for (start . pattern) in (.patterns self)
+                     if (<= start line (+ start (length (.lines pattern))))
+                       do (play-pattern pattern line))
+               (let ((value (* (.value out) (.volume out))))
+                 (push-to-buffer value) ;left
+                 (push-to-buffer value)) ;right
+               (setf (.value out) 0.0d0))))
 
 (defclass module ()
   ((children :initarg :children :accessor .children :initform nil)))
@@ -105,7 +117,7 @@
           :initform (list c4 d4 e4 f4) :accessor .lines)
    (last-note :initform off :accessor .last-note)))
 
-(defmethod play ((self pattern) line frame)
+(defun play-pattern (self line)
   ;; TODO
   (let* ((note (nth (mod line (length (.lines self))) (.lines self)))
          (note (if (= note none)
@@ -196,7 +208,7 @@
     (setf (.buffer-index *audio*) 0))
 
   (multiple-value-bind (line frame) (line-and-frame)
-    (play (.sequencer *audio*) line frame))
+    (play-sequencer (.sequencer *audio*) line frame))
   (incf (.nframes *audio*) frame-per-buffer)
   0)
 
@@ -216,26 +228,30 @@
 
 (defun start-audio ()
   ;;(declare (optimize (speed 3) (safety 0)))
-  (let ((*audio* (setf *audio* (make-instance 'audio))))
-    (setf (.patterns (.sequencer *audio*))
-          (list (make-instance
-                 'pattern
-                 :lines (list a4 none e4 g4
-                              a4 e4  g4 off)
-                 :children (list (make-instance
-                                  'sin-wave
-                                  :children (list (make-instance
-                                                   'adsr
-                                                   :children (list (.out *audio*)))))))
-                (make-instance
-                 'pattern
-                 :lines (list c4 none g4 b4
-                              c4 g4  b4 off)
-                 :children (list (make-instance
-                                  'sin-wave
-                                  :children (list (make-instance
-                                                   'adsr
-                                                   :children (list (.out *audio*)))))))))
+  (let* ((*audio* (setf *audio* (make-instance 'audio)))
+         (pattern1 (make-instance
+                    'pattern
+                    :lines (list a4 e4 none g4
+                                 a4 off  g4 c4)
+                    :children (list (make-instance
+                                     'sin-wave
+                                     :children (list (make-instance
+                                                      'adsr
+                                                      :children (list (.out *audio*))))))))
+         (pattern2 (make-instance
+                    'pattern
+                    :lines (list c4 g4 none b4
+                                 c4 off  b4 d4)
+                    :children (list (make-instance
+                                     'sin-wave
+                                     :children (list (make-instance
+                                                      'adsr
+                                                      :children (list (.out *audio*)))))))))
+    (add-pattern (.sequencer *audio*) pattern1 0)
+    (add-pattern (.sequencer *audio*) pattern1 (length (.lines pattern1)))
+    (add-pattern (.sequencer *audio*) pattern2 (length (.lines pattern1)))
+    (add-pattern (.sequencer *audio*) pattern1 (* 2 (length (.lines pattern1))))
+    (add-pattern (.sequencer *audio*) pattern2 (* 2 (length (.lines pattern1))))
     (portaudio:with-audio
       (cffi:with-foreign-objects ((handle :pointer))
         (unwind-protect
@@ -275,8 +291,7 @@
           (setf (.playing *audio*) t)
           (setf (.start-time *audio*) 0.0d0)
           (pa:start-stream (.stream *audio*))
-          ;; (loop while *playing* do (pa:pa-sleep 100))
-          (pa:pa-sleep 3000))
+          (loop while (.playing *audio*) do (pa:pa-sleep 10)))
         (when (.stream *audio*)
           (pa::stop-stream (.stream *audio*))
           (pa:close-stream (.stream *audio*)))))))
