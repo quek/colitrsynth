@@ -81,6 +81,13 @@
         (coerce value 'single-float))
   (incf (.buffer-index *audio*)))
 
+(defun write-out-buffer ()
+  (let* ((out (.out *audio*))
+         (value (* (.value out) (.volume out))))
+    (push-to-buffer value) ;left
+    (push-to-buffer value) ;right
+    (setf (.value out) 0.0d0)))
+
 (defclass sequencer ()
   ((patterns :initarg :patterns :accessor .patterns
              :initform nil)
@@ -96,18 +103,14 @@
   (if (< (.end self) line)
       (progn
         (setf (.playing *audio*) nil)
-       (loop for i below (.frames-per-buffer *audio*)
-             do (push-to-buffer 0)      ;left
-                (push-to-buffer 0)))      ;right
+        (loop for i below (.frames-per-buffer *audio*)
+              do (push-to-buffer 0)     ;left
+                 (push-to-buffer 0)))   ;right
       (loop for i below (.frames-per-buffer *audio*)
-            with out = (.out *audio*)
             do (loop for (start . pattern) in (.patterns self)
-                     if (<= start line (+ start (length (.lines pattern))))
-                       do (play-pattern pattern line))
-               (let ((value (* (.value out) (.volume out))))
-                 (push-to-buffer value) ;left
-                 (push-to-buffer value)) ;right
-               (setf (.value out) 0.0d0))))
+                     if (<= start line (1- (+ start (length (.lines pattern)))))
+                       do (play-pattern pattern (- line start)))
+               (write-out-buffer))))
 
 (defclass module ()
   ((children :initarg :children :accessor .children :initform nil)))
@@ -118,8 +121,7 @@
    (last-note :initform off :accessor .last-note)))
 
 (defun play-pattern (self line)
-  ;; TODO
-  (let* ((note (nth (mod line (length (.lines self))) (.lines self)))
+  (let* ((note (nth line (.lines self)))
          (note (if (= note none)
                    (.last-note self)
                    note)))
