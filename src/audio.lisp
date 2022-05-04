@@ -66,7 +66,7 @@
     :accessor .output-channels)
    (buffer :accessor .buffer)
    (buffer-index :initform 0 :accessor .buffer-index :type fixnum)
-   (bpm :initarg :bpm :initform 120.0d0 :accessor .bpm
+   (bpm :initarg :bpm :initform 90.0d0 :accessor .bpm
         :type double-float)
    (lpb :initarg :lpb :initform 4 :accessor .lpb)
    (sequencer :initarg :sequencer :accessor .sequencer
@@ -105,61 +105,76 @@
   ((children :initarg :children :accessor .children :initform nil)))
 
 (defclass pattern (module)
-  ((length :initarg :length :initform 10 :accessor .length)
-   (contents :initarg :contents
-             :initform (list a4 a4 e4 g4 a4 e4 e4 g4 c4 c4) :accessor .contents)
-   (phase :initform 0.0d0 :accessor .phase
-          :type double-float)))
+  ((lines :initarg :lines
+          :initform (list c4 d4 e4 f4) :accessor .lines)
+   (last-note :initform off :accessor .last-note)))
 
-(defmethod play ((pattern pattern) line frame)
+(defmethod play ((self pattern) line frame)
   ;; TODO
-  (let* ((note (nth (mod line (.length pattern)) (.contents pattern))))
-    (when note
-      (loop for child in (.children pattern)
-            with freq = (midino-to-freq note)
-            do (%play child freq)))))
+  (let* ((note (nth (mod line (length (.lines self))) (.lines self)))
+         (note (if (= note none)
+                   (.last-note self)
+                   note)))
+    (loop for child in (.children self)
+          do (%play child note))
+    (setf (.last-note self) note)))
 
 (defclass sin-wave (module)
-  ((freq :initarg :freq :initform 440.0d0 :accessor .freq
-         :type double-float)
+  ((note :initarg :note :initform off :accessor .note)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
-(defmethod %play ((sin-wave sin-wave) freq)
-  (when (/= (.freq sin-wave) freq)
-    (setf (.freq sin-wave) freq
-          (.phase sin-wave) 0
-          (.frame (car (.children sin-wave))) 0))
-  (let ((value (sin (* (/ (* 2 pi freq) (.sample-rate *audio*))
-                       (.phase sin-wave)))))
-    (loop for child in (.children sin-wave)
-          do (%play child value))
-    (incf (.phase sin-wave))))
+(defmethod %play ((self sin-wave) note)
+  (let ((value
+          (if (= note off)
+              0.0d0
+              (progn
+                (when (/= (.note self) note)
+                  (setf (.phase self) 0))
+                (setf (.note self) note)
+                (sin (* (/ (* 2 pi (midino-to-freq note)) (.sample-rate *audio*))
+                         (.phase self)))))))
+    (loop for child in (.children self)
+          do (%play child value)))
+  (incf (.phase self)))
 
 (defclass adsr (module)
   ((a :initarg :a :initform 0.003d0 :accessor .a)
    (d :initarg :d :initform 0.05d0 :accessor .d)
    (s :initarg :s :initform 0.3d0 :accessor .s)
    (r :initarg :r :initform 0.1d0 :accessor .r)
-   (frame :initform 0 :accessor .frame)))
+   (frame :initform 0 :accessor .frame)
+   (last-value :initform 0.0d0 :accessor .last-value)
+   (release-time :initform nil :accessor .release-time)
+   (release-value :initform nil :accessor .release-value)))
 
 (defmethod %play ((self adsr) value)
   (let* ((sec-per-frame (/ 1.0d0 (.sample-rate *audio*)))
          (current (* sec-per-frame (.frame self)))
-         (x (cond ((< current (.a self))
-                   (* (/ 1.0d0 (.a self)) current))
-                  ((< current (+ (.a self) (.d self)))
-                   (- 1.0d0 (* (/ (- 1.0d0 (.s self)) (.d self))
-                               (- current (.a self)))))
-                  ((< current (+ (.a self) (.d self) (.r self)))
-                   (- (.s self)
-                         (* (/ (.s self) (.r self))
-                            (- current (.a self) (.d self)))))
-                  (t 0d0)))
-         (value (* value x)))
+         (value (if (= value 0.0d0)
+                    (progn
+                      (when (null (.release-time self))
+                        (setf (.release-time self) current
+                              (.release-value self) (.last-value self)))
+                      (let ((elapsed (- current (.release-time self))))
+                        (if (< elapsed (.r self))
+                            (- (.release-value self)
+                               (* (/ (.release-value self)
+                                     (.r self))
+                                  elapsed))
+                            0.0d0)))
+                    (progn
+                      (setf (.release-time self) nil)
+                      (cond ((< current (.a self))
+                             (* value (/ 1.0d0 (.a self)) current))
+                            ((< current (+ (.a self) (.d self)))
+                             (* value (- 1.0d0 (* (/ (- 1.0d0 (.s self)) (.d self))
+                                                  (- current (.a self))))))
+                            (t (* value (.s self))))))))
     (loop for child in (.children self)
           do (%play child value))
-    (incf (.frame self))))
+    (incf (.frame self))
+    (setf (.last-value self) value)))
 
 (defclass out ()
   ((value :initform 0.0d0 :accessor .value)
@@ -209,7 +224,8 @@
     (setf (.patterns (.sequencer *audio*))
           (list (make-instance
                  'pattern
-                 :contents (list a4 a4 e4 g4 a4 e4 e4 g4 c4 c4)
+                 :lines (list a4 none e4 g4
+                              a4 e4  g4 off)
                  :children (list (make-instance
                                   'sin-wave
                                   :children (list (make-instance
@@ -217,7 +233,8 @@
                                                    :children (list (.out *audio*)))))))
                 (make-instance
                  'pattern
-                 :contents (list c4 c4 g4 b4 c4 g4 g4 b4 e4 e4)
+                 :lines (list c4 none g4 b4
+                              c4 g4  b4 off)
                  :children (list (make-instance
                                   'sin-wave
                                   :children (list (make-instance

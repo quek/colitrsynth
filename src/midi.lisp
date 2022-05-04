@@ -13,6 +13,9 @@
       (funcall 'midino-to-freq midino)
       form))
 
+(defconstant none 0)
+(defconstant off -1)
+
 (defconstant c0  12)
 (defconstant c#0 13)
 (defconstant d0  14)
