@@ -65,6 +65,7 @@
     :type fixnum
     :accessor .output-channels)
    (buffer :accessor .buffer)
+   (buffer-index :initform 0 :accessor .buffer-index :type fixnum)
    (bpm :initarg :bpm :initform 120.0d0 :accessor .bpm
         :type double-float)
    (lpb :initarg :lpb :initform 4 :accessor .lpb)
@@ -79,42 +80,60 @@
     (multiple-value-bind (line remain) (floor (/ current-sec sec-per-line))
       (values line (floor (/ remain sec-per-frame))))))
 
+(defun push-to-buffer (value)
+  (setf (cffi:mem-aref (.buffer *audio*) :float (.buffer-index *audio*))
+        (coerce value 'single-float))
+  (incf (.buffer-index *audio*)))
+
 (defclass pattern ()
-  ((length :initarg :length :initform #x40 :accessor .length)
+  ((length :initarg :length :initform 10 :accessor .length)
    (contents :initarg :contents
-             :initform (list a4 a4 e4 g4 a4 e4 g4) :accessor .contents)
+             :initform (list a4 a4 e4 g4 a4 e4 e4 g4 c4 c4) :accessor .contents)
    (children :initform (list (make-instance 'sin-wave)) :accessor .children)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
 (defmethod play ((pattern pattern) line frame)
-  (let* ((note (nth line (.contents pattern))))
+  (let* ((note (nth (mod line (.length pattern)) (.contents pattern))))
     (if note
         (loop for i below (* (.frames-per-buffer *audio*) 2) by 2
-              with vco = (midino-to-freq note)
-              for v = (coerce (%play (car (.children pattern)) vco) 'single-float)
-              do (setf (cffi:mem-aref (.buffer *audio*) :float i)
-                       v)
-                 (setf (cffi:mem-aref (.buffer *audio*) :float (1+ i))
-                       v))
-        (loop for i below (* (.frames-per-buffer *audio*) 2) by 2
-              do (setf (cffi:mem-aref (.buffer *audio*) :float i)
-                       0.0)
-                 (setf (cffi:mem-aref (.buffer *audio*) :float (1+ i))
-                       0.0)))))
+              with freq = (midino-to-freq note)
+              do (%play (car (.children pattern)) freq))
+        (loop for i below (* (.frames-per-buffer *audio*) 2)
+              do (push-to-buffer 0.0d0)))))
 
 (defclass sin-wave ()
   ((freq :initarg :freq :initform 440.0d0 :accessor .freq
          :type double-float)
    (phase :initform 0.0d0 :accessor .phase
-          :type double-float)))
+          :type double-float)
+   (children :initform (list (make-instance 'out)) :accessor .children)))
 
-(defmethod %play ((sin-wave sin-wave) vco)
-  (prog1
-      (* (sin (* (/ (* 2 pi vco) (.sample-rate *audio*))
-              (.phase sin-wave)))
-         0.6)
+(defmethod %play ((sin-wave sin-wave) freq)
+  (when (/= (.freq sin-wave) freq)
+    (setf (.freq sin-wave) freq
+          (.phase sin-wave) 0))
+  (let ((value (sin (* (/ (* 2 pi freq) (.sample-rate *audio*))
+                       (.phase sin-wave)))))
+    (loop for child in (.children sin-wave)
+          do (%play child value))
     (incf (.phase sin-wave))))
+
+(defclass adsr ()
+  ((a :initarg :a :initform 0.03d0 :accessor .a)
+   (d :initarg :d :initform 0.1d0 :accessor .d)
+   (s :initarg :s :initform 100d0 :accessor .s)
+   (r :initarg :r :initform 0.05d0 :accessor .r)
+   (frame :initform 0 :accessor .frame)))
+
+(defclass out ()
+  ((volume :initform 0.6d0 :accessor .volume)))
+
+(defmethod %play ((out out) value)
+  ;;left
+  (push-to-buffer (* value (.volume out)))
+  ;;right
+  (push-to-buffer (* value (.volume out))))
 
 (defun proc (input-buffer
              output-buffer
@@ -129,7 +148,8 @@
     (when (= (the double-float (.start-time *audio*)) 0.0d0)
       (setf (.start-time *audio*) current-time))
     (setf (.current-time *audio*) (the double-float (- current-time (the double-float (.start-time *audio*)))))
-    (setf (.buffer *audio*) output-buffer))
+    (setf (.buffer *audio*) output-buffer)
+    (setf (.buffer-index *audio*) 0))
 
   (multiple-value-bind (line frame) (line-and-frame)
    (play (car (.patterns *audio*)) line frame))
