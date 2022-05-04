@@ -138,7 +138,9 @@
          (note (if (= note none)
                    (.last-note self)
                    note))
-         (gate (/= note off)))
+         (gate (and (/= note off)
+                    ;;こんな実装でいいの？
+                    (= (.last-note self) note))))
     (play-children self note gate)
     (setf (.last-note self) note)))
 
@@ -166,12 +168,15 @@
    (d :initarg :d :initform 0.05d0 :accessor .d)
    (s :initarg :s :initform 0.3d0 :accessor .s)
    (r :initarg :r :initform 0.1d0 :accessor .r)
+   (last-gate :initform nil :accessor .last-gate)
    (frame :initform 0 :accessor .frame)
    (release-time :initform nil :accessor .release-time)
    (release-value :initform nil :accessor .release-value)))
 
 (defmethod play ((self adsr) note gate)
   (declare (ignore note))
+  (when (and gate (not (.last-gate self)))
+    (setf (.frame self) 0))
   (let* ((sec-per-frame (/ 1.0d0 (.sample-rate *audio*)))
          (current (* sec-per-frame (.frame self)))
          (value (if gate
@@ -192,7 +197,8 @@
                                (/ elapsed (.r self)))
                             0.0d0))))))
     (play-children self value value)
-    (incf (.frame self))))
+    (incf (.frame self))
+    (setf (.last-gate self) gate)))
 
 (defclass amp (module)
   ((left :initform 1.0d0 :accessor .left)
@@ -261,13 +267,13 @@
                                   :lines (list a4 e4 none g4
                                                a4 off  g4 c4)))
          (sin-wave1 (make-instance 'sin-wave))
-         (adsr1 (make-instance 'adsr))
+         (adsr1 (make-instance 'adsr :d 0.2d0 :s 0d0))
          (amp1 (make-instance 'amp))
          (pattern2 (make-instance 'pattern
-                                  :lines (list c4 g4 none b4
-                                               c4 off  b4 d4)))
+                                  :lines (list a3 e3 none g3
+                                               a3 off  g3 c3)))
          (sin-wave2 (make-instance 'sin-wave))
-         (adsr2 (make-instance 'adsr))
+         (adsr2 (make-instance 'adsr :d 0.7d0 :s 0.8d0))
          (amp2 (make-instance 'amp)))
     (connect pattern1 sin-wave1)
     (connect pattern1 adsr1)
