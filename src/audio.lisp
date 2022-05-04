@@ -9,10 +9,6 @@
   (:output-overflow #x00000008)
   (:priming-output #x00000010))
 
-(cffi:defcstruct user-data
-  (freq :float)
-  (index :float))
-
 (cffi:defcstruct pa-stream-callback-time-info
   (input-buffer-adc-time pa::pa-time)
   (current-time pa::pa-time)
@@ -241,9 +237,7 @@
                                                    'adsr
                                                    :children (list (.out *audio*)))))))))
     (portaudio:with-audio
-      (cffi:with-foreign-objects ((handle :pointer)
-                                  ;; たぶんいらない
-                                  (user-data '(:struct user-data)))
+      (cffi:with-foreign-objects ((handle :pointer))
         (unwind-protect
              (let* ((output-parameters (pa::make-stream-parameters)))
                (setf (pa:stream-parameters-channel-count output-parameters) (.output-channels *audio*)
@@ -258,13 +252,6 @@
                          (equal (pa:device-info-name device-info) (.device-name *audio*)))
                        do (setf (pa::stream-parameters-device output-parameters) i)
                           (loop-finish))
-               
-               (setf (cffi:foreign-slot-value user-data '(:struct user-data)
-                                              'freq)
-                     440.0
-                     (cffi:foreign-slot-value user-data '(:struct user-data)
-                                              'index)
-                     0.0)
                (setf (.stream *audio*)
                      (progn
                        (pa::raise-if-error
@@ -276,7 +263,7 @@
                          (.frames-per-buffer *audio*)
                          0
                          (cffi:callback my-callback)
-                         user-data))
+                         (cffi:null-pointer)))
                        (make-instance
                         'pa:pa-stream
                         :handle (cffi:mem-ref handle :pointer)
