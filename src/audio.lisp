@@ -38,9 +38,8 @@
     :initarg sample-format
     :initform :float
     :accessor .sample-format)
-   (playing
-    :initform nil
-    :accessor .playing)
+   (playing :initform nil :accessor .playing)
+   (request-stop :initform nil :accessor .request-stop)
    (start-time
     :initform 0.0d0
     :accessor .start-time
@@ -73,7 +72,17 @@
   (unless (.playing *audio*)
     (setf (.playing *audio*) t)
     (setf (.start-time *audio*) 0.0d0)
+    (setf (.request-stop *audio*) nil)
+    (setf (.nframes *audio*) 0)
     (pa:start-stream (.stream *audio*))))
+
+(defun stop-audio ()
+  (when (.playing *audio*)
+    (setf (.playing *audio*) nil)
+    (pa::stop-stream (.stream *audio*))))
+
+(defun request-stop ()
+  (setf (.request-stop *audio*) t))
 
 (defun line-and-frame ()
   (let* ((sec-per-line (/ 60.0d0 (.bpm *audio*) (.lpb *audio*)))
@@ -108,7 +117,7 @@
       (progn
         (loop for i below (.frames-per-buffer *audio*)
               do (write-out-buffer))
-        (setf (.playing *audio*) nil))
+        (request-stop))
       (loop for i below (.frames-per-buffer *audio*)
             do (loop for (start . pattern) in (.patterns self)
                      if (<= start line (1- (+ start (length (.lines pattern)))))
@@ -289,78 +298,79 @@
            status-flags))
 
 (defmacro with-audio (&body body)
-  `(portaudio:with-audio
-     (cffi:with-foreign-objects ((handle :pointer))
-       (unwind-protect
-            (let* ((output-parameters (pa::make-stream-parameters)))
-              (setf (pa:stream-parameters-channel-count output-parameters) (.output-channels *audio*)
-                    (pa:stream-parameters-sample-format output-parameters) (.sample-format *audio*)
-                    (pa::stream-parameters-suggested-latency output-parameters) 0.0d0) ;TODO
-              (loop for i of-type fixnum below (pa:get-device-count)
-                    for device-info = (pa:get-device-info i)
-                    if (and
-                        (equal (pa:host-api-info-name
-                                (pa:get-host-api-info (pa:device-info-host-api device-info)))
-                               (.device-api *audio*))
-                        (equal (pa:device-info-name device-info) (.device-name *audio*)))
-                      do (setf (pa::stream-parameters-device output-parameters) i)
-                         (loop-finish))
-              (setf (.stream *audio*)
-                    (progn
-                      (pa::raise-if-error
-                       (pa::%open-stream
-                        handle
-                        nil
-                        output-parameters
-                        (.sample-rate *audio*)
-                        (.frames-per-buffer *audio*)
-                        0
-                        (cffi:callback my-callback)
-                        (cffi:null-pointer)))
-                      (make-instance
-                       'pa:pa-stream
-                       :handle (cffi:mem-ref handle :pointer)
-                       :input-sample-format (.sample-format *audio*)
-                       :input-channels (if (zerop (the fixnum (.input-channels *audio*))) nil (.input-channels *audio*))
-                       :output-sample-format (.sample-format *audio*)
-                       :output-channels (if (zerop (the fixnum (.output-channels *audio*))) nil (.output-channels *audio*))
-                       :frames-per-buffer (.frames-per-buffer *audio*))))
-              ,@body)
-         (when (.stream *audio*)
-           (pa::stop-stream (.stream *audio*))
-           (pa:close-stream (.stream *audio*)))))))
+  `(let ((*audio* (setf *audio* (make-instance 'audio))))
+     (portaudio:with-audio
+       (cffi:with-foreign-objects ((handle :pointer))
+         (unwind-protect
+              (let* ((output-parameters (pa::make-stream-parameters)))
+                (setf (pa:stream-parameters-channel-count output-parameters) (.output-channels *audio*)
+                      (pa:stream-parameters-sample-format output-parameters) (.sample-format *audio*)
+                      (pa::stream-parameters-suggested-latency output-parameters) 0.0d0) ;TODO
+                (loop for i of-type fixnum below (pa:get-device-count)
+                      for device-info = (pa:get-device-info i)
+                      if (and
+                          (equal (pa:host-api-info-name
+                                  (pa:get-host-api-info (pa:device-info-host-api device-info)))
+                                 (.device-api *audio*))
+                          (equal (pa:device-info-name device-info) (.device-name *audio*)))
+                        do (setf (pa::stream-parameters-device output-parameters) i)
+                           (loop-finish))
+                (setf (.stream *audio*)
+                      (progn
+                        (pa::raise-if-error
+                         (pa::%open-stream
+                          handle
+                          nil
+                          output-parameters
+                          (.sample-rate *audio*)
+                          (.frames-per-buffer *audio*)
+                          0
+                          (cffi:callback my-callback)
+                          (cffi:null-pointer)))
+                        (make-instance
+                         'pa:pa-stream
+                         :handle (cffi:mem-ref handle :pointer)
+                         :input-sample-format (.sample-format *audio*)
+                         :input-channels (if (zerop (the fixnum (.input-channels *audio*))) nil (.input-channels *audio*))
+                         :output-sample-format (.sample-format *audio*)
+                         :output-channels (if (zerop (the fixnum (.output-channels *audio*))) nil (.output-channels *audio*))
+                         :frames-per-buffer (.frames-per-buffer *audio*))))
+                ,@body)
+           (when (.stream *audio*)
+             (pa:close-stream (.stream *audio*))))))))
 
 (defun scratch-audio ()
   ;;(declare (optimize (speed 3) (safety 0)))
-  (let* ((*audio* (setf *audio* (make-instance 'audio)))
-         (out (.out *audio*))
-         (pattern1 (make-instance 'pattern
-                                  :lines (list a4 e4 none g4
-                                               a4 off  g4 c4)))
-         (osc1 (make-instance 'sin-wave))
-         (adsr1 (make-instance 'adsr :d 0.2d0 :s 0d0))
-         (amp1 (make-instance 'amp))
-         (pattern2 (make-instance 'pattern
-                                  :lines (list a3 e3 none g3
-                                               a3 off  g3 c3)))
-         (osc2 (make-instance 'saw-wave))
-         (adsr2 (make-instance 'adsr :d 0.7d0 :s 0.8d0))
-         (amp2 (make-instance 'amp)))
-    (connect pattern1 osc1)
-    (connect pattern1 adsr1)
-    (connect osc1 amp1)
-    (connect adsr1 amp1)
-    (connect amp1 out)
-    (connect pattern2 osc2)
-    (connect pattern2 adsr2)
-    (connect osc2 amp2)
-    (connect adsr2 amp2)
-    (connect amp2 out)
-    (add-pattern (.sequencer *audio*) pattern1 0)
-    (add-pattern (.sequencer *audio*) pattern1 (length (.lines pattern1)))
-    (add-pattern (.sequencer *audio*) pattern2 (length (.lines pattern1)))
-    (add-pattern (.sequencer *audio*) pattern1 (* 2 (length (.lines pattern1))))
-    (add-pattern (.sequencer *audio*) pattern2 (* 2 (length (.lines pattern1))))
-    (with-audio
+  (with-audio
+    (let* ((out (.out *audio*))
+           (pattern1 (make-instance 'pattern
+                                    :lines (list a4 e4 none g4
+                                                 a4 off  g4 c4)))
+           (osc1 (make-instance 'sin-wave))
+           (adsr1 (make-instance 'adsr :d 0.2d0 :s 0d0))
+           (amp1 (make-instance 'amp))
+           (pattern2 (make-instance 'pattern
+                                    :lines (list a3 e3 none g3
+                                                 a3 off  g3 c3)))
+           (osc2 (make-instance 'saw-wave))
+           (adsr2 (make-instance 'adsr :d 0.7d0 :s 0.8d0))
+           (amp2 (make-instance 'amp)))
+      (connect pattern1 osc1)
+      (connect pattern1 adsr1)
+      (connect osc1 amp1)
+      (connect adsr1 amp1)
+      (connect amp1 out)
+      (connect pattern2 osc2)
+      (connect pattern2 adsr2)
+      (connect osc2 amp2)
+      (connect adsr2 amp2)
+      (connect amp2 out)
+      (add-pattern (.sequencer *audio*) pattern1 0)
+      (add-pattern (.sequencer *audio*) pattern1 (length (.lines pattern1)))
+      (add-pattern (.sequencer *audio*) pattern2 (length (.lines pattern1)))
+      (add-pattern (.sequencer *audio*) pattern1 (* 2 (length (.lines pattern1))))
+      (add-pattern (.sequencer *audio*) pattern2 (* 2 (length (.lines pattern1))))
+
       (play-audio)
-      (loop while (.playing *audio*) do (pa:pa-sleep 10)))))
+      (loop until (.request-stop *audio*) do (pa:pa-sleep 10))
+      (stop-audio))))
