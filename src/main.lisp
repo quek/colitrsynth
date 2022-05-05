@@ -107,35 +107,35 @@
           (sdl2:show-window win)
           (format t "Beginning main loop.~%")
           (finish-output)
-          (a:with-audio
-            (let* ((out (a::.out a:*audio*))
-                   (pattern1 (make-instance 'a::pattern
-                                            :lines (list a::a4 a::e4 a::none a::g4
-                                                         a::a4 a::off  a::g4 a::c4)))
-                   (osc1 (make-instance 'a::sin-wave))
-                   (adsr1 (make-instance 'a::adsr :d 0.2d0 :s 0d0))
-                   (amp1 (make-instance 'a::amp))
-                   (pattern2 (make-instance 'a::pattern
-                                            :lines (list a::a3 a::e3 a::none a::g3
-                                                         a::a3 a::off  a::g3 a::c3)))
-                   (osc2 (make-instance 'a::saw-wave))
-                   (adsr2 (make-instance 'a::adsr :d 0.7d0 :s 0.8d0))
-                   (amp2 (make-instance 'a::amp)))
-              (a:connect pattern1 osc1)
-              (a:connect pattern1 adsr1)
-              (a:connect osc1 amp1)
-              (a:connect adsr1 amp1)
-              (a:connect amp1 out)
-              (a:connect pattern2 osc2)
-              (a:connect pattern2 adsr2)
-              (a:connect osc2 amp2)
-              (a:connect adsr2 amp2)
-              (a:connect amp2 out)
-              (a:add-pattern (a:.sequencer a:*audio*) pattern1 0)
-              (a:add-pattern (a:.sequencer a:*audio*) pattern1 (length (a:.lines pattern1)))
-              (a:add-pattern (a:.sequencer a:*audio*) pattern2 (length (a:.lines pattern1)))
-              (a:add-pattern (a:.sequencer a:*audio*) pattern1 (* 2 (length (a:.lines pattern1))))
-              (a:add-pattern (a:.sequencer a:*audio*) pattern2 (* 2 (length (a:.lines pattern1))))
+          (with-audio
+            (let* ((out (.out *audio*))
+                   (pattern1 (make-instance 'pattern
+                                            :lines (list a4 e4 none g4
+                                                         a4 off  g4 c4)))
+                   (osc1 (make-instance 'sin-wave))
+                   (adsr1 (make-instance 'adsr :d 0.2d0 :s 0d0))
+                   (amp1 (make-instance 'amp))
+                   (pattern2 (make-instance 'pattern
+                                            :lines (list a3 e3 none g3
+                                                         a3 off  g3 c3)))
+                   (osc2 (make-instance 'saw-wave))
+                   (adsr2 (make-instance 'adsr :d 0.7d0 :s 0.8d0))
+                   (amp2 (make-instance 'amp)))
+              (connect pattern1 osc1)
+              (connect pattern1 adsr1)
+              (connect osc1 amp1)
+              (connect adsr1 amp1)
+              (connect amp1 out)
+              (connect pattern2 osc2)
+              (connect pattern2 adsr2)
+              (connect osc2 amp2)
+              (connect adsr2 amp2)
+              (connect amp2 out)
+              (add-pattern (.sequencer *audio*) pattern1 0)
+              (add-pattern (.sequencer *audio*) pattern1 (length (.lines pattern1)))
+              (add-pattern (.sequencer *audio*) pattern2 (length (.lines pattern1)))
+              (add-pattern (.sequencer *audio*) pattern1 (* 2 (length (.lines pattern1))))
+              (add-pattern (.sequencer *audio*) pattern2 (* 2 (length (.lines pattern1))))
               (unwind-protect
                    (sdl2:with-event-loop (:method :poll)
                      (:keydown (:keysym keysym)
@@ -159,7 +159,7 @@
                               (print 'sdl2-ttf:quit)
                               (sdl2-ttf:quit))
                             t))
-                (a:stop-audio)))))))))
+                (stop-audio)))))))))
 
 (defun keydown (keysym)
   (let ((scancode (sdl2:scancode-value keysym))
@@ -189,9 +189,9 @@
 (defun mousebuttonup (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (if (a::.playing a:*audio*)
-      (a:stop-audio)
-      (a:play-audio)))
+  (if (.playing *audio*)
+      (stop-audio)
+      (play-audio)))
 
 (defun idle (renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
@@ -202,6 +202,6 @@
         do (render module renderer))
   
   (sdl2:render-present renderer)
-  (when (a::.request-stop a:*audio*)
-    (a:stop-audio))
+  (when (.request-stop *audio*)
+    (stop-audio))
   (sdl2:delay 50))                      ;ms

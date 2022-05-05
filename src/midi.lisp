@@ -1,4 +1,4 @@
-(in-package :colitrsynth.audio)
+(in-package :colitrsynth)
 
 (defun midino-to-freq (midino)
   (declare (optimize (speed 3) (safety 0))

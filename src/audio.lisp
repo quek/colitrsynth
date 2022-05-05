@@ -1,4 +1,4 @@
-(in-package :colitrsynth.audio)
+(in-package :colitrsynth)
 
 ;;(portaudio::print-devices)
 
@@ -124,21 +124,21 @@
                        do (play-pattern pattern (- line start)))
                (write-out-buffer))))
 
-(defgeneric play (module left right))
+(defgeneric play (audio-module left right))
 
-(defclass module ()
+(defclass audio-module ()
   ((parents :initarg :parents :accessor .parents :initform nil)
    (children :initarg :children :accessor .children :initform nil)))
 
-(defmethod connect ((parent module) (child module))
+(defmethod connect ((parent audio-module) (child audio-module))
   (push child (.children parent))
   (push parent (.parents child)))
 
-(defmethod play-children ((self module) left right)
+(defmethod play-children ((self audio-module) left right)
   (loop for child in (.children self)
         do (play child left right)))
 
-(defclass pattern (module)
+(defclass pattern (audio-module)
   ((lines :initarg :lines
           :initform (list c4 d4 e4 f4) :accessor .lines)
    (last-note :initform off :accessor .last-note)))
@@ -159,7 +159,7 @@
     (play-children self note gate)
     (setf (.last-note self) note)))
 
-(defclass sin-wave (module)
+(defclass sin-wave (audio-module)
   ((note :initarg :note :initform off :accessor .note)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
@@ -178,7 +178,7 @@
     (play-children self value value))
   (incf (.phase self)))
 
-(defclass saw-wave (module)
+(defclass saw-wave (audio-module)
   ((note :initarg :note :initform off :accessor .note)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
@@ -201,7 +201,7 @@
     (play-children self value value))
   (incf (.phase self)))
 
-(defclass adsr (module)
+(defclass adsr (audio-module)
   ((a :initarg :a :initform 0.003d0 :accessor .a)
    (d :initarg :d :initform 0.05d0 :accessor .d)
    (s :initarg :s :initform 0.3d0 :accessor .s)
@@ -238,7 +238,7 @@
     (incf (.frame self))
     (setf (.last-gate self) gate)))
 
-(defclass amp (module)
+(defclass amp (audio-module)
   ((left :initform 1.0d0 :accessor .left)
    (right :initform 1.0d0 :accessor .right)
    (in-count :initform 0 :accessor .in-count)))
@@ -253,7 +253,7 @@
     (setf (.left self) 1.0d0
           (.right self) 1.0d0)))
 
-(defclass out (module)
+(defclass out (audio-module)
   ((left :initform 0.0d0 :accessor .left)
    (right :initform 0.0d0 :accessor .right)
    (volume :initform 0.6d0 :accessor .volume)))
