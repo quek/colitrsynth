@@ -70,10 +70,10 @@
    (out :initform (make-instance 'out) :accessor .out)))
 
 (defun play-audio ()
-  (pa:start-stream (.stream *audio*)))
-
-(defun stop-audio ()
-  (pa::stop-stream (.stream *audio*)))
+  (unless (.playing *audio*)
+    (setf (.playing *audio*) t)
+    (setf (.start-time *audio*) 0.0d0)
+    (pa:start-stream (.stream *audio*))))
 
 (defun line-and-frame ()
   (let* ((sec-per-line (/ 60.0d0 (.bpm *audio*) (.lpb *audio*)))
@@ -106,9 +106,9 @@
   (declare (ignore frame))
   (if (< (.end self) line)
       (progn
-        (setf (.playing *audio*) nil)
         (loop for i below (.frames-per-buffer *audio*)
-              do (write-out-buffer)))
+              do (write-out-buffer))
+        (setf (.playing *audio*) nil))
       (loop for i below (.frames-per-buffer *audio*)
             do (loop for (start . pattern) in (.patterns self)
                      if (<= start line (1- (+ start (length (.lines pattern)))))
@@ -259,7 +259,7 @@
              time-info
              status-flags)
   (declare ;; (optimize (speed 3) (safety 0))
-           (ignore input-buffer status-flags))
+   (ignore input-buffer status-flags))
   (let ((current-time (cffi:foreign-slot-value time-info '(:struct pa-stream-callback-time-info)
                                                'current-time)))
     (declare (double-float current-time))
@@ -325,11 +325,10 @@
                        :output-sample-format (.sample-format *audio*)
                        :output-channels (if (zerop (the fixnum (.output-channels *audio*))) nil (.output-channels *audio*))
                        :frames-per-buffer (.frames-per-buffer *audio*))))
-              (setf (.playing *audio*) t)
-              (setf (.start-time *audio*) 0.0d0)
-              ,@body))
-       (when (.stream *audio*)
-         (pa:close-stream (.stream *audio*))))))
+              ,@body)
+         (when (.stream *audio*)
+           (pa::stop-stream (.stream *audio*))
+           (pa:close-stream (.stream *audio*)))))))
 
 (defun scratch-audio ()
   ;;(declare (optimize (speed 3) (safety 0)))
@@ -363,9 +362,5 @@
     (add-pattern (.sequencer *audio*) pattern1 (* 2 (length (.lines pattern1))))
     (add-pattern (.sequencer *audio*) pattern2 (* 2 (length (.lines pattern1))))
     (with-audio
-      (unwind-protect
-           (progn
-             (pa:start-stream (.stream *audio*))
-             (loop while (.playing *audio*) do (pa:pa-sleep 10)))
-        (when (.stream *audio*)
-          (pa::stop-stream (.stream *audio*)))))))
+      (play-audio)
+      (loop while (.playing *audio*) do (pa:pa-sleep 10)))))
