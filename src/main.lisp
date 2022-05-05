@@ -9,17 +9,61 @@
    (font :initform nil :accessor .font)
    (modules :initarg :modules :initform '() :accessor .modules)))
 
-(defclass module ()
-  ((name :initarg :name :initform 10 :accessor .name)
-   (color :initarg :color :initform '(0.5 0.5 0.5) :accessor .color)
-   (x :initarg :x :initform 10 :accessor .x)
-   (y :initarg :y :initform 10 :accessor .y)
+(defclass renderable ()
+  ((color :initarg :color :initform (list #xcc #xcc #xcc #xff) :accessor .color)
+   (x :initarg :x :initform 10)
+   (y :initarg :y :initform 10)
    (width :initarg :width :initform 100 :accessor .width)
-   (height :initarg :height :initform 80 :accessor .height)))
+   (height :initarg :height :initform 80 :accessor .height)
+   (parent :initarg :parent :initform nil :accessor .parent)
+   (children :initarg :children :initform nil :accessor .children)))
 
-(defmethod render ((module module) renderer)
-  (with-slots (color x y width height) module
-    (sdl2:render-draw-rect renderer (sdl2:make-rect x y width height))))
+(defmethod add-child ((parent renderable) (child renderable))
+  (push child (.children parent))
+  (setf (.parent child) parent))
+
+(defmethod .x ((self renderable))
+  (+ (slot-value self 'x)
+     (if (.parent self)
+         (.x (.parent self))
+         0)))
+
+(defmethod .y ((self renderable))
+  (+ (slot-value self 'y)
+     (if (.parent self)
+         (.y (.parent self))
+         0)))
+
+(defmethod (setf .x) ((self renderable) value)
+  (setf (slot-value self 'x) value))
+
+(defmethod (setf .y) ((self renderable) value)
+  (setf (slot-value self 'y) value))
+
+(defmethod render ((self renderable) renderer)
+  (with-slots (color width height) self
+    (sdl2:render-draw-rect renderer (sdl2:make-rect (.x self) (.y self) width height)))
+  (loop for child in (.children self)
+        do (render child renderer)))
+
+(defclass module (renderable)
+  ((name :initarg :name :initform "noname" :accessor .name)))
+
+(defmethod initialize-instance :after ((self module) &key)
+  (add-child self (make-instance 'text :value (.name self) :x 3 :y 3)))
+
+(defclass text (renderable)
+  ((value :initarg :value :initform "Hi" :accessor .value)))
+
+(defmethod render ((self text) renderer)
+  (let* ((surface  (apply #'sdl2-ttf:render-utf8-solid (.font *app*) (.value self) (.color self)))
+         (width (sdl2:surface-width surface))
+         (height (sdl2:surface-height surface))
+         (texture (sdl2:create-texture-from-surface renderer surface)))
+    (sdl2:render-copy renderer
+                      texture
+                      :source-rect nil
+                      :dest-rect (sdl2:make-rect (.x self) (.y self) width height))))
 
 (defun main ()
   (sb-thread:make-thread 'main-loop))
@@ -30,10 +74,15 @@
                             :width 800
                             :height 600
                             :modules (list (make-instance 'module
+                                                          :name "にゃ～"
                                                           :x 60
                                                           :y 50
                                                           :width 100
-                                                          :height 80))))))
+                                                          :height 80)
+                                           (make-instance 'text
+                                                          :value "Hello, こんにちは。"
+                                                          :x 60
+                                                          :y 150 ))))))
     (sdl2:with-init (:everything)
       (sdl2-ttf:init)
       (let ((font "c:/Windows/Fonts/msgothic.ttc"))
@@ -123,15 +172,6 @@
 
   (loop for module in (.modules *app*)
         do (render module renderer))
-
-  (let* ((surface  (sdl2-ttf:render-utf8-solid (.font *app*) "Hello World! こんにちは。" #xcc #xcc #xcc 0))
-         (width (sdl2:surface-width surface))
-         (height (sdl2:surface-height surface))
-         (texture (sdl2:create-texture-from-surface renderer surface)))
-    (sdl2:render-copy renderer
-                      texture
-                      :source-rect nil
-                      :dest-rect (sdl2:make-rect 50 150 width height)))
   
   (sdl2:render-present renderer)
   (sdl2:delay 50))                      ;ms
