@@ -69,6 +69,12 @@
               :initform (make-instance 'sequencer))
    (out :initform (make-instance 'out) :accessor .out)))
 
+(defun play-audio ()
+  (pa:start-stream (.stream *audio*)))
+
+(defun stop-audio ()
+  (pa::stop-stream (.stream *audio*)))
+
 (defun line-and-frame ()
   (let* ((sec-per-line (/ 60.0d0 (.bpm *audio*) (.lpb *audio*)))
          (sec-per-frame (/ 1.0d0 (.sample-rate *audio*)))
@@ -171,17 +177,18 @@
 (defmethod play ((self saw-wave) note gate)
   (declare (ignore gate))
   (let ((value
-          (if (= note off)
-              0.0d0
-              (progn
-                (when (/= (.note self) note)
-                  (setf (.phase self) 0))
-                (setf (.note self) note)
-                (- (* (mod (/ (* (.phase self) (midino-to-freq note))
-                            (.sample-rate *audio*))
-                         1)
-                      2)
-                   1)))))
+          (* 0.3                        ;TODO 音大きいのでとりあえずつけとく。本来はいらない？
+           (if (= note off)
+               0.0d0
+               (progn
+                 (when (/= (.note self) note)
+                   (setf (.phase self) 0))
+                 (setf (.note self) note)
+                 (- (* (mod (/ (* (.phase self) (midino-to-freq note))
+                               (.sample-rate *audio*))
+                            1)
+                       2)
+                    1))))))
     (play-children self value value))
   (incf (.phase self)))
 
@@ -281,7 +288,50 @@
            time-info
            status-flags))
 
-(defun start-audio ()
+(defmacro with-audio (&body body)
+  `(portaudio:with-audio
+     (cffi:with-foreign-objects ((handle :pointer))
+       (unwind-protect
+            (let* ((output-parameters (pa::make-stream-parameters)))
+              (setf (pa:stream-parameters-channel-count output-parameters) (.output-channels *audio*)
+                    (pa:stream-parameters-sample-format output-parameters) (.sample-format *audio*)
+                    (pa::stream-parameters-suggested-latency output-parameters) 0.0d0) ;TODO
+              (loop for i of-type fixnum below (pa:get-device-count)
+                    for device-info = (pa:get-device-info i)
+                    if (and
+                        (equal (pa:host-api-info-name
+                                (pa:get-host-api-info (pa:device-info-host-api device-info)))
+                               (.device-api *audio*))
+                        (equal (pa:device-info-name device-info) (.device-name *audio*)))
+                      do (setf (pa::stream-parameters-device output-parameters) i)
+                         (loop-finish))
+              (setf (.stream *audio*)
+                    (progn
+                      (pa::raise-if-error
+                       (pa::%open-stream
+                        handle
+                        nil
+                        output-parameters
+                        (.sample-rate *audio*)
+                        (.frames-per-buffer *audio*)
+                        0
+                        (cffi:callback my-callback)
+                        (cffi:null-pointer)))
+                      (make-instance
+                       'pa:pa-stream
+                       :handle (cffi:mem-ref handle :pointer)
+                       :input-sample-format (.sample-format *audio*)
+                       :input-channels (if (zerop (the fixnum (.input-channels *audio*))) nil (.input-channels *audio*))
+                       :output-sample-format (.sample-format *audio*)
+                       :output-channels (if (zerop (the fixnum (.output-channels *audio*))) nil (.output-channels *audio*))
+                       :frames-per-buffer (.frames-per-buffer *audio*))))
+              (setf (.playing *audio*) t)
+              (setf (.start-time *audio*) 0.0d0)
+              ,@body))
+       (when (.stream *audio*)
+         (pa:close-stream (.stream *audio*))))))
+
+(defun scratch-audio ()
   ;;(declare (optimize (speed 3) (safety 0)))
   (let* ((*audio* (setf *audio* (make-instance 'audio)))
          (out (.out *audio*))
@@ -312,46 +362,10 @@
     (add-pattern (.sequencer *audio*) pattern2 (length (.lines pattern1)))
     (add-pattern (.sequencer *audio*) pattern1 (* 2 (length (.lines pattern1))))
     (add-pattern (.sequencer *audio*) pattern2 (* 2 (length (.lines pattern1))))
-    (portaudio:with-audio
-      (cffi:with-foreign-objects ((handle :pointer))
-        (unwind-protect
-             (let* ((output-parameters (pa::make-stream-parameters)))
-               (setf (pa:stream-parameters-channel-count output-parameters) (.output-channels *audio*)
-                     (pa:stream-parameters-sample-format output-parameters) (.sample-format *audio*)
-                     (pa::stream-parameters-suggested-latency output-parameters) 0.0d0) ;TODO
-               (loop for i of-type fixnum below (pa:get-device-count)
-                     for device-info = (pa:get-device-info i)
-                     if (and
-                         (equal (pa:host-api-info-name
-                                 (pa:get-host-api-info (pa:device-info-host-api device-info)))
-                                (.device-api *audio*))
-                         (equal (pa:device-info-name device-info) (.device-name *audio*)))
-                       do (setf (pa::stream-parameters-device output-parameters) i)
-                          (loop-finish))
-               (setf (.stream *audio*)
-                     (progn
-                       (pa::raise-if-error
-                        (pa::%open-stream
-                         handle
-                         nil
-                         output-parameters
-                         (.sample-rate *audio*)
-                         (.frames-per-buffer *audio*)
-                         0
-                         (cffi:callback my-callback)
-                         (cffi:null-pointer)))
-                       (make-instance
-                        'pa:pa-stream
-                        :handle (cffi:mem-ref handle :pointer)
-                        :input-sample-format (.sample-format *audio*)
-                        :input-channels (if (zerop (the fixnum (.input-channels *audio*))) nil (.input-channels *audio*))
-                        :output-sample-format (.sample-format *audio*)
-                        :output-channels (if (zerop (the fixnum (.output-channels *audio*))) nil (.output-channels *audio*))
-                        :frames-per-buffer (.frames-per-buffer *audio*)))))
-          (setf (.playing *audio*) t)
-          (setf (.start-time *audio*) 0.0d0)
-          (pa:start-stream (.stream *audio*))
-          (loop while (.playing *audio*) do (pa:pa-sleep 10)))
+    (with-audio
+      (unwind-protect
+           (progn
+             (pa:start-stream (.stream *audio*))
+             (loop while (.playing *audio*) do (pa:pa-sleep 10)))
         (when (.stream *audio*)
-          (pa::stop-stream (.stream *audio*))
-          (pa:close-stream (.stream *audio*)))))))
+          (pa::stop-stream (.stream *audio*)))))))
