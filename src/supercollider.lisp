@@ -6,8 +6,21 @@
   ((win :initarg :win :accessor .win)
    (width :initarg :width :initform 800 :accessor .width)
    (height :initarg :height :initform 600 :accessor .height)
-   (font :initform nil :accessor .font)
-   (modules :initarg :modules :initform '() :accessor .modules)))
+   (modules :initarg :modules :initform '() :accessor .modules)
+   (super-collider-server
+    :initarg :super-collider-server
+    :accessor .super-collider-server)
+   (bpm :initarg :bpm
+        :initform 128.0
+        :accessor .bpm)
+   (dexed :accessor .dexed)))
+
+(defmethod initialize-instance :after ((app app) &key)
+  (sc:clock-bpm (.bpm app))
+  (sc:defsynth dexed ()
+    (sc:out.ar 0 (sc-vst:vst-plugin.ar nil 2 :dexed)))
+  (setf (.dexed app)
+        (sc-vst:vst-controller (sc:synth 'dexed) :dexed "Dexed.vst3")))
 
 (defclass module ()
   ((name :initarg :name :initform 10 :accessor .name)
@@ -17,9 +30,21 @@
    (width :initarg :width :initform 100 :accessor .width)
    (height :initarg :height :initform 80 :accessor .height)))
 
-(defmethod render ((module module) renderer)
+(defmethod show ((module module))
   (with-slots (color x y width height) module
-    (sdl2:render-draw-rect renderer (sdl2:make-rect x y width height))))
+    (let* ((x1 x)
+           (x2 (+ x1 width))
+           (y1 y)
+           (y2 (+ y1 height)))
+      (gl:begin :triangles)
+      (apply #'gl:color color)
+      (gl:vertex x1 y2)
+      (gl:vertex x1 y1)
+      (gl:vertex x2 y2)
+      (gl:vertex x2 y2)
+      (gl:vertex x1 y1)
+      (gl:vertex x2 y1)
+      (gl:end))))
 
 (defun main ()
   (sb-thread:make-thread 'main-loop))
@@ -29,35 +54,41 @@
                             'app
                             :width 800
                             :height 600
+                            :super-collider-server (cl-patterns:start-backend :supercollider)
                             :modules (list (make-instance 'module
                                                           :x 60
                                                           :y 50
                                                           :width 100
                                                           :height 80))))))
     (sdl2:with-init (:everything)
-      (sdl2-ttf:init)
-      (let ((font "c:/Windows/Fonts/msgothic.ttc"))
-        (format t "Load font ~a~%" font)
-        (setf (.font *app*)
-              (sdl2-ttf:open-font
-               font
-               10)))
-
       (format t "Using SDL Library Version: ~D.~D.~D~%"
               sdl2-ffi:+sdl-major-version+
               sdl2-ffi:+sdl-minor-version+
               sdl2-ffi:+sdl-patchlevel+)
       (finish-output)
 
-      (sdl2:with-window (win :title "CoLiTrSynth" :w (.width *app*) :h (.height *app*))
+      (sdl2:with-window (win :flags '(:opengl))
         (setf (.win *app*) win)
-        (sdl2:with-renderer (renderer win :flags '(:accelerated))
+        (sdl2:with-gl-context (gl-context win)
+          ;; basic window/gl setup
           (format t "Setting up window/gl.~%")
           (finish-output)
+          (sdl2:gl-make-current win gl-context)
+          (gl:viewport 0 0 (.width *app*) (.height *app*))
+          (gl:matrix-mode :projection)
+          (gl:ortho 0 (.width *app*) (.height *app*) 0 -1.0 1.0)
+          (gl:matrix-mode :modelview)
+          (gl:load-identity)
+          (gl:clear-color 0.0 0.0 1.0 1.0)
+          (gl:clear :color-buffer)
+
           (sdl2:hide-window win)
           (sdl2:show-window win)
+
+          ;; main loop
           (format t "Beginning main loop.~%")
           (finish-output)
+
           (sdl2:with-event-loop (:method :poll)
             (:keydown (:keysym keysym)
                       (keydown keysym))
@@ -75,17 +106,9 @@
                             (mousebuttonup button state clicks x y))
 
             (:idle ()
-                   (idle renderer))
+                   (idle))
 
-            (:quit ()
-                   (when (.font *app*)
-                     (print 'sdl2-ttf:close-font)
-                     (sdl2-ttf:close-font (.font *app*))
-                     (setf (.font *app*) nil))
-                   (when (= 1 (sdl2-ttf:was-init))
-                     (print 'sdl2-ttf:quit)
-                     (sdl2-ttf:quit))
-                   t)))))))
+            (:quit () t)))))))
 
 (defun keydown (keysym)
   (let ((scancode (sdl2:scancode-value keysym))
@@ -110,28 +133,25 @@
 
 (defun mousebuttondown (button state clicks x y)
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
-          button state clicks x y))
+          button state clicks x y)
+  (case button
+    (1
+     ;; (sc-vst:play-note (.dexed *app*) (sc:clock-quant 4) 1 60 80 2)
+     (sc-vst:note-on (.dexed *app*) 1 60 80))
+    (2 (sc-vst:note-off (.dexed *app*) 1 60 80))
+    (3 (sc-vst:editor (.dexed *app*)))))
 
 (defun mousebuttonup (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y))
 
-(defun idle (renderer)
-  (sdl2:set-render-draw-color renderer 0 0 0 #xff)
-  (sdl2:render-clear renderer)
-  (sdl2:set-render-draw-color renderer #xcc #xcc #xcc #xff)
-
+(defun idle ()
+  (gl:clear :color-buffer)
   (loop for module in (.modules *app*)
-        do (render module renderer))
-
-  (let* ((surface  (sdl2-ttf:render-utf8-solid (.font *app*) "Hello World! こんにちは。" #xcc #xcc #xcc 0))
-         (width (sdl2:surface-width surface))
-         (height (sdl2:surface-height surface))
-         (texture (sdl2:create-texture-from-surface renderer surface)))
-    (sdl2:render-copy renderer
-                      texture
-                      :source-rect nil
-                      :dest-rect (sdl2:make-rect 50 150 width height)))
-  
-  (sdl2:render-present renderer)
-  (sdl2:delay 50))                      ;ms
+        do (show module))
+  (gl:flush)
+  (sdl2:gl-swap-window (.win *app*))
+  ;; sdl2:with-event-loop はスピンループのようで 1CPU が 100% 使用中になる
+  ;; ゆっくりでいいときはスリープいれるといいかもしれない
+  ;;(sleep 0.1)
+  )

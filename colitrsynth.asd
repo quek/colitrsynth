@@ -1,9 +1,6 @@
 (asdf:defsystem :colitrsynth
   :depends-on (:sdl2
-               ;;:sdl2-ttf
-               :cl-opengl
-               :cl-patterns/supercollider
-               :sc-vst
+               :sdl2-ttf
                :cl-portaudio)
   :pathname "src"
   :serial t
