@@ -65,6 +65,36 @@
                       :source-rect nil
                       :dest-rect (sdl2:make-rect (.x self) (.y self) width height))))
 
+
+(defclass sequencer-module (sequencer module)
+  ()
+  (:default-initargs :name "sequencer"))
+
+(defclass pattern-module (pattern module)
+  ()
+  (:default-initargs :name "pattern"))
+
+(defclass sin-osc-module (sin-osc module)
+  ()
+  (:default-initargs :name "sin"))
+
+(defclass saw-osc-module (saw-osc module)
+  ()
+  (:default-initargs :name "saw"))
+
+(defclass adsr-module (adsr module)
+  ()
+  (:default-initargs :name "adsr"))
+
+(defclass amp-module (amp module)
+  ()
+  (:default-initargs :name "amp"))
+
+(defclass master-module (master module)
+  ()
+  (:default-initargs :name "master"))
+
+
 (defun main ()
   (sb-thread:make-thread 'main-loop))
 
@@ -72,17 +102,7 @@
   (let ((*app* (setf *app* (make-instance
                             'app
                             :width 800
-                            :height 600
-                            :modules (list (make-instance 'module
-                                                          :name "にゃ～"
-                                                          :x 60
-                                                          :y 50
-                                                          :width 100
-                                                          :height 80)
-                                           (make-instance 'text
-                                                          :value "Hello, こんにちは。"
-                                                          :x 60
-                                                          :y 150 ))))))
+                            :height 600))))
     (sdl2:with-init (:everything)
       (sdl2-ttf:init)
       (let ((font "c:/Windows/Fonts/msgothic.ttc"))
@@ -108,19 +128,27 @@
           (format t "Beginning main loop.~%")
           (finish-output)
           (with-audio
-            (let* ((master (.master *audio*))
-                   (pattern1 (make-instance 'pattern
+            (let* ((sequencer (.sequencer *audio*))
+                   (master (.master *audio*))
+                   (pattern1 (make-instance 'pattern-module
                                             :lines (list a4 e4 none g4
-                                                         a4 off  g4 c4)))
-                   (osc1 (make-instance 'sin-wave))
-                   (adsr1 (make-instance 'adsr :d 0.2d0 :s 0d0))
-                   (amp1 (make-instance 'amp))
-                   (pattern2 (make-instance 'pattern
+                                                         a4 off  g4 c4)
+                                            :x 110 :y 5))
+                   (osc1 (make-instance 'sin-osc-module :x 215 :y 5))
+                   (adsr1 (make-instance 'adsr-module :d 0.2d0 :s 0d0
+                                                      :x 320 :y 5))
+                   (amp1 (make-instance 'amp-module
+                                        :x 425 :y 5))
+                   (pattern2 (make-instance 'pattern-module
                                             :lines (list a3 e3 none g3
-                                                         a3 off  g3 c3)))
-                   (osc2 (make-instance 'saw-wave))
-                   (adsr2 (make-instance 'adsr :d 0.7d0 :s 0.8d0))
-                   (amp2 (make-instance 'amp)))
+                                                         a3 off  g3 c3)
+                                            :x 110 :y 100))
+                   (osc2 (make-instance 'saw-osc-module
+                                        :x 215 :y 100))
+                   (adsr2 (make-instance 'adsr-module :d 0.7d0 :s 0.8d0
+                                                      :x 320 :y 100))
+                   (amp2 (make-instance 'amp-module
+                                        :x 425 :y 100)))
               (connect pattern1 osc1)
               (connect pattern1 adsr1)
               (connect osc1 amp1)
@@ -131,11 +159,15 @@
               (connect osc2 amp2)
               (connect adsr2 amp2)
               (connect amp2 master)
-              (add-pattern (.sequencer *audio*) pattern1 0)
-              (add-pattern (.sequencer *audio*) pattern1 (length (.lines pattern1)))
-              (add-pattern (.sequencer *audio*) pattern2 (length (.lines pattern1)))
-              (add-pattern (.sequencer *audio*) pattern1 (* 2 (length (.lines pattern1))))
-              (add-pattern (.sequencer *audio*) pattern2 (* 2 (length (.lines pattern1))))
+              (add-pattern sequencer pattern1 0)
+              (add-pattern sequencer pattern1 (length (.lines pattern1)))
+              (add-pattern sequencer pattern2 (length (.lines pattern1)))
+              (add-pattern sequencer pattern1 (* 2 (length (.lines pattern1))))
+              (add-pattern sequencer pattern2 (* 2 (length (.lines pattern1))))
+              (setf (.modules *app*)
+                    (list sequencer master
+                          pattern1 osc1 adsr1 amp1 
+                          pattern2 osc2 adsr2 amp2))
               (unwind-protect
                    (sdl2:with-event-loop (:method :poll)
                      (:keydown (:keysym keysym)

@@ -65,8 +65,9 @@
         :type double-float)
    (lpb :initarg :lpb :initform 4 :accessor .lpb)
    (sequencer :initarg :sequencer :accessor .sequencer
-              :initform (make-instance 'sequencer))
-   (master :initform (make-instance 'master) :accessor .master)))
+              :initform (make-instance 'sequencer-module :x 5 :y 5))
+   (master :accessor .master
+           :initform (make-instance 'master-module :x 695 :y 510))))
 
 (defun play ()
   (unless (.playing *audio*)
@@ -101,6 +102,18 @@
          (volume (.volume master))
          (left (* (.left master) volume))
          (right (* (.right master) volume)))
+    (when (< 1.0d0 left)
+      (warn "音大きすぎ ~a" left)
+      (setf left 1d0))
+    (when (< left -1.0d0)
+      (warn "音大きすぎ ~a" left)
+      (setf left -1d0))
+    (when (< 1.0d0 right)
+      (warn "音大きすぎ ~a" right)
+      (setf right 1d0))
+    (when (< right -1.0d0)
+      (warn "音大きすぎ ~a" right)
+      (setf right -1d0))
     (push-to-buffer left)
     (push-to-buffer right)
     (setf (.left master) 0.0d0
@@ -159,12 +172,12 @@
     (route self note gate)
     (setf (.last-note self) note)))
 
-(defclass sin-wave (audio-module)
+(defclass osc (audio-module)
   ((note :initarg :note :initform off :accessor .note)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
-(defmethod play-frame ((self sin-wave) note gate)
+(defmethod play-frame ((self osc) note gate)
   (declare (ignore gate))
   (let ((value
           (if (= note off)
@@ -173,33 +186,27 @@
                 (when (/= (.note self) note)
                   (setf (.phase self) 0))
                 (setf (.note self) note)
-                (sin (* (/ (* 2 pi (midino-to-freq note)) (.sample-rate *audio*))
-                        (.phase self)))))))
+                (osc-frame-value self)))))
     (route self value value))
   (incf (.phase self)))
 
-(defclass saw-wave (audio-module)
-  ((note :initarg :note :initform off :accessor .note)
-   (phase :initform 0.0d0 :accessor .phase
-          :type double-float)))
+(defclass sin-osc (osc)
+  ())
 
-(defmethod play-frame ((self saw-wave) note gate)
-  (declare (ignore gate))
-  (let ((value
-          (* 0.3                        ;TODO 音大きいのでとりあえずつけとく。本来はいらない？
-           (if (= note off)
-               0.0d0
-               (progn
-                 (when (/= (.note self) note)
-                   (setf (.phase self) 0))
-                 (setf (.note self) note)
-                 (- (* (mod (/ (* (.phase self) (midino-to-freq note))
-                               (.sample-rate *audio*))
-                            1)
-                       2)
-                    1))))))
-    (route self value value))
-  (incf (.phase self)))
+(defmethod osc-frame-value ((self sin-osc))
+  (sin (* (/ (* 2 pi (midino-to-freq (.note self))) (.sample-rate *audio*))
+          (.phase self))))
+
+(defclass saw-osc (osc)
+  ())
+
+(defmethod osc-frame-value ((self saw-osc))
+  (* 0.3d0        ;TODO 音大きいのでとりあえずつけとく。本来はいらない？
+     (- (* (mod (/ (* (.phase self) (midino-to-freq (.note self)))
+                   (.sample-rate *audio*))
+                1d0)
+           2d0)
+        1d0)))
 
 (defclass adsr (audio-module)
   ((a :initarg :a :initform 0.003d0 :accessor .a)
@@ -346,13 +353,13 @@
            (pattern1 (make-instance 'pattern
                                     :lines (list a4 e4 none g4
                                                  a4 off  g4 c4)))
-           (osc1 (make-instance 'sin-wave))
+           (osc1 (make-instance 'sin-osc))
            (adsr1 (make-instance 'adsr :d 0.2d0 :s 0d0))
            (amp1 (make-instance 'amp))
            (pattern2 (make-instance 'pattern
                                     :lines (list a3 e3 none g3
                                                  a3 off  g3 c3)))
-           (osc2 (make-instance 'saw-wave))
+           (osc2 (make-instance 'saw-osc))
            (adsr2 (make-instance 'adsr :d 0.7d0 :s 0.8d0))
            (amp2 (make-instance 'amp)))
       (connect pattern1 osc1)
