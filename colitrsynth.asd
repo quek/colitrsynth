@@ -1,7 +1,8 @@
 (asdf:defsystem :colitrsynth
   :depends-on (:sdl2
                :sdl2-ttf
-               :cl-portaudio)
+               :cl-portaudio
+               :anaphora)
   :pathname "src"
   :serial t
   :components

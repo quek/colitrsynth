@@ -1,3 +1,3 @@
 (defpackage :colitrsynth
-  (:use :cl)
+  (:use :cl :anaphora)
   (:export #:main))

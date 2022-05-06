@@ -7,7 +7,17 @@
    (width :initarg :width :initform 800 :accessor .width)
    (height :initarg :height :initform 600 :accessor .height)
    (font :initform nil :accessor .font)
-   (modules :initarg :modules :initform '() :accessor .modules)))
+   (modules :initarg :modules :initform '() :accessor .modules)
+   (mouse-x :initform 0 :accessor .mouse-x)
+   (mouse-y :initform 0 :accessor .mouse-y)
+   (mouse-left-down :initform nil :accessor .mouse-left-down)
+   (drag-target :initform nil :accessor .drag-target)))
+
+(defun module-at-mouse (app)
+  (loop for module in (.modules app)
+          thereis (and (<= (.x module) (.mouse-x app) (+ (.x module) (.width module)))
+                       (<= (.y module) (.mouse-y app) (+ (.y module) (.height module)))
+                       module)))
 
 (defclass renderable ()
   ((color :initarg :color :initform (list #xcc #xcc #xcc #xff) :accessor .color)
@@ -34,10 +44,10 @@
          (.y (.parent self))
          0)))
 
-(defmethod (setf .x) ((self renderable) value)
+(defmethod (setf .x) (value (self renderable))
   (setf (slot-value self 'x) value))
 
-(defmethod (setf .y) ((self renderable) value)
+(defmethod (setf .y) (value (self renderable))
   (setf (slot-value self 'y) value))
 
 (defmethod render ((self renderable) renderer)
@@ -51,32 +61,54 @@
   (sdl2:set-render-draw-color renderer #x22 #x8b #x22 #xff)
   (loop for out in (.out self)
         do (let (x1 y1 x2 y2)
-             (if (< (abs (- (.x self) (.x out)))
+             (if (> (abs (- (.x self) (.x out)))
                     (abs (- (.y self) (.y out))))
-                 (progn
-                   (if (< (.x self) (.x out))
-                       (progn
-                         (setf x1 (+ -5 (.x self) (/ (.width self) 2)))
-                         (setf y1 (+ (.y self) (.height self)))
-                         (setf x2 (+ 5 (.x out) (/ (.width out) 2)))
-                         (setf y2 (.y out)))
-                       (progn
-                         (setf x1 (+ -5 (.x self) (/ (.width self) 2)))
-                         (setf y1 (.y self))
-                         (setf x2 (+ 5 (.x out) (/ (.width out) 2)))
-                         (setf y2 (+ (.y out) (.height out))))))
-                 (progn
-                   (if (< (.y self) (.y out))
-                       (progn
-                         (setf x1 (.x self))
-                         (setf y1 (+ -5 (.y self) (/ (.height self) 2)))
-                         (setf x2 (+ (.x out) (.width out)))
-                         (setf y2 (+ 5 (.y out) (/ (.height out) 2))))
-                       (progn
-                         (setf x1 (+ (.x self) (.width self)))
-                         (setf y1 (+ -5 (.y self) (/ (.height self) 2)))
-                         (setf x2 (.x out))
-                         (setf y2 (+ 5 (.y out) (/ (.height out) 2)))))))
+                 (if (< (.x self) (.x out))
+                     (if (< (.y self) (.y out))
+                         (progn
+                           (setf x1 (+ (.x self) (.width self)))
+                           (setf y1 (+ (.y self) (/ (.height self) 2)))
+                           (setf x2 (.x out))
+                           (setf y2 (+ (.y out) (/ (.height out) 2))))
+                         (progn
+                           (setf x1 (+ (.x self) (.width self)))
+                           (setf y1 (+ (.y self) (/ (.height self) 2)))
+                           (setf x2 (.x out))
+                           (setf y2 (+ (.y out) (/ (.height out) 2)))))
+                     (if (< (.y self) (.y out))
+                         (progn
+                           (setf x1 (.x self))
+                           (setf y1 (+ (.y self) (/ (.height self) 2)))
+                           (setf x2 (+ (.x out) (.width out)))
+                           (setf y2 (+ (.y out) (/ (.height out) 2))))
+                         (progn
+                           (setf x1 (.x self))
+                           (setf y1 (+ (.y self) (/ (.height self) 2)))
+                           (setf x2 (+ (.x out) (.width out)))
+                           (setf y2 (+ (.y out) (/ (.height out) 2))))))
+                 (if (< (.x self) (.x out))
+                     (if (< (.y self) (.y out))
+                         (progn
+                           (setf x1 (+ (.x self) (/ (.width self) 2)))
+                           (setf y1 (+ (.y self) (.height self)))
+                           (setf x2 (+ (.x out) (/ (.width out) 2)))
+                           (setf y2 (.y out)))
+                         (progn
+                           (setf x1 (+ (.x self) (/ (.width self) 2)))
+                           (setf y1 (.y self))
+                           (setf x2 (+ (.x out) (/ (.width out) 2)))
+                           (setf y2 (+ (.y out) (.height out)))))
+                     (if (< (.y self) (.y out))
+                         (progn
+                           (setf x1 (+ (.x self) (/ (.width self) 2)))
+                           (setf y1 (+ (.y self) (.height self)))
+                           (setf x2 (+ (.x out) (/ (.width out) 2)))
+                           (setf y2 (.y out)))
+                         (progn
+                           (setf x1 (+ (.x self) (/ (.width self) 2)))
+                           (setf y1 (.y self))
+                           (setf x2 (+ (.x out) (/ (.width out) 2)))
+                           (setf y2 (+ (.y out) (.height out)))))))
              (sdl2:render-draw-line renderer x1 y1 x2 y2)))
   (call-next-method))
 
@@ -257,15 +289,27 @@
 
 (defun mousemotion (x y xrel yrel state)
   (format t "Mouse motion abs(rel): ~a (~a), ~a (~a)~%Mouse state: ~a~%"
-          x xrel y yrel state))
+          x xrel y yrel state)
+  (setf (.mouse-x *app*) x)
+  (setf (.mouse-y *app*) y)
+  (awhen (.drag-target *app*)
+    (setf (.x it) x
+          (.y it) y)))
+
 
 (defun mousebuttondown (button state clicks x y)
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
-          button state clicks x y))
+          button state clicks x y)
+  (when (= button 1)
+    (setf (.mouse-left-down *app*) t
+          (.drag-target *app*) (module-at-mouse *app*))))
 
 (defun mousebuttonup (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
+  (when (= button 1)
+    (setf (.mouse-left-down *app*) nil
+          (.drag-target *app*) nil))
   (if (.playing *audio*)
       (stop)
       (play)))
