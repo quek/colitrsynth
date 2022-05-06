@@ -23,7 +23,7 @@
                        module)))
 
 (defclass renderable ()
-  ((color :initarg :color :initform (list #xcc #xcc #xcc *transparency*) :accessor .color)
+  ((color :initarg :color :initform (list #xdd #xdd #xdd *transparency*) :accessor .color)
    (x :initarg :x :initform 0)
    (y :initarg :y :initform 0)
    (width :initarg :width :initform 100 :accessor .width)
@@ -39,17 +39,19 @@
   (setf (.children parent) (remove child (.children parent)))
   (setf (.parent child) nil))
 
+(defmethod .x ((self null))
+  0)
+
 (defmethod .x ((self renderable))
   (+ (slot-value self 'x)
-     (if (.parent self)
-         (.x (.parent self))
-         0)))
+     (.x (.parent self))))
+
+(defmethod .y ((self null))
+  0)
 
 (defmethod .y ((self renderable))
   (+ (slot-value self 'y)
-     (if (.parent self)
-         (.y (.parent self))
-         0)))
+     (.y (.parent self))))
 
 (defmethod (setf .x) (value (self renderable))
   (setf (slot-value self 'x) value))
@@ -126,15 +128,18 @@
 (defmethod initialize-instance :after ((self module) &key)
   (add-child self (make-instance 'text :value (.name self) :x 3 :y 3)))
 
-(defmethod click ((self renderable) x y)
-  (declare (ignore x y)))
+(defmethod click ((self renderable) x y))
+
+(defmethod keydown ((self renderable) scancode mod-value))
+
+(defmethod keyup ((self renderable) scancode mod-value))
 
 (defclass text (renderable)
   ((value :initarg :value :initform "Hi" :accessor .value)))
 
 (defmethod render ((self text) renderer)
   ;; TODO 毎回 surface, texture 作るのは無駄だね？
-  (let* ((surface  (apply #'sdl2-ttf:render-utf8-solid (.font *app*) (.value self) (.color self)))
+  (let* ((surface (apply #'sdl2-ttf:render-utf8-solid (.font *app*) (.value self) (.color self)))
          (width (sdl2:surface-width surface))
          (height (sdl2:surface-height surface))
          (texture (sdl2:create-texture-from-surface renderer surface)))
@@ -146,7 +151,10 @@
 
 (defclass tracker (renderable)
   ((pattern :accessor .pattern)
-   (lines :initform nil :accessor .lines)))
+   (lines :initform nil :accessor .lines)
+   (cursor-x :initform 0 :accessor .cursor-x)
+   (cursor-y :initform 0 :accessor .cursor-y)
+   ))
 
 (defmethod render :before ((self tracker) renderer)
   (let ((pattern-lines (.lines (.pattern self))))
@@ -166,12 +174,48 @@
               for tracker-line in (.lines self)
               do (setf (.line tracker-line) pattern-line)))))
 
+(defparameter *char-width* 5)
+(defparameter *char-height* 10)
+(defparameter *cursor-color* '(#x00 #x00 #xcc #x80))
+
+(defmethod render ((self tracker) renderer)
+  (when (eq (.parent self) (module-at-mouse *app*))
+    (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
+    (sdl2:render-fill-rect
+     renderer
+     (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.x self) 2)
+                     (+ (* (.cursor-y self) *char-height*) (.y self) 2)
+                     (if (zerop (.cursor-x self)) (* 2  *char-width*) *char-width*)
+                     *char-height*)))
+  (call-next-method))
+
+(defmethod keydown ((self tracker) scancode mod-value)
+  (cond ((or (sdl2:scancode= scancode :scancode-up)
+             (sdl2:scancode= scancode :scancode-k))
+         (setf (.cursor-y self)
+               (max (1- (.cursor-y self)) 0)))
+        ((or (sdl2:scancode= scancode :scancode-down)
+             (sdl2:scancode= scancode :scancode-j))
+         (print (setf (.cursor-y self)
+                (min (1+ (.cursor-y self))
+                     (1- (length (.lines (.pattern self))))))))
+        ((and (or (sdl2:scancode= scancode :scancode-left)
+                  (sdl2:scancode= scancode :scancode-h))
+              (= (.cursor-x self) 2))
+         (setf (.cursor-x self) 0))
+        ((and (or (sdl2:scancode= scancode :scancode-right)
+                  (sdl2:scancode= scancode :scancode-l))
+              (= (.cursor-x self) 0))
+         (setf (.cursor-x self) 2))))
+
 (defclass tracker-line (text)
   ((line :initarg :line :accessor .line)))
 
 (defmethod render :before ((self tracker-line) renderer)
-  ;; TODO
-  (setf (.value self) (format nil "~a" (midino-to-note (.line self)))))
+  (let ((string (format nil "~a" (midino-to-note (.line self)))))
+    (when (char/= (char string 1) #\#)
+      (setf string (format nil "~a-~a" (char string 0) (char string 1))))
+    (setf (.value self) string)))
 
 (defclass sequencer-module (sequencer module)
   ()
@@ -186,6 +230,9 @@
 (defclass pattern-module (pattern module)
   ((tracker :initform (make-instance 'tracker) :accessor .tracker))
   (:default-initargs :name "pattern"))
+
+(defmethod keydown ((self pattern-module) scancode mod-value)
+  (keydown (.tracker self) scancode mod-value))
 
 (defmethod initialize-instance :after ((self pattern-module) &key)
   (let ((tracker (.tracker self)))
@@ -303,22 +350,22 @@
                           pattern2 osc2 adsr2 amp2))
               (sdl2:with-event-loop (:method :poll)
                 (:keydown (:keysym keysym)
-                          (keydown keysym))
+                          (handle-sdl2-keydown-event keysym))
                 (:keyup (:keysym keysym)
-                        (keyup keysym))
+                        (handle-sdl2-keyup-event keysym))
                 (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
-                              (mousemotion x y xrel yrel state))
+                              (handle-sdl2-mousemotion-event x y xrel yrel state))
                 (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
-                                  (mousebuttondown button state clicks x y))
+                                  (handle-sdl2-mousebuttondown-event button state clicks x y))
                 (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
-                                (mousebuttonup button state clicks x y))
+                                (handle-sdl2-mousebuttonup-event button state clicks x y))
                 (:idle ()
-                       (idle renderer))
+                       (handle-sdl2-idle-event renderer))
                 (:quit ()
-                       (quit)
+                       (handle-sdl2-quit-event)
                        t)))))))))
 
-(defun keydown (keysym)
+(defun handle-sdl2-keydown-event (keysym)
   (let ((scancode (sdl2:scancode-value keysym))
         (sym (sdl2:sym-value keysym))
         (mod-value (sdl2:mod-value keysym)))
@@ -329,13 +376,20 @@
     (format t "Key sym: ~a, code: ~a, mod: ~a~%"
             sym
             scancode
-            mod-value)))
+            mod-value)
+    (awhen (module-at-mouse *app*)
+      (keydown it scancode mod-value))))
 
-(defun keyup (keysym)
+(defun handle-sdl2-keyup-event (keysym)
+  #+nil
   (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-escape)
-    (sdl2:push-event :quit)))
+    (sdl2:push-event :quit))
+  (let  ((scancode (sdl2:scancode-value keysym))
+         (mod-value (sdl2:mod-value keysym)))
+    (awhen (module-at-mouse *app*)
+      (keyup it scancode mod-value))))
 
-(defun mousemotion (x y xrel yrel state)
+(defun handle-sdl2-mousemotion-event (x y xrel yrel state)
   (format t "Mouse motion abs(rel): ~a (~a), ~a (~a)~%Mouse state: ~a~%"
           x xrel y yrel state)
   (setf (.mouse-x *app*) x)
@@ -345,7 +399,7 @@
     (incf (.y it) yrel)))
 
 
-(defun mousebuttondown (button state clicks x y)
+(defun handle-sdl2-mousebuttondown-event (button state clicks x y)
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
   (case button
@@ -358,7 +412,7 @@
     (3                                  ;right
      (setf (.connect-from-module *app*) (module-at-mouse *app*)))))
 
-(defun mousebuttonup (button state clicks x y)
+(defun handle-sdl2-mousebuttonup-event (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
   (case button
@@ -375,7 +429,7 @@
                    (connect from to)))))
        (setf (.connect-from-module *app*) nil)))))
 
-(defun idle (renderer)
+(defun handle-sdl2-idle-event (renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
   (sdl2:render-clear renderer)
   (sdl2:set-render-draw-color renderer #xcc #xcc #xcc *transparency*)
@@ -388,7 +442,7 @@
     (stop))
   (sdl2:delay #.(floor (/ 1000 60.0))))   ;ms
 
-(defun quit ()
+(defun handle-sdl2-quit-event ()
   (when (.font *app*)
     (sdl2-ttf:close-font (.font *app*))
     (setf (.font *app*) nil))
