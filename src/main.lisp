@@ -118,6 +118,9 @@
 (defmethod initialize-instance :after ((self module) &key)
   (add-child self (make-instance 'text :value (.name self) :x 3 :y 3)))
 
+(defmethod click ((self renderable) x y)
+  (declare (ignore x y)))
+
 (defclass text (renderable)
   ((value :initarg :value :initform "Hi" :accessor .value)))
 
@@ -135,6 +138,12 @@
 (defclass sequencer-module (sequencer module)
   ()
   (:default-initargs :name "sequencer" :color '(#x00 #xff #xff #xff)))
+
+(defmethod click ((self sequencer-module) x y)
+  (declare (ignore x y))
+  (if (.playing *audio*)
+      (stop)
+      (play)))
 
 (defclass pattern-module (pattern module)
   ()
@@ -301,18 +310,18 @@
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
   (when (= button 1)
-    (setf (.mouse-left-down *app*) t
-          (.drag-target *app*) (module-at-mouse *app*))))
+    (let ((module (module-at-mouse *app*)))
+      (setf (.mouse-left-down *app*) t
+            (.drag-target *app*) module)
+      (when module
+        (click module (- x (.x module)) (- y (.y module)))))))
 
 (defun mousebuttonup (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
   (when (= button 1)
     (setf (.mouse-left-down *app*) nil
-          (.drag-target *app*) nil))
-  (if (.playing *audio*)
-      (stop)
-      (play)))
+          (.drag-target *app*) nil)))
 
 (defun idle (renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
@@ -325,4 +334,4 @@
   (sdl2:render-present renderer)
   (when (.request-stop *audio*)
     (stop))
-  (sdl2:delay 50))                      ;ms
+  (sdl2:delay #.(floor (/ 1000 60.0))))   ;ms
