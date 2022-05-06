@@ -66,9 +66,9 @@
    (lpb :initarg :lpb :initform 4 :accessor .lpb)
    (sequencer :initarg :sequencer :accessor .sequencer
               :initform (make-instance 'sequencer))
-   (out :initform (make-instance 'out) :accessor .out)))
+   (master :initform (make-instance 'master) :accessor .master)))
 
-(defun play-audio ()
+(defun play ()
   (unless (.playing *audio*)
     (setf (.playing *audio*) t)
     (setf (.start-time *audio*) 0.0d0)
@@ -76,7 +76,7 @@
     (setf (.nframes *audio*) 0)
     (pa:start-stream (.stream *audio*))))
 
-(defun stop-audio ()
+(defun stop ()
   (when (.playing *audio*)
     (setf (.playing *audio*) nil)
     (pa::stop-stream (.stream *audio*))))
@@ -96,15 +96,15 @@
         (coerce value 'single-float))
   (incf (.buffer-index *audio*)))
 
-(defun write-out-buffer ()
-  (let* ((out (.out *audio*))
-         (volume (.volume out))
-         (left (* (.left out) volume))
-         (right (* (.right out) volume)))
+(defun write-master-buffer ()
+  (let* ((master (.master *audio*))
+         (volume (.volume master))
+         (left (* (.left master) volume))
+         (right (* (.right master) volume)))
     (push-to-buffer left)
     (push-to-buffer right)
-    (setf (.left out) 0.0d0
-          (.right out) 0.0d0)))
+    (setf (.left master) 0.0d0
+          (.right master) 0.0d0)))
 
 (defclass sequencer ()
   ((patterns :initarg :patterns :accessor .patterns
@@ -116,27 +116,27 @@
   (if (< (.end self) line)
       (progn
         (loop for i below (.frames-per-buffer *audio*)
-              do (write-out-buffer))
+              do (write-master-buffer))
         (request-stop))
       (loop for i below (.frames-per-buffer *audio*)
             do (loop for (start . pattern) in (.patterns self)
                      if (<= start line (1- (+ start (length (.lines pattern)))))
                        do (play-pattern pattern (- line start)))
-               (write-out-buffer))))
+               (write-master-buffer))))
 
-(defgeneric play (audio-module left right))
+(defgeneric play-frame (audio-module left right))
 
 (defclass audio-module ()
-  ((parents :initarg :parents :accessor .parents :initform nil)
-   (children :initarg :children :accessor .children :initform nil)))
+  ((in :initarg :in :accessor .in :initform nil)
+   (out :initarg :out :accessor .out :initform nil)))
 
-(defmethod connect ((parent audio-module) (child audio-module))
-  (push child (.children parent))
-  (push parent (.parents child)))
+(defmethod connect ((in audio-module) (out audio-module))
+  (push out (.out in))
+  (push in (.in out)))
 
-(defmethod play-children ((self audio-module) left right)
-  (loop for child in (.children self)
-        do (play child left right)))
+(defmethod route ((self audio-module) left right)
+  (loop for out in (.out self)
+        do (play-frame out left right)))
 
 (defclass pattern (audio-module)
   ((lines :initarg :lines
@@ -156,7 +156,7 @@
          (gate (and (/= note off)
                     ;;こんな実装でいいの？
                     (= (.last-note self) note))))
-    (play-children self note gate)
+    (route self note gate)
     (setf (.last-note self) note)))
 
 (defclass sin-wave (audio-module)
@@ -164,7 +164,7 @@
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
-(defmethod play ((self sin-wave) note gate)
+(defmethod play-frame ((self sin-wave) note gate)
   (declare (ignore gate))
   (let ((value
           (if (= note off)
@@ -175,7 +175,7 @@
                 (setf (.note self) note)
                 (sin (* (/ (* 2 pi (midino-to-freq note)) (.sample-rate *audio*))
                         (.phase self)))))))
-    (play-children self value value))
+    (route self value value))
   (incf (.phase self)))
 
 (defclass saw-wave (audio-module)
@@ -183,7 +183,7 @@
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
-(defmethod play ((self saw-wave) note gate)
+(defmethod play-frame ((self saw-wave) note gate)
   (declare (ignore gate))
   (let ((value
           (* 0.3                        ;TODO 音大きいのでとりあえずつけとく。本来はいらない？
@@ -198,7 +198,7 @@
                             1)
                        2)
                     1))))))
-    (play-children self value value))
+    (route self value value))
   (incf (.phase self)))
 
 (defclass adsr (audio-module)
@@ -211,7 +211,7 @@
    (release-time :initform nil :accessor .release-time)
    (release-value :initform nil :accessor .release-value)))
 
-(defmethod play ((self adsr) note gate)
+(defmethod play-frame ((self adsr) note gate)
   (declare (ignore note))
   (when (and gate (not (.last-gate self)))
     (setf (.frame self) 0))
@@ -234,7 +234,7 @@
                             (- 1.0d0
                                (/ elapsed (.r self)))
                             0.0d0))))))
-    (play-children self value value)
+    (route self value value)
     (incf (.frame self))
     (setf (.last-gate self) gate)))
 
@@ -243,22 +243,22 @@
    (right :initform 1.0d0 :accessor .right)
    (in-count :initform 0 :accessor .in-count)))
 
-(defmethod play ((self amp) left right)
+(defmethod play-frame ((self amp) left right)
   (setf (.left self) (* (.left self) left)
         (.right self) (* (.right self) right))
   (when (= (incf (.in-count self))
-           (length (.parents self)))
-    (play-children self (.left self) (.right self))
+           (length (.in self)))
+    (route self (.left self) (.right self))
     (setf (.in-count self) 0)
     (setf (.left self) 1.0d0
           (.right self) 1.0d0)))
 
-(defclass out (audio-module)
+(defclass master (audio-module)
   ((left :initform 0.0d0 :accessor .left)
    (right :initform 0.0d0 :accessor .right)
    (volume :initform 0.6d0 :accessor .volume)))
 
-(defmethod play ((self out) left right)
+(defmethod play-frame ((self master) left right)
   (incf (.left self) left)
   (incf (.right self) right))
 
@@ -342,7 +342,7 @@
 (defun scratch-audio ()
   ;;(declare (optimize (speed 3) (safety 0)))
   (with-audio
-    (let* ((out (.out *audio*))
+    (let* ((master (.master *audio*))
            (pattern1 (make-instance 'pattern
                                     :lines (list a4 e4 none g4
                                                  a4 off  g4 c4)))
@@ -359,18 +359,18 @@
       (connect pattern1 adsr1)
       (connect osc1 amp1)
       (connect adsr1 amp1)
-      (connect amp1 out)
+      (connect amp1 master)
       (connect pattern2 osc2)
       (connect pattern2 adsr2)
       (connect osc2 amp2)
       (connect adsr2 amp2)
-      (connect amp2 out)
+      (connect amp2 master)
       (add-pattern (.sequencer *audio*) pattern1 0)
       (add-pattern (.sequencer *audio*) pattern1 (length (.lines pattern1)))
       (add-pattern (.sequencer *audio*) pattern2 (length (.lines pattern1)))
       (add-pattern (.sequencer *audio*) pattern1 (* 2 (length (.lines pattern1))))
       (add-pattern (.sequencer *audio*) pattern2 (* 2 (length (.lines pattern1))))
 
-      (play-audio)
+      (play)
       (loop until (.request-stop *audio*) do (pa:pa-sleep 10))
-      (stop-audio))))
+      (stop))))
