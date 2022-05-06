@@ -1,5 +1,7 @@
 (in-package :colitrsynth)
 
+(defparameter *transparency* #xc0)
+
 (defvar *app*)
 
 (defclass app ()
@@ -20,7 +22,7 @@
                        module)))
 
 (defclass renderable ()
-  ((color :initarg :color :initform (list #xcc #xcc #xcc #xff) :accessor .color)
+  ((color :initarg :color :initform (list #xcc #xcc #xcc *transparency*) :accessor .color)
    (x :initarg :x :initform 10)
    (y :initarg :y :initform 10)
    (width :initarg :width :initform 100 :accessor .width)
@@ -58,7 +60,7 @@
         do (render child renderer)))
 
 (defmethod render ((self audio-module) renderer)
-  (sdl2:set-render-draw-color renderer #x22 #x8b #x22 #xff)
+  (sdl2:set-render-draw-color renderer #x22 #x8b #x22 *transparency*)
   (loop for out in (.out self)
         do (let (x1 y1 x2 y2)
              (if (> (abs (- (.x self) (.x out)))
@@ -137,7 +139,7 @@
 
 (defclass sequencer-module (sequencer module)
   ()
-  (:default-initargs :name "sequencer" :color '(#x00 #xff #xff #xff)))
+  (:default-initargs :name "sequencer" :color (list #x00 #xff #xff *transparency*)))
 
 (defmethod click ((self sequencer-module) x y)
   (declare (ignore x y))
@@ -178,7 +180,7 @@
 
 (defclass master-module (master module)
   ()
-  (:default-initargs :name "master" :color '(#xff #xa5 #x00 #xff)))
+  (:default-initargs :name "master" :color (list #xff #xa5 #x00 *transparency*)))
 
 
 (defun main ()
@@ -302,8 +304,8 @@
   (setf (.mouse-x *app*) x)
   (setf (.mouse-y *app*) y)
   (awhen (.drag-target *app*)
-    (setf (.x it) x
-          (.y it) y)))
+    (incf (.x it) xrel)
+    (incf (.y it) yrel)))
 
 
 (defun mousebuttondown (button state clicks x y)
@@ -326,7 +328,7 @@
 (defun idle (renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
   (sdl2:render-clear renderer)
-  (sdl2:set-render-draw-color renderer #xcc #xcc #xcc #xff)
+  (sdl2:set-render-draw-color renderer #xcc #xcc #xcc *transparency*)
 
   (loop for module in (.modules *app*)
         do (render module renderer))
