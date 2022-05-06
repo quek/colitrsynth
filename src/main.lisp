@@ -133,6 +133,7 @@
   ((value :initarg :value :initform "Hi" :accessor .value)))
 
 (defmethod render ((self text) renderer)
+  ;; TODO 毎回 surface, texture 作るのは無駄だね？
   (let* ((surface  (apply #'sdl2-ttf:render-utf8-solid (.font *app*) (.value self) (.color self)))
          (width (sdl2:surface-width surface))
          (height (sdl2:surface-height surface))
@@ -140,7 +141,8 @@
     (sdl2:render-copy renderer
                       texture
                       :source-rect nil
-                      :dest-rect (sdl2:make-rect (.x self) (.y self) width height))))
+                      :dest-rect (sdl2:make-rect (.x self) (.y self) width height))
+    (sdl2:destroy-texture texture)))
 
 (defclass tracker (renderable)
   ((pattern :accessor .pattern)
