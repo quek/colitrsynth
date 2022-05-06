@@ -16,7 +16,6 @@
    (modules :initarg :modules :initform '() :accessor .modules)
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
-   (mouse-left-down :initform nil :accessor .mouse-left-down)
    (drag-module :initform nil :accessor .drag-module)
    (connect-from-module :initform nil :accessor .connect-from-module)))
 
@@ -132,11 +131,21 @@
 (defmethod initialize-instance :after ((self module) &key)
   (add-child self (make-instance 'text :value (.name self) :x 3 :y 3)))
 
-(defmethod click ((self renderable) x y))
+(defgeneric click (self x y)
+  (:method (self x y)))
 
-(defmethod keydown ((self renderable) scancode mod-value))
+(defgeneric keydown (self scancode mod-value)
+  (:method (self scancode mod-value)))
 
-(defmethod keyup ((self renderable) scancode mod-value))
+(defgeneric keyup (self scancode mod-value)
+  (:method (self scancode mod-value)))
+
+(defgeneric mousemotion (self x y xrel yrel state)
+  (:method (self x y xrel yrel state))
+  (:method ((self renderable) x y xrel yrel state)
+    (when (eq self (.drag-module *app*))
+      (incf (.x self) xrel)
+      (incf (.y self) yrel))))
 
 (defclass text (renderable)
   ((value :initarg :value :initform "Hi" :accessor .value)))
@@ -292,7 +301,8 @@
   (declare (ignore x y))
   (if (.playing *audio*)
       (stop)
-      (play)))
+      (play))
+  t)
 
 (defclass pattern-module (pattern module)
   ((tracker :initform (make-instance 'tracker) :accessor .tracker))
@@ -444,8 +454,7 @@
             sym
             scancode
             mod-value)
-    (awhen (module-at-mouse *app*)
-      (keydown it scancode mod-value))))
+    (keydown (module-at-mouse *app*) scancode mod-value)))
 
 (defun handle-sdl2-keyup-event (keysym)
   #+nil
@@ -453,18 +462,16 @@
     (sdl2:push-event :quit))
   (let  ((scancode (sdl2:scancode-value keysym))
          (mod-value (sdl2:mod-value keysym)))
-    (awhen (module-at-mouse *app*)
-      (keyup it scancode mod-value))))
+    (keyup (module-at-mouse *app*) scancode mod-value)))
 
 (defun handle-sdl2-mousemotion-event (x y xrel yrel state)
   (format t "Mouse motion abs(rel): ~a (~a), ~a (~a)~%Mouse state: ~a~%"
           x xrel y yrel state)
   (setf (.mouse-x *app*) x)
   (setf (.mouse-y *app*) y)
-  (awhen (.drag-module *app*)
-    (incf (.x it) xrel)
-    (incf (.y it) yrel)))
-
+  (aif (.drag-module *app*)
+       (mousemotion it x y xrel yrel state)
+       (mousemotion (module-at-mouse *app*) x y xrel yrel state)))
 
 (defun handle-sdl2-mousebuttondown-event (button state clicks x y)
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
@@ -472,10 +479,8 @@
   (case button
     (1                                  ;left
      (let ((module (module-at-mouse *app*)))
-       (setf (.mouse-left-down *app*) t
-             (.drag-module *app*) module)
-       (when module
-         (click module (- x (.x module)) (- y (.y module))))))
+       (setf (.drag-module *app*) module)
+       (click module (- x (.x module)) (- y (.y module)))))
     (3                                  ;right
      (setf (.connect-from-module *app*) (module-at-mouse *app*)))))
 
@@ -484,8 +489,7 @@
           button state clicks x y)
   (case button
     (1                                  ;left
-     (setf (.mouse-left-down *app*) nil
-           (.drag-module *app*) nil))
+     (setf (.drag-module *app*) nil))
     (3                                  ;right
      (let ((from (.connect-from-module *app*)))
        (when from
