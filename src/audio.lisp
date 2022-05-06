@@ -119,7 +119,23 @@
     (setf (.left master) 0.0d0
           (.right master) 0.0d0)))
 
-(defclass sequencer ()
+(defclass audio-module ()
+  ((in :initarg :in :accessor .in :initform nil)
+   (out :initarg :out :accessor .out :initform nil)))
+
+(defmethod connect ((in audio-module) (out audio-module))
+  (push out (.out in))
+  (push in (.in out)))
+
+(defmethod disconnect ((in audio-module) (out audio-module))
+  (setf (.out in) (remove out (.out in)))
+  (setf (.in out) (remove in (.in out))))
+
+(defmethod route ((self audio-module) left right)
+  (loop for out in (.out self)
+        do (play-frame out left right)))
+
+(defclass sequencer (audio-module)
   ((patterns :initarg :patterns :accessor .patterns
              :initform nil)
    (end :initform 0 :accessor .end)))
@@ -138,18 +154,6 @@
                (write-master-buffer))))
 
 (defgeneric play-frame (audio-module left right))
-
-(defclass audio-module ()
-  ((in :initarg :in :accessor .in :initform nil)
-   (out :initarg :out :accessor .out :initform nil)))
-
-(defmethod connect ((in audio-module) (out audio-module))
-  (push out (.out in))
-  (push in (.in out)))
-
-(defmethod route ((self audio-module) left right)
-  (loop for out in (.out self)
-        do (play-frame out left right)))
 
 (defclass pattern (audio-module)
   ((lines :initarg :lines
@@ -255,8 +259,8 @@
 (defmethod play-frame ((self amp) left right)
   (setf (.left self) (* (.left self) left)
         (.right self) (* (.right self) right))
-  (when (= (incf (.in-count self))
-           (length (.in self)))
+  (when (<= (length (.in self))
+            (incf (.in-count self)))
     (route self (.left self) (.right self))
     (setf (.in-count self) 0)
     (setf (.left self) 1.0d0

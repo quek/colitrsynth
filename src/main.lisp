@@ -13,7 +13,8 @@
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
    (mouse-left-down :initform nil :accessor .mouse-left-down)
-   (drag-target :initform nil :accessor .drag-target)))
+   (drag-module :initform nil :accessor .drag-module)
+   (connect-from-module :initform nil :accessor .connect-from-module)))
 
 (defun module-at-mouse (app)
   (loop for module in (.modules app)
@@ -111,7 +112,8 @@
                            (setf y1 (.y self))
                            (setf x2 (+ (.x out) (/ (.width out) 2)))
                            (setf y2 (+ (.y out) (.height out)))))))
-             (sdl2:render-draw-line renderer x1 y1 x2 y2)))
+             (sdl2:render-draw-line renderer x1 y1 x2 y2)
+             (sdl2:render-draw-rect renderer (sdl2:make-rect (- x1 2) (- y1 2) 5 5))))
   (call-next-method))
 
 (defclass module (renderable)
@@ -303,7 +305,7 @@
           x xrel y yrel state)
   (setf (.mouse-x *app*) x)
   (setf (.mouse-y *app*) y)
-  (awhen (.drag-target *app*)
+  (awhen (.drag-module *app*)
     (incf (.x it) xrel)
     (incf (.y it) yrel)))
 
@@ -311,19 +313,32 @@
 (defun mousebuttondown (button state clicks x y)
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (when (= button 1)
-    (let ((module (module-at-mouse *app*)))
-      (setf (.mouse-left-down *app*) t
-            (.drag-target *app*) module)
-      (when module
-        (click module (- x (.x module)) (- y (.y module)))))))
+  (case button
+    (1                                  ;left
+     (let ((module (module-at-mouse *app*)))
+       (setf (.mouse-left-down *app*) t
+             (.drag-module *app*) module)
+       (when module
+         (click module (- x (.x module)) (- y (.y module))))))
+    (3                                  ;right
+     (setf (.connect-from-module *app*) (module-at-mouse *app*)))))
 
 (defun mousebuttonup (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (when (= button 1)
-    (setf (.mouse-left-down *app*) nil
-          (.drag-target *app*) nil)))
+  (case button
+    (1                                  ;left
+     (setf (.mouse-left-down *app*) nil
+           (.drag-module *app*) nil))
+    (3                                  ;right
+     (let ((from (.connect-from-module *app*)))
+       (when from
+         (let ((to (module-at-mouse *app*)))
+           (if (and to (not (eq from to)))
+               (if (member to (.out from))
+                   (disconnect from to)
+                   (connect from to)))))
+       (setf (.connect-from-module *app*) nil)))))
 
 (defun idle (renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
