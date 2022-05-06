@@ -24,8 +24,8 @@
 
 (defclass renderable ()
   ((color :initarg :color :initform (list #xcc #xcc #xcc *transparency*) :accessor .color)
-   (x :initarg :x :initform 10)
-   (y :initarg :y :initform 10)
+   (x :initarg :x :initform 0)
+   (y :initarg :y :initform 0)
    (width :initarg :width :initform 100 :accessor .width)
    (height :initarg :height :initform 80 :accessor .height)
    (parent :initarg :parent :initform nil :accessor .parent)
@@ -34,6 +34,10 @@
 (defmethod add-child ((parent renderable) (child renderable))
   (push child (.children parent))
   (setf (.parent child) parent))
+
+(defmethod remove-child ((parent renderable) (child renderable))
+  (setf (.children parent) (remove child (.children parent)))
+  (setf (.parent child) nil))
 
 (defmethod .x ((self renderable))
   (+ (slot-value self 'x)
@@ -138,6 +142,34 @@
                       :source-rect nil
                       :dest-rect (sdl2:make-rect (.x self) (.y self) width height))))
 
+(defclass tracker (renderable)
+  ((pattern :accessor .pattern)
+   (lines :initform nil :accessor .lines)))
+
+(defmethod render :before ((self tracker) renderer)
+  (let ((pattern-lines (.lines (.pattern self))))
+    (if (/= (length pattern-lines)
+            (length (.lines self)))
+        (progn
+          (loop for line in (.lines self)
+                do (remove-child self line))
+          (setf (.lines self) nil)
+          (loop for pattern-line in pattern-lines
+                for y from 2 by 10
+                for line = (make-instance 'tracker-line :line pattern-line
+                                                        :x 3 :y y)
+                do (push line (.lines self))
+                   (add-child self line)))
+        (loop for pattern-line in pattern-lines
+              for tracker-line in (.lines self)
+              do (setf (.line tracker-line) pattern-line)))))
+
+(defclass tracker-line (text)
+  ((line :initarg :line :accessor .line)))
+
+(defmethod render :before ((self tracker-line) renderer)
+  ;; TODO
+  (setf (.value self) (format nil "~a" (midino-to-note (.line self)))))
 
 (defclass sequencer-module (sequencer module)
   ()
@@ -150,8 +182,17 @@
       (play)))
 
 (defclass pattern-module (pattern module)
-  ()
+  ((tracker :initform (make-instance 'tracker) :accessor .tracker))
   (:default-initargs :name "pattern"))
+
+(defmethod initialize-instance :after ((self pattern-module) &key)
+  (let ((tracker (.tracker self)))
+    (add-child self tracker)
+    (setf (.pattern tracker) self
+          (.x tracker) 5
+          (.y tracker) 15
+          (.width tracker) (- (.width self) 10)
+          (.height tracker) (- (.height self) 20))))
 
 (defclass osc-module-mixin ()
   ((value-text :initform (make-instance 'text :value "0" :x 20 :y 20)
