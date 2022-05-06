@@ -350,6 +350,7 @@
                          :frames-per-buffer (.frames-per-buffer *audio*))))
                 ,@body)
            (when (.stream *audio*)
+             (stop)
              (pa:close-stream (.stream *audio*))))))))
 
 (defun scratch-audio ()
@@ -385,5 +386,4 @@
       (add-pattern (.sequencer *audio*) pattern2 (* 2 (length (.lines pattern1))))
 
       (play)
-      (loop until (.request-stop *audio*) do (pa:pa-sleep 10))
-      (stop))))
+      (loop until (.request-stop *audio*) do (pa:pa-sleep 10)))))
