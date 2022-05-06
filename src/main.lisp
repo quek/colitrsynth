@@ -42,9 +42,43 @@
 
 (defmethod render ((self renderable) renderer)
   (with-slots (color width height) self
+    (apply #'sdl2:set-render-draw-color renderer color)
     (sdl2:render-draw-rect renderer (sdl2:make-rect (.x self) (.y self) width height)))
   (loop for child in (.children self)
         do (render child renderer)))
+
+(defmethod render ((self audio-module) renderer)
+  (sdl2:set-render-draw-color renderer #x22 #x8b #x22 #xff)
+  (loop for out in (.out self)
+        do (let (x1 y1 x2 y2)
+             (if (< (abs (- (.x self) (.x out)))
+                    (abs (- (.y self) (.y out))))
+                 (progn
+                   (if (< (.x self) (.x out))
+                       (progn
+                         (setf x1 (+ -5 (.x self) (/ (.width self) 2)))
+                         (setf y1 (+ (.y self) (.height self)))
+                         (setf x2 (+ 5 (.x out) (/ (.width out) 2)))
+                         (setf y2 (.y out)))
+                       (progn
+                         (setf x1 (+ -5 (.x self) (/ (.width self) 2)))
+                         (setf y1 (.y self))
+                         (setf x2 (+ 5 (.x out) (/ (.width out) 2)))
+                         (setf y2 (+ (.y out) (.height out))))))
+                 (progn
+                   (if (< (.y self) (.y out))
+                       (progn
+                         (setf x1 (.x self))
+                         (setf y1 (+ -5 (.y self) (/ (.height self) 2)))
+                         (setf x2 (+ (.x out) (.width out)))
+                         (setf y2 (+ 5 (.y out) (/ (.height out) 2))))
+                       (progn
+                         (setf x1 (+ (.x self) (.width self)))
+                         (setf y1 (+ -5 (.y self) (/ (.height self) 2)))
+                         (setf x2 (.x out))
+                         (setf y2 (+ 5 (.y out) (/ (.height out) 2)))))))
+             (sdl2:render-draw-line renderer x1 y1 x2 y2)))
+  (call-next-method))
 
 (defclass module (renderable)
   ((name :initarg :name :initform "noname" :accessor .name)))
@@ -68,7 +102,7 @@
 
 (defclass sequencer-module (sequencer module)
   ()
-  (:default-initargs :name "sequencer"))
+  (:default-initargs :name "sequencer" :color '(#x00 #xff #xff #xff)))
 
 (defclass pattern-module (pattern module)
   ()
@@ -92,7 +126,7 @@
 
 (defclass master-module (master module)
   ()
-  (:default-initargs :name "master"))
+  (:default-initargs :name "master" :color '(#xff #xa5 #x00 #xff)))
 
 
 (defun main ()
@@ -133,22 +167,22 @@
                    (pattern1 (make-instance 'pattern-module
                                             :lines (list a4 e4 none g4
                                                          a4 off  g4 c4)
-                                            :x 110 :y 5))
-                   (osc1 (make-instance 'sin-osc-module :x 215 :y 5))
+                                            :x 125 :y 5))
+                   (osc1 (make-instance 'sin-osc-module :x 245 :y 5))
                    (adsr1 (make-instance 'adsr-module :d 0.2d0 :s 0d0
-                                                      :x 320 :y 5))
+                                                      :x 365 :y 5))
                    (amp1 (make-instance 'amp-module
-                                        :x 425 :y 5))
+                                        :x 485 :y 5))
                    (pattern2 (make-instance 'pattern-module
                                             :lines (list a3 e3 none g3
                                                          a3 off  g3 c3)
-                                            :x 110 :y 100))
+                                            :x 125 :y 100))
                    (osc2 (make-instance 'saw-osc-module
-                                        :x 215 :y 100))
+                                        :x 245 :y 100))
                    (adsr2 (make-instance 'adsr-module :d 0.7d0 :s 0.8d0
-                                                      :x 320 :y 100))
+                                                      :x 365 :y 100))
                    (amp2 (make-instance 'amp-module
-                                        :x 425 :y 100)))
+                                        :x 485 :y 100)))
               (connect pattern1 osc1)
               (connect pattern1 adsr1)
               (connect osc1 amp1)

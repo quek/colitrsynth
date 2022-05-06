@@ -67,7 +67,7 @@
    (sequencer :initarg :sequencer :accessor .sequencer
               :initform (make-instance 'sequencer-module :x 5 :y 5))
    (master :accessor .master
-           :initform (make-instance 'master-module :x 695 :y 510))))
+           :initform (make-instance 'master-module :x 695 :y 515))))
 
 (defun play ()
   (unless (.playing *audio*)
