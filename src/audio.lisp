@@ -174,6 +174,7 @@
 
 (defclass osc (audio-module)
   ((note :initarg :note :initform off :accessor .note)
+   (value :initform 0.0d0 :accessor .value)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
@@ -187,7 +188,8 @@
                   (setf (.phase self) 0))
                 (setf (.note self) note)
                 (osc-frame-value self)))))
-    (route self value value))
+    (route self value value)
+    (setf (.value self) value))
   (incf (.phase self)))
 
 (defclass sin-osc (osc)

@@ -108,11 +108,22 @@
   ()
   (:default-initargs :name "pattern"))
 
-(defclass sin-osc-module (sin-osc module)
+(defclass osc-module-mixin ()
+  ((value-text :initform (make-instance 'text :value "0" :x 20 :y 20)
+               :accessor .value-text)))
+
+(defmethod initialize-instance :after ((self osc-module-mixin) &key)
+  (add-child self (.value-text self)))
+
+(defmethod render :before ((self osc-module-mixin) renderer)
+  ;; TODO 依存性の何とかとか
+  (setf (.value (.value-text self)) (format nil "~,5f" (.value self))))
+
+(defclass sin-osc-module (sin-osc module osc-module-mixin)
   ()
   (:default-initargs :name "sin"))
 
-(defclass saw-osc-module (saw-osc module)
+(defclass saw-osc-module (saw-osc module osc-module-mixin)
   ()
   (:default-initargs :name "saw"))
 
