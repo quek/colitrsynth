@@ -138,20 +138,25 @@
 (defclass sequencer (audio-module)
   ((patterns :initarg :patterns :accessor .patterns
              :initform nil)
-   (end :initform 0 :accessor .end)))
+   (end :initform 0 :accessor .end)
+   (loop :initform t :accessor .loop)))
 
 (defun play-sequencer (self line frame)
   (declare (ignore frame))
-  (if (< (.end self) line)
-      (progn
+  (let* ((end (.end self))
+         (line (if (.loop self)
+                   (mod line end)
+                   line)))
+    (if (< end line)
+        (progn
+          (loop for i below (.frames-per-buffer *audio*)
+                do (write-master-buffer))
+          (request-stop))
         (loop for i below (.frames-per-buffer *audio*)
-              do (write-master-buffer))
-        (request-stop))
-      (loop for i below (.frames-per-buffer *audio*)
-            do (loop for (start . pattern) in (.patterns self)
-                     if (<= start line (1- (+ start (length (.lines pattern)))))
-                       do (play-pattern pattern (- line start)))
-               (write-master-buffer))))
+              do (loop for (start . pattern) in (.patterns self)
+                       if (<= start line (1- (+ start (length (.lines pattern)))))
+                         do (play-pattern pattern (- line start)))
+                 (write-master-buffer)))))
 
 (defgeneric play-frame (audio-module left right))
 
