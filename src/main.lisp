@@ -318,15 +318,28 @@
                (+ g1 (* 12 (.octave self)))))
         ((= scancode 137)               ;\
          (setf (nth (.cursor-y self) (.lines (.pattern self)))
-               (+ g#1 (* 12 (.octave self)))))))
+               (+ g#1 (* 12 (.octave self)))))
+        ((sdl2:scancode= scancode :scancode-a)
+         (setf (nth (.cursor-y self) (.lines (.pattern self)))
+               off))
+        ((sdl2:scancode= scancode :scancode-delete)
+         (setf (nth (.cursor-y self) (.lines (.pattern self)))
+               none))))
+;;(sdl2:scancode-key-to-value :scancode-delete)
 
 (defclass tracker-line (text)
   ((line :initarg :line :accessor .line)))
 
 (defmethod render :before ((self tracker-line) renderer)
-  (let ((string (format nil "~a" (midino-to-note (.line self)))))
-    (when (char/= (char string 1) #\#)
-      (setf string (format nil "~a-~a" (char string 0) (char string 1))))
+  (let* ((midino (.line self))
+         (string (case midino
+                   (#.off "OFF")
+                   (#.none "---")
+                   (t
+                    (let ((string (format nil "~a" (midino-to-note midino))))
+                      (if (char/= (char string 1) #\#)
+                          (format nil "~a-~a" (char string 0) (char string 1))
+                          string))))))
     (setf (.value self) string)))
 
 (defclass sequencer-module (sequencer module)
