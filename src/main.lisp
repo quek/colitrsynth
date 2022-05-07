@@ -5,6 +5,7 @@
 (defparameter *char-height* *font-size*)
 (defparameter *cursor-color* '(#x00 #x00 #xcc #x80))
 (defparameter *play-position-color* '(#x00 #x80 #x00 #x80))
+(defparameter *layout-space* 5)
 
 (defparameter *transparency* #xc0)
 
@@ -137,9 +138,14 @@
              (sdl2:render-draw-rect renderer (sdl2:make-rect (- x1 2) (- y1 2) 5 5))))
   (call-next-method))
 
-(defclass module (renderable)
-  ((name :initarg :name :initform "noname" :accessor .name)
-   (dragging :initform nil :accessor .dragging)
+(defclass name-mixin ()
+  ((name :initarg :name :initform "noname" :accessor .name)))
+
+(defmethod initialize-instance :after ((self name-mixin) &key)
+  (add-child self (make-instance 'text :value (.name self) :x 3 :y 3)))
+
+(defclass module (renderable name-mixin)
+  ((dragging :initform nil :accessor .dragging)
    (resizing :initform nil :accessor .resizing)))
 
 (defmethod render ((self module) renderer)
@@ -155,9 +161,6 @@
                          (+ (.y self) (.height self) -1)
                          (+ (.x self) (.width self) -1)
                          (+ (.y self) (.height self) -7)))
-
-(defmethod initialize-instance :after ((self module) &key)
-  (add-child self (make-instance 'text :value (.name self) :x 3 :y 3)))
 
 (defgeneric mousebuttondown (self button state clicks x y)
   (:method (self button state clicks x y))
@@ -184,13 +187,21 @@
   (:method ((self module) x y xrel yrel state)
     (when (eq self (.drag-module *app*))
       (if (.resizing self)
-          (progn
-            (setf (.width self) (max 20 (+ (.width self) xrel)))
-            (setf (.height self) (max 20 (+ (.height self) yrel))))
+          (resize self xrel yrel)
           (when (.dragging self)
-            (progn
-              (incf (.x self) xrel)
-              (incf (.y self) yrel)))))))
+            (move self xrel yrel))))))
+
+(defgeneric move (self xrel yrel)
+  (:method (self xrel yrel))
+  (:method ((self renderable) xrel yrel)
+    (incf (.x self) xrel)
+    (incf (.y self) yrel)))
+
+(defgeneric resize (self xrel yrel)
+  (:method (self xrel yrel))
+  (:method ((self renderable) xrel yrel)
+    (setf (.width self) (max 20 (+ (.width self) xrel)))
+    (setf (.height self) (max 20 (+ (.height self) yrel)))))
 
 (defclass text (renderable)
   ((value :initarg :value :initform "くえっ" :accessor .value)
@@ -373,8 +384,25 @@
                           string))))))
     (setf (.value self) string)))
 
+(defparameter *track-height* 40)        ;TODO 固定長で妥協
+
+(defclass sequencer-module-track (track renderable)
+  ()
+  (:default-initargs :width 690 :height *track-height*))
+
+(defmethod render ((self sequencer-module-track) renderer)
+  (call-next-method)
+  (loop for pattern-position in (.pattern-positions self)
+        do (sdl2:render-draw-rect
+            renderer
+            (sdl2:make-rect (* 5 (+ (.x self) (.start pattern-position)))
+                            (+ 2 (.y self))
+                            (* 5 (+ (.x self) (- (.end pattern-position)
+                                                 (.start pattern-position))))
+                            (+ -4 (.height self))))))
+
 (defclass sequencer-module (sequencer module)
-  ((play-button :accessor .play-button))
+  ()
   (:default-initargs :name ""
                      :color (list #x00 #xff #xff *transparency*)
                      :width 700
@@ -385,14 +413,28 @@
     (add-child self play-button)
     (defmethod mousebuttondown ((self (eql play-button)) button state clicks x y)
       (when (= button 1)
-       (if (.playing *audio*)
-           (stop)
-           (play))))))
+        (if (.playing *audio*)
+            (stop)
+            (play))))))
 
 (defmethod mousebuttondown ((self sequencer-module) button state clicks x y)
   (aif (child-module-at self x y)
        (mousebuttondown it button state clicks x y)
        (call-next-method)))
+
+(defmethod resize :after ((self sequencer-module) xrel yrel)
+  ;; TODO 小さくするとはみ出るし、拡大縮小もした方がいいかもしれない
+  (loop for track in (.tracks self)
+        do (resize track xrel 0)))
+
+(defun add-new-track (sequencer-module)
+  (let* ((y (+ 13 *font-size* (* (length (.tracks sequencer-module))
+                                 (+ *track-height* 5))))
+         (track (make-instance 'sequencer-module-track :x 5 :y y)))
+    (add-child sequencer-module track)
+    (setf (.tracks sequencer-module)
+          (append (.tracks sequencer-module) (list track)))
+    track))
 
 (defclass pattern-module (pattern module)
   ((pattern-editor :initform (make-instance 'pattern-editor) :accessor .pattern-editor))
@@ -481,8 +523,8 @@
           (with-audio
             (let* ((line-length 8)
                    (sequencer (.sequencer *audio*))
-                   (channel1 (car (.channels sequencer)))
-                   (channel2 (car (push (make-instance 'channel) (.channels sequencer))))
+                   (track1 (add-new-track sequencer))
+                   (track2 (add-new-track sequencer))
                    (master (.master *audio*))
                    (pattern1 (make-instance 'pattern-module
                                             :name "plack"
@@ -509,20 +551,20 @@
                                                       :x 365 :y 350))
                    (amp2 (make-instance 'amp-module
                                         :x 485 :y 350)))
-              (connect channel1 osc1)
-              (connect channel1 adsr1)
+              (connect track1 osc1)
+              (connect track1 adsr1)
               (connect osc1 amp1)
               (connect adsr1 amp1)
               (connect amp1 master)
-              (connect channel2 osc2)
-              (connect channel2 adsr2)
+              (connect track2 osc2)
+              (connect track2 adsr2)
               (connect osc2 amp2)
               (connect adsr2 amp2)
               (connect amp2 master)
-              (add-pattern sequencer channel1 pattern1 0 line-length)
-              (add-pattern sequencer channel1 pattern1 line-length (* 2 line-length))
-              (add-pattern sequencer channel2 pattern2 line-length (* 2 line-length))
-              (add-pattern sequencer channel1 pattern1 (* 2 line-length) (* 3 line-length))
+              (add-pattern sequencer track1 pattern1 0 line-length)
+              (add-pattern sequencer track1 pattern1 line-length (* 2 line-length))
+              (add-pattern sequencer track2 pattern2 line-length (* 2 line-length))
+              (add-pattern sequencer track1 pattern1 (* 2 line-length) (* 3 line-length))
               (setf (.modules *app*)
                     (list sequencer master
                           pattern1 osc1 adsr1 amp1 

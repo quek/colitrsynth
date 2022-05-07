@@ -142,10 +142,10 @@
 
 (defgeneric play-frame (audio-module left right))
 
-(defclass channel (audio-module)
+(defclass track (audio-module)
   ((pattern-positions :initform nil :accessor .pattern-positions)))
 
-(defmethod play-frame ((self channel) line frame)
+(defmethod play-frame ((self track) line frame)
   (loop for pattern-position in (.pattern-positions self)
         do (with-slots (pattern start end) pattern-position
              (when (and (<= start line)
@@ -154,8 +154,7 @@
                  (note-gate-at-line-frame pattern (- line start) frame))))))
 
 (defclass sequencer (audio-module)
-  ((channels :initarg :channels :accessor .channels
-             :initform (list (make-instance 'channel)))
+  ((tracks :initarg :tracks :accessor .tracks :initform nil)
    (end :initform 0 :accessor .end)
    (loop :initform t :accessor .loop)))
 
@@ -171,8 +170,8 @@
                 do (write-master-buffer))
           (request-stop))
         (loop for i below (.frames-per-buffer *audio*)
-              do (loop for channel in (.channels self)
-                       do (play-frame channel line frame))
+              do (loop for track in (.tracks self)
+                       do (play-frame track line frame))
                  (write-master-buffer)))))
 
 (defclass line ()
@@ -192,9 +191,9 @@
                       (loop repeat (.length self)
                             collect (make-instance 'line))))))
 
-(defun add-pattern (sequencer channel pattern start end)
+(defun add-pattern (sequencer track pattern start end)
   (push (make-instance 'pattern-position :pattern pattern :start start :end end)
-        (.pattern-positions channel))
+        (.pattern-positions track))
   (setf (.end sequencer) (max (.end sequencer) end)))
 
 (defun note-gate-at-line-frame (pattern line frame)
@@ -398,8 +397,8 @@
   (with-audio
     (let* ((line-length 8)
            (sequencer (.sequencer *audio*))
-           (channel1 (car (.channels sequencer)))
-           (channel2 (car (push (make-instance 'channel) (.channels sequencer))))
+           (track1 (car (push (make-instance 'track) (.tracks sequencer))))
+           (track2 (car (push (make-instance 'track) (.tracks sequencer))))
            (master (.master *audio*))
            (pattern1 (make-instance
                       'pattern
@@ -419,21 +418,21 @@
            (osc2 (make-instance 'saw-osc))
            (adsr2 (make-instance 'adsr :d 0.7d0 :s 0.8d0))
            (amp2 (make-instance 'amp)))
-      (connect channel1 osc1)
-      (connect channel1 adsr1)
+      (connect track1 osc1)
+      (connect track1 adsr1)
       (connect osc1 amp1)
       (connect adsr1 amp1)
       (connect amp1 master)
-      (connect channel2 osc2)
-      (connect channel2 adsr2)
+      (connect track2 osc2)
+      (connect track2 adsr2)
       (connect osc2 amp2)
       (connect adsr2 amp2)
       (connect amp2 master)
-      (add-pattern sequencer channel1 pattern1 0 line-length)
-      (add-pattern sequencer channel1 pattern1 line-length (* 2 line-length))
-      (add-pattern sequencer channel2 pattern2 line-length (* 2 line-length))
-      (add-pattern sequencer channel1 pattern1 (* 2 line-length) (* 3 line-length))
-      (add-pattern sequencer channel2 pattern2 (* 2 line-length) (* 3 line-length))
+      (add-pattern sequencer track1 pattern1 0 line-length)
+      (add-pattern sequencer track1 pattern1 line-length (* 2 line-length))
+      (add-pattern sequencer track2 pattern2 line-length (* 2 line-length))
+      (add-pattern sequencer track1 pattern1 (* 2 line-length) (* 3 line-length))
+      (add-pattern sequencer track2 pattern2 (* 2 line-length) (* 3 line-length))
       (setf (.loop sequencer) nil)
       (play)
       (loop until (.request-stop *audio*) do (pa:pa-sleep 10)))))
