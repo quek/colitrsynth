@@ -205,7 +205,7 @@
                     :source-rect nil
                     :dest-rect (sdl2:make-rect (.x self) (.y self) (.width self) (.height self))))
 
-(defclass tracker (renderable)
+(defclass pattern-editor (renderable)
   ((pattern :accessor .pattern)
    (lines :initform nil :accessor .lines)
    (cursor-x :initform 0 :accessor .cursor-x)
@@ -213,7 +213,7 @@
    (octave :initform 4 :accessor .octave)
    (edit-step :initform 0 :accessor .edit-step)))
 
-(defmethod render :before ((self tracker) renderer)
+(defmethod render :before ((self pattern-editor) renderer)
   (let ((pattern-lines (.lines (.pattern self))))
     (if (/= (length pattern-lines)
             (length (.lines self)))
@@ -223,16 +223,16 @@
           (setf (.lines self) nil)
           (loop for pattern-line in pattern-lines
                 for y from 2 by *char-height*
-                for line = (make-instance 'tracker-line :line pattern-line
+                for line = (make-instance 'pattern-editor-line :line pattern-line
                                                         :x 3 :y y)
                 do (push line (.lines self))
                    (add-child self line))
           (setf (.lines self) (nreverse (.lines self))))
         (loop for pattern-line in pattern-lines
-              for tracker-line in (.lines self)
-              do (setf (.line tracker-line) pattern-line)))))
+              for pattern-editor-line in (.lines self)
+              do (setf (.line pattern-editor-line) pattern-line)))))
 
-(defmethod render ((self tracker) renderer)
+(defmethod render ((self pattern-editor) renderer)
   (let ((texture (sdl2:create-texture renderer :rgba8888 :target 800 600)))
     (unwind-protect
          (progn
@@ -264,7 +264,7 @@
              (sdl2:render-copy renderer texture :source-rect rect :dest-rect rect)))
       (sdl2:destroy-texture texture))))
 
-(defmethod keydown ((self tracker) scancode mod-value)
+(defmethod keydown ((self pattern-editor) scancode mod-value)
   (cond ((or (sdl2:scancode= scancode :scancode-up)
              (sdl2:scancode= scancode :scancode-k))
          (setf (.cursor-y self)
@@ -355,10 +355,10 @@
                none))))
 ;;(sdl2:scancode-key-to-value :scancode-delete)
 
-(defclass tracker-line (text)
+(defclass pattern-editor-line (text)
   ((line :initarg :line :accessor .line)))
 
-(defmethod render :before ((self tracker-line) renderer)
+(defmethod render :before ((self pattern-editor-line) renderer)
   (let* ((midino (.line self))
          (string (case midino
                    (#.off "OFF")
@@ -381,26 +381,26 @@
   t)
 
 (defclass pattern-module (pattern module)
-  ((tracker :initform (make-instance 'tracker) :accessor .tracker))
+  ((pattern-editor :initform (make-instance 'pattern-editor) :accessor .pattern-editor))
   (:default-initargs :name "pattern"))
 
 (defmethod keydown ((self pattern-module) scancode mod-value)
-  (keydown (.tracker self) scancode mod-value))
+  (keydown (.pattern-editor self) scancode mod-value))
 
 (defmethod initialize-instance :after ((self pattern-module) &key)
-  (let ((tracker (.tracker self)))
-    (add-child self tracker)
-    (setf (.pattern tracker) self
-          (.x tracker) 5
-          (.y tracker) (+ 5 *font-size*)
-          (.width tracker) (- (.width self) 10)
-          (.height tracker) (- (.height self) (+ 10 *font-size*)))))
+  (let ((pattern-editor (.pattern-editor self)))
+    (add-child self pattern-editor)
+    (setf (.pattern pattern-editor) self
+          (.x pattern-editor) 5
+          (.y pattern-editor) (+ 5 *font-size*)
+          (.width pattern-editor) (- (.width self) 10)
+          (.height pattern-editor) (- (.height self) (+ 10 *font-size*)))))
 
 (defmethod (setf .width) :after (value (self pattern-module))
-  (setf (.width (.tracker self)) (- (.width self) 10)))
+  (setf (.width (.pattern-editor self)) (- (.width self) 10)))
 
 (defmethod (setf .height) :after (value (self pattern-module))
-  (setf (.height (.tracker self)) (- (.height self) (+ 10 *font-size*))))
+  (setf (.height (.pattern-editor self)) (- (.height self) (+ 10 *font-size*))))
 
 (defclass osc-module-mixin ()
   ((value-text :initform (make-instance 'text :value "0" :x 20 :y 20)
