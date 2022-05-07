@@ -186,19 +186,23 @@
               (incf (.y self) yrel)))))))
 
 (defclass text (renderable)
-  ((value :initarg :value :initform "Hi" :accessor .value)))
+  ((value :initarg :value :initform "Hi" :accessor .value)
+   (lat-value :initform "" :accessor .last-value)
+   (texture :initform nil :accessor .texture)))
 
 (defmethod render ((self text) renderer)
-  ;; TODO 毎回 surface, texture 作るのは無駄だね？
-  (let* ((surface (apply #'sdl2-ttf:render-utf8-solid (.font *app*) (.value self) (.color self)))
-         (width (sdl2:surface-width surface))
-         (height (sdl2:surface-height surface))
-         (texture (sdl2:create-texture-from-surface renderer surface)))
-    (sdl2:render-copy renderer
-                      texture
-                      :source-rect nil
-                      :dest-rect (sdl2:make-rect (.x self) (.y self) width height))
-    (sdl2:destroy-texture texture)))
+  (when (string/= (.value self) (.last-value self))
+    (setf (.last-value self) (.value self))
+    (awhen (.texture self)
+      (sdl2:destroy-texture it))
+    (let ((surface (apply #'sdl2-ttf:render-utf8-solid (.font *app*) (.value self) (.color self))))
+      (setf (.width self) (sdl2:surface-width surface)
+            (.height self) (sdl2:surface-height surface)
+            (.texture self) (sdl2:create-texture-from-surface renderer surface))))
+  (sdl2:render-copy renderer
+                    (.texture self)
+                    :source-rect nil
+                    :dest-rect (sdl2:make-rect (.x self) (.y self) (.width self) (.height self))))
 
 (defclass tracker (renderable)
   ((pattern :accessor .pattern)
@@ -232,8 +236,8 @@
     (unwind-protect
          (progn
            (sdl2:set-render-target renderer texture)
-           (sdl2:set-texture-blend-mode texture :none)
-           (sdl2:set-render-draw-color renderer 0 0 0 #xFF)
+           (sdl2:set-texture-blend-mode texture :blend)
+           (sdl2:set-render-draw-color renderer 0 0 0 #x00)
            (sdl2:render-clear renderer)
            (when (eq (.parent self) (module-at-mouse *app*))
              (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
