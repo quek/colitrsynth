@@ -121,18 +121,48 @@
                            (setf y1 (.y self))
                            (setf x2 (+ (.x out) (/ (.width out) 2)))
                            (setf y2 (+ (.y out) (.height out)))))))
+             (setf x1 (floor x1)
+                   x2 (floor x2)
+                   y1 (floor y1)
+                   y2 (floor y2)) 
              (sdl2:render-draw-line renderer x1 y1 x2 y2)
              (sdl2:render-draw-rect renderer (sdl2:make-rect (- x1 2) (- y1 2) 5 5))))
   (call-next-method))
 
 (defclass module (renderable)
-  ((name :initarg :name :initform "noname" :accessor .name)))
+  ((name :initarg :name :initform "noname" :accessor .name)
+   (dragging :initform nil :accessor .dragging)
+   (resizing :initform nil :accessor .resizing)))
+
+(defmethod render ((self module) renderer)
+  (call-next-method)
+  (sdl2:render-draw-line renderer
+                         (+ (.x self) (.width self) -10)
+                         (+ (.y self) (.height self) -1)
+                         (+ (.x self) (.width self) -1)
+                         (+ (.y self) (.height self) -10))
+  (sdl2:render-draw-line renderer
+                         (+ (.x self) (.width self) -7)
+                         (+ (.y self) (.height self) -1)
+                         (+ (.x self) (.width self) -1)
+                         (+ (.y self) (.height self) -7)))
 
 (defmethod initialize-instance :after ((self module) &key)
   (add-child self (make-instance 'text :value (.name self) :x 3 :y 3)))
 
-(defgeneric click (self x y)
-  (:method (self x y)))
+(defgeneric mousebuttondown (self button state clicks x y)
+  (:method (self button state clicks x y))
+  (:method ((self module) button state clicks x y)
+    (if (and (< (.width self) (+ 10 x))
+             (< (.height self) (+ 10 y)))
+        (setf (.resizing self) t)
+        (setf (.dragging self) t))))
+
+(defgeneric mousebuttonup (self button state clicks x y)
+  (:method (self button state clicks x y))
+  (:method ((self module) button state clicks x y)
+    (setf (.resizing self) nil
+          (.dragging self) nil)))
 
 (defgeneric keydown (self scancode mod-value)
   (:method (self scancode mod-value)))
@@ -142,10 +172,16 @@
 
 (defgeneric mousemotion (self x y xrel yrel state)
   (:method (self x y xrel yrel state))
-  (:method ((self renderable) x y xrel yrel state)
+  (:method ((self module) x y xrel yrel state)
     (when (eq self (.drag-module *app*))
-      (incf (.x self) xrel)
-      (incf (.y self) yrel))))
+      (if (.resizing self)
+          (progn
+            (incf (.width self) xrel)
+            (incf (.height self) yrel))
+          (when (.dragging self)
+            (progn
+              (incf (.x self) xrel)
+              (incf (.y self) yrel)))))))
 
 (defclass text (renderable)
   ((value :initarg :value :initform "Hi" :accessor .value)))
@@ -297,8 +333,7 @@
   ()
   (:default-initargs :name "sequencer" :color (list #x00 #xff #xff *transparency*)))
 
-(defmethod click ((self sequencer-module) x y)
-  (declare (ignore x y))
+(defmethod mousebuttondown ((self sequencer-module) button state clicks x y)
   (if (.playing *audio*)
       (stop)
       (play))
@@ -480,16 +515,22 @@
     (1                                  ;left
      (let ((module (module-at-mouse *app*)))
        (setf (.drag-module *app*) module)
-       (click module (- x (.x module)) (- y (.y module)))))
+       (mousebuttondown module
+                        button state clicks
+                        (- x (.x module)) (- y (.y module)))))
     (3                                  ;right
      (setf (.connect-from-module *app*) (module-at-mouse *app*)))))
 
 (defun handle-sdl2-mousebuttonup-event (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
+  (sif (.drag-module *app*)
+       (progn
+         (mousebuttonup it button state clicks
+                        (- x (.x it)) (- y (.y it)))
+         (setf it nil))
+       (mousebuttonup (module-at-mouse *app*) button state clicks x y))
   (case button
-    (1                                  ;left
-     (setf (.drag-module *app*) nil))
     (3                                  ;right
      (let ((from (.connect-from-module *app*)))
        (when from
