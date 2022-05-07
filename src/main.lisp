@@ -368,6 +368,12 @@
           (.width tracker) (- (.width self) 10)
           (.height tracker) (- (.height self) 20))))
 
+(defmethod (setf .width) :after (value (self pattern-module))
+  (setf (.width (.tracker self)) (- (.width self) 10)))
+
+(defmethod (setf .height) :after (value (self pattern-module))
+  (setf (.height (.tracker self)) (- (.height self) 20)))
+
 (defclass osc-module-mixin ()
   ((value-text :initform (make-instance 'text :value "0" :x 20 :y 20)
                :accessor .value-text)))
