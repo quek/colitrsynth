@@ -27,6 +27,12 @@
                        (<= (.y module) (.mouse-y app) (+ (.y module) (.height module)))
                        module)))
 
+(defun child-module-at (self x y)
+  (loop for module in (.children self)
+          thereis (and (<= (.x module) (+ x (.x self)) (+ (.x module) (.width module)))
+                       (<= (.y module) (+ y (.y self)) (+ (.y module) (.height module)))
+                       module)))
+
 (defclass renderable ()
   ((color :initarg :color :initform (list #xdd #xdd #xdd *transparency*) :accessor .color)
    (x :initarg :x :initform 0)
@@ -187,23 +193,40 @@
               (incf (.y self) yrel)))))))
 
 (defclass text (renderable)
-  ((value :initarg :value :initform "Hi" :accessor .value)
+  ((value :initarg :value :initform "くえっ" :accessor .value)
    (lat-value :initform "" :accessor .last-value)
-   (texture :initform nil :accessor .texture)))
+   (texture :initform nil :accessor .texture))
+  (:default-initargs :width 0 :height 0))
 
 (defmethod render ((self text) renderer)
-  (when (string/= (.value self) (.last-value self))
-    (setf (.last-value self) (.value self))
-    (awhen (.texture self)
-      (sdl2:destroy-texture it))
-    (let ((surface (apply #'sdl2-ttf:render-utf8-solid (.font *app*) (.value self) (.color self))))
-      (setf (.width self) (sdl2:surface-width surface)
-            (.height self) (sdl2:surface-height surface)
-            (.texture self) (sdl2:create-texture-from-surface renderer surface))))
-  (sdl2:render-copy renderer
-                    (.texture self)
-                    :source-rect nil
-                    :dest-rect (sdl2:make-rect (.x self) (.y self) (.width self) (.height self))))
+  (when (string/= (.value self) "")
+    (when (string/= (.value self) (.last-value self))
+      (setf (.last-value self) (.value self))
+      (awhen (.texture self)
+        (sdl2:destroy-texture it))
+      (let ((surface (apply #'sdl2-ttf:render-utf8-solid (.font *app*)
+                            (.value self)
+                            (.color self))))
+        (setf (.width self) (sdl2:surface-width surface)
+              (.height self) (sdl2:surface-height surface)
+              (.texture self) (sdl2:create-texture-from-surface renderer surface))))
+    (sdl2:render-copy renderer
+                      (.texture self)
+                      :source-rect nil
+                      :dest-rect (sdl2:make-rect (.x self) (.y self) (.width self) (.height self)))))
+
+(defclass button (renderable)
+  ()
+  (:default-initargs :width 50 :height 30))
+
+(defmethod initialize-instance :after ((self button) &key text)
+  (add-child self (make-instance 'text :value text :x 5 :y 2)))
+
+(defmethod render :after ((self button) renderer)
+  ;; after でやるので初回描画時は崩れてるはずだけど妥協
+  (let ((text (car (.children self))))
+    (setf (.width self) (+ 10 (.width text))
+          (.height self) (+ 4 (.height text)))))
 
 (defclass pattern-editor (renderable)
   ((pattern :accessor .pattern)
@@ -274,9 +297,9 @@
                  (max (1- (.cursor-y self)) 0)))
           ((or (sdl2:scancode= scancode :scancode-down)
                (sdl2:scancode= scancode :scancode-j))
-           (print (setf (.cursor-y self)
-                        (min (1+ (.cursor-y self))
-                             (1- (length (.lines (.pattern self))))))))
+           (setf (.cursor-y self)
+                 (min (1+ (.cursor-y self))
+                      (1- (length (.lines (.pattern self)))))))
           #+nil
           ((and (or (sdl2:scancode= scancode :scancode-left)
                     (sdl2:scancode= scancode :scancode-h))
@@ -351,14 +374,25 @@
     (setf (.value self) string)))
 
 (defclass sequencer-module (sequencer module)
-  ()
-  (:default-initargs :name "sequencer" :color (list #x00 #xff #xff *transparency*)))
+  ((play-button :accessor .play-button))
+  (:default-initargs :name ""
+                     :color (list #x00 #xff #xff *transparency*)
+                     :width 700
+                     :height 200))
+
+(defmethod initialize-instance :after ((self sequencer-module) &key)
+  (let ((play-button (make-instance 'button :text "▶" :x 5 :y 5)))
+    (add-child self play-button)
+    (defmethod mousebuttondown ((self (eql play-button)) button state clicks x y)
+      (when (= button 1)
+       (if (.playing *audio*)
+           (stop)
+           (play))))))
 
 (defmethod mousebuttondown ((self sequencer-module) button state clicks x y)
-  (if (.playing *audio*)
-      (stop)
-      (play))
-  t)
+  (aif (child-module-at self x y)
+       (mousebuttondown it button state clicks x y)
+       (call-next-method)))
 
 (defclass pattern-module (pattern module)
   ((pattern-editor :initform (make-instance 'pattern-editor) :accessor .pattern-editor))
@@ -390,7 +424,6 @@
   (add-child self (.value-text self)))
 
 (defmethod render :before ((self osc-module-mixin) renderer)
-  ;; TODO 依存性の何とかとか
   (setf (.value (.value-text self)) (format nil "~,5f" (.value self))))
 
 (defclass sin-osc-module (sin-osc module osc-module-mixin)
@@ -435,7 +468,8 @@
               sdl2-ffi:+sdl-patchlevel+)
       (finish-output)
 
-      (sdl2:with-window (win :title "CoLiTrSynth" :w (.width *app*) :h (.height *app*))
+      (sdl2:with-window (win :title "CoLiTrSynth" :w (.width *app*) :h (.height *app*)
+                         :x 1 :y 25)    ;デバッグするのにこの位置が楽
         (setf (.win *app*) win)
         (sdl2:with-renderer (renderer win :flags '(:accelerated))
           (format t "Setting up window/gl.~%")
@@ -451,28 +485,30 @@
                    (channel2 (car (push (make-instance 'channel) (.channels sequencer))))
                    (master (.master *audio*))
                    (pattern1 (make-instance 'pattern-module
+                                            :name "plack"
                                             :length line-length
                                             :lines (list-to-pattern-lines
                                                     (list a4 e4 none g4
                                                           a4 off  g4 c4))
-                                            :x 125 :y 5))
-                   (osc1 (make-instance 'sin-osc-module :x 245 :y 5))
+                                            :x 125 :y 250))
+                   (osc1 (make-instance 'sin-osc-module :x 245 :y 300))
                    (adsr1 (make-instance 'adsr-module :d 0.2d0 :s 0d0
-                                                      :x 365 :y 5))
+                                                      :x 365 :y 250))
                    (amp1 (make-instance 'amp-module
-                                        :x 485 :y 5))
+                                        :x 485 :y 250))
                    (pattern2 (make-instance 'pattern-module
+                                            :name "brass"
                                             :length line-length
                                             :lines (list-to-pattern-lines
                                                     (list a3 e3 none g3
                                                           a3 off  g3 c3))
-                                            :x 125 :y 100))
+                                            :x 125 :y 350))
                    (osc2 (make-instance 'saw-osc-module
-                                        :x 245 :y 100))
+                                        :x 245 :y 400))
                    (adsr2 (make-instance 'adsr-module :d 0.7d0 :s 0.8d0
-                                                      :x 365 :y 100))
+                                                      :x 365 :y 350))
                    (amp2 (make-instance 'amp-module
-                                        :x 485 :y 100)))
+                                        :x 485 :y 350)))
               (connect channel1 osc1)
               (connect channel1 adsr1)
               (connect osc1 amp1)
@@ -590,5 +626,4 @@
     (sdl2-ttf:close-font (.font *app*))
     (setf (.font *app*) nil))
   (when (= 1 (sdl2-ttf:was-init))
-    (print 'sdl2-ttf:quit)
     (sdl2-ttf:quit)))
