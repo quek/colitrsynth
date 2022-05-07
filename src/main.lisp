@@ -137,6 +137,7 @@
 
 (defmethod render ((self module) renderer)
   (call-next-method)
+  (apply #'sdl2:set-render-draw-color renderer (.color self))
   (sdl2:render-draw-line renderer
                          (+ (.x self) (.width self) -10)
                          (+ (.y self) (.height self) -1)
@@ -177,8 +178,8 @@
     (when (eq self (.drag-module *app*))
       (if (.resizing self)
           (progn
-            (incf (.width self) xrel)
-            (incf (.height self) yrel))
+            (setf (.width self) (max 20 (+ (.width self) xrel)))
+            (setf (.height self) (max 20 (+ (.height self) yrel))))
           (when (.dragging self)
             (progn
               (incf (.x self) xrel)
@@ -228,16 +229,26 @@
 
 (defmethod render ((self tracker) renderer)
   (let ((texture (sdl2:create-texture renderer :rgba8888 :target 800 600)))
-   (when (eq (.parent self) (module-at-mouse *app*))
-     (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
-     (sdl2:render-fill-rect
-      renderer
-      (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.x self) 2)
-                      (+ (* (.cursor-y self) *char-height*) (.y self) 2)
-                      (if (zerop (.cursor-x self)) (* 3 *char-width*) *char-width*)
-                      *char-height*)))
-    (call-next-method)
-    (sdl2:destroy-texture texture)))
+    (unwind-protect
+         (progn
+           (sdl2:set-render-target renderer texture)
+           (sdl2:set-texture-blend-mode texture :none)
+           (sdl2:set-render-draw-color renderer 0 0 0 #xFF)
+           (sdl2:render-clear renderer)
+           (when (eq (.parent self) (module-at-mouse *app*))
+             (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
+             (sdl2:render-fill-rect
+              renderer
+              (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.x self) 2)
+                              (+ (* (.cursor-y self) *char-height*) (.y self) 2)
+                              (if (zerop (.cursor-x self)) (* 3 *char-width*) *char-width*)
+                              *char-height*)))
+           (call-next-method)
+           (sdl2:set-render-target renderer nil)
+           (let ((rect (sdl2:make-rect (.x self) (.y self)
+                                       (.width self) (.height self))))
+             (sdl2:render-copy renderer texture :source-rect rect :dest-rect rect)))
+      (sdl2:destroy-texture texture))))
 
 (defmethod keydown ((self tracker) scancode mod-value)
   (cond ((or (sdl2:scancode= scancode :scancode-up)
