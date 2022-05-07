@@ -1,7 +1,8 @@
 (in-package :colitrsynth)
 
-(defparameter *char-width* 5)
-(defparameter *char-height* 10)
+(defparameter *font-size* 14)
+(defparameter *char-width* (/ *font-size* 2))
+(defparameter *char-height* *font-size*)
 (defparameter *cursor-color* '(#x00 #x00 #xcc #x80))
 
 (defparameter *transparency* #xc0)
@@ -226,15 +227,17 @@
               do (setf (.line tracker-line) pattern-line)))))
 
 (defmethod render ((self tracker) renderer)
-  (when (eq (.parent self) (module-at-mouse *app*))
-    (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
-    (sdl2:render-fill-rect
-     renderer
-     (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.x self) 2)
-                     (+ (* (.cursor-y self) *char-height*) (.y self) 2)
-                     (if (zerop (.cursor-x self)) (* 3 *char-width*) *char-width*)
-                     *char-height*)))
-  (call-next-method))
+  (let ((texture (sdl2:create-texture renderer :rgba8888 :target 800 600)))
+   (when (eq (.parent self) (module-at-mouse *app*))
+     (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
+     (sdl2:render-fill-rect
+      renderer
+      (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.x self) 2)
+                      (+ (* (.cursor-y self) *char-height*) (.y self) 2)
+                      (if (zerop (.cursor-x self)) (* 3 *char-width*) *char-width*)
+                      *char-height*)))
+    (call-next-method)
+    (sdl2:destroy-texture texture)))
 
 (defmethod keydown ((self tracker) scancode mod-value)
   (cond ((or (sdl2:scancode= scancode :scancode-up)
@@ -364,15 +367,15 @@
     (add-child self tracker)
     (setf (.pattern tracker) self
           (.x tracker) 5
-          (.y tracker) 15
+          (.y tracker) (+ 5 *font-size*)
           (.width tracker) (- (.width self) 10)
-          (.height tracker) (- (.height self) 20))))
+          (.height tracker) (- (.height self) (+ 10 *font-size*)))))
 
 (defmethod (setf .width) :after (value (self pattern-module))
   (setf (.width (.tracker self)) (- (.width self) 10)))
 
 (defmethod (setf .height) :after (value (self pattern-module))
-  (setf (.height (.tracker self)) (- (.height self) 20)))
+  (setf (.height (.tracker self)) (- (.height self) (+ 10 *font-size*))))
 
 (defclass osc-module-mixin ()
   ((value-text :initform (make-instance 'text :value "0" :x 20 :y 20)
@@ -419,9 +422,7 @@
       (let ((font "c:/Windows/Fonts/msgothic.ttc"))
         (format t "Load font ~a~%" font)
         (setf (.font *app*)
-              (sdl2-ttf:open-font
-               font
-               10)))
+              (sdl2-ttf:open-font font *font-size*)))
 
       (format t "Using SDL Library Version: ~D.~D.~D~%"
               sdl2-ffi:+sdl-major-version+
