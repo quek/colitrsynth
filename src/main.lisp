@@ -4,6 +4,7 @@
 (defparameter *char-width* (/ *font-size* 2))
 (defparameter *char-height* *font-size*)
 (defparameter *cursor-color* '(#x00 #x00 #xcc #x80))
+(defparameter *play-position-color* '(#x00 #x80 #x00 #x80))
 
 (defparameter *transparency* #xc0)
 
@@ -239,6 +240,15 @@
            (sdl2:set-texture-blend-mode texture :blend)
            (sdl2:set-render-draw-color renderer 0 0 0 #x00)
            (sdl2:render-clear renderer)
+           ;; play position
+           (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
+           (sdl2:render-fill-rect
+            renderer
+            (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.x self) 2)
+                            (+ (* (.current-line (.pattern self)) *char-height*) (.y self) 2)
+                            (.width self)
+                            *char-height*))
+           ;; cursor position
            (when (eq (.parent self) (module-at-mouse *app*))
              (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
              (sdl2:render-fill-rect

@@ -142,7 +142,6 @@
    (loop :initform t :accessor .loop)))
 
 (defun play-sequencer (self line frame)
-  (declare (ignore frame))
   (let* ((end (.end self))
          (line (if (.loop self)
                    (mod line end)
@@ -155,7 +154,7 @@
         (loop for i below (.frames-per-buffer *audio*)
               do (loop for (start . pattern) in (.patterns self)
                        if (<= start line (1- (+ start (length (.lines pattern)))))
-                         do (play-pattern pattern (- line start)))
+                         do (play-frame pattern (- line start) frame))
                  (write-master-buffer)))))
 
 (defgeneric play-frame (audio-module left right))
@@ -163,6 +162,7 @@
 (defclass pattern (audio-module)
   ((lines :initarg :lines
           :initform (list c4 d4 e4 f4) :accessor .lines)
+   (current-line :initform 0 :accessor .current-line)
    (last-note :initform off :accessor .last-note)))
 
 (defmethod add-pattern ((self sequencer) (pattern pattern) line)
@@ -170,7 +170,8 @@
                          (+ line (length (.lines pattern)))))
   (push (cons line pattern) (.patterns self)))
 
-(defun play-pattern (self line)
+(defmethod play-frame ((self pattern) line frame)
+  (setf (.current-line self) line)
   (let* ((note (nth line (.lines self)))
          (note (if (= note none)
                    (.last-note self)
