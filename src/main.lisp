@@ -45,14 +45,14 @@
 (defgeneric mousebuttonup (self button state clicks x y)
   (:method (self button state clicks x y)))
 
+(defgeneric mousemotion (self x y xrel yrel state)
+  (:method (self x y xrel yrel state)))
+
 (defgeneric keydown (self scancode mod-value)
   (:method (self scancode mod-value)))
 
 (defgeneric keyup (self scancode mod-value)
   (:method (self scancode mod-value)))
-
-(defgeneric mousemotion (self x y xrel yrel state)
-  (:method (self x y xrel yrel state)))
 
 (defgeneric move (self xrel yrel)
   (:method (self xrel yrel)))
@@ -68,6 +68,18 @@
    (height :initarg :height :initform 80 :accessor .height)
    (parent :initarg :parent :initform nil :accessor .parent)
    (children :initarg :children :initform nil :accessor .children)))
+
+(defmethod mousebuttondown ((self renderable) button state clicks x y)
+  (call-next-method)
+  (mousebuttondown (child-module-at self x y) button state clicks x y))
+
+(defmethod mousebuttonup ((self renderable) button state clicks x y)
+  (call-next-method)
+  (mousebuttonup (child-module-at self x y) button state clicks x y))
+
+(defmethod mousemotion ((self renderable) x y xrel yrel state)
+  (call-next-method)
+  (mousemotion (child-module-at self x y) x y xrel yrel state))
 
 (defmethod move ((self renderable) xrel yrel)
     (incf (.x self) xrel)
@@ -115,6 +127,7 @@
 
 (defmethod render ((self audio-module) renderer)
   (sdl2:set-render-draw-color renderer #x22 #x8b #x22 *transparency*)
+  ;; TODO そのうち直す
   (loop for out in (.out self)
         do (let (x1 y1 x2 y2)
              (if (> (abs (- (.x self) (.x out)))
@@ -442,7 +455,7 @@
 
 (defparameter *track-height* 40)        ;TODO 固定長で妥協
 
-(defclass sequencer-module-track (track renderable)
+(defclass sequencer-module-track (track renderable drag-connect-mixin)
   ()
   (:default-initargs :width 690 :height *track-height*))
 
@@ -450,7 +463,11 @@
                             name-mixin)
   ())
 
-(defclass sequencer-module (sequencer module)
+(defclass sequencer-module (sequencer
+                            renderable
+                            name-mixin
+                            drag-resize-mixin     ;drag-move-mixin より先に
+                            drag-move-mixin)
   ()
   (:default-initargs :name ""
                      :color (list #x00 #xff #xff *transparency*)
@@ -465,11 +482,6 @@
         (if (.playing *audio*)
             (stop)
             (play))))))
-
-(defmethod mousebuttondown ((self sequencer-module) button state clicks x y)
-  (aif (child-module-at self x y)
-       (mousebuttondown it button state clicks x y)
-       (call-next-method)))
 
 (defmethod resize :after ((self sequencer-module) xrel yrel)
   ;; TODO 小さくするとはみ出るし、拡大縮小もした方がいいかもしれない
