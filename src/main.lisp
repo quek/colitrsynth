@@ -25,6 +25,12 @@
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (connect-from-module :initform nil :accessor .connect-from-module)))
 
+(defun add-module (module)
+  (push module (.modules *app*)))
+
+(defun remove-module (module)
+  (setf (.modules *app*) (remove module (.modules *app*))))
+
 (defun module-at-mouse (app)
   (loop for module in (.modules app)
           thereis (and (<= (.x module) (.mouse-x app) (+ (.x module) (.width module)))
@@ -326,6 +332,14 @@
   ()
   (:default-initargs :width 50 :height 30))
 
+(defgeneric click (self)
+  (:method ((self button))))
+
+(defmethod mousebuttondown ((self button) button state click x y)
+  (if (= button 1)
+      (click self)
+      (call-next-method)))
+
 (defmethod initialize-instance :after ((self button) &key text)
   (add-child self (make-instance 'text :value text :x 5 :y 2)))
 
@@ -617,6 +631,36 @@
   ()
   (:default-initargs :name "master" :color (list #xff #xa5 #x00 *transparency*)))
 
+(defclass new-module-menu (renderable)
+  ()
+  (:default-initargs :width 100 :height 200))
+
+(defmacro new-module-menu-button (name class &rest initargs)
+  `(let ((button (make-instance 'button :text ,name
+                                        :y (* (+ *font-size* 4)
+                                              (length (.children self))))))
+     (add-child self button)
+     (defmethod click ((self (eql button)))
+       (add-module (make-instance ',class :name ,name
+                                          :x (- (.mouse-x *app*) 10)
+                                          :y (- (.mouse-y *app*) 10)
+                                          ,@initargs)))))
+
+(defmethod initialize-instance :after ((self new-module-menu) &key)
+  (new-module-menu-button "pattern" pattern-module :length 8)
+  (new-module-menu-button "sin" sin-osc-module)
+  (new-module-menu-button "saw" saw-osc-module)
+  (new-module-menu-button "adsr" adsr-module)
+  (new-module-menu-button "amp" adsr-module))
+
+(defun open-new-module-menu ()
+  (add-module (make-instance 'new-module-menu
+                       :x (- (.mouse-x *app*) 10)
+                       :y (- (.mouse-y *app*) 10))))
+
+(defmethod mousebuttondown ((self new-module-menu) button state clicks x y)
+  (call-next-method)
+  (remove-module self))
 
 (defun main ()
   (sb-thread:make-thread 'main-loop))
@@ -724,7 +768,10 @@
             sym
             scancode
             mod-value)
-    (keydown (module-at-mouse *app*) scancode mod-value)))
+    (aif (module-at-mouse *app*)
+         (keydown it scancode mod-value)
+         (cond ((sdl2:scancode= scancode :scancode-f)
+                (open-new-module-menu))))))
 
 (defun handle-sdl2-keyup-event (keysym)
   (let  ((scancode (sdl2:scancode-value keysym))

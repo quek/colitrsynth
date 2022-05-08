@@ -191,7 +191,7 @@
                 (setf (.current-line self) line)))))))
 
 (defclass line ()
-  ((note :initarg :note :initform off :accessor .note)))
+  ((note :initarg :note :initform none :accessor .note)))
 
 (defclass pattern (audio-module)
   ((length :initarg :length :initform #x40 :accessor .length)
