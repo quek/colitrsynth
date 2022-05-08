@@ -476,10 +476,11 @@
 (defmethod mousebuttondown ((self sequencer-module-track) button state clicks x y)
   (let ((module (.selected-module *app*)))
     (if (typep module 'pattern-module)
-        (add-pattern (.sequencer *audio*) self module
-                     (loop for pattern-position in (.pattern-positions self)
-                           maximize (.end pattern-position))
-                     (.length module))
+        (let* ((start (loop for pattern-position in (.pattern-positions self)
+                           maximize (.end pattern-position)))
+               (end (+ start (.length module))))
+          (add-pattern (.sequencer *audio*) self module
+                       start end))
         (call-next-method))))
 
 (defclass pattern-position (pattern-position-mixin renderable
@@ -533,6 +534,7 @@
           (.width pattern-editor) (- (.width self) 10)
           (.height pattern-editor) (- (.height self) (+ 10 *font-size*)))))
 
+;; TODO audo.lisp の add-pattern と統合したくない？
 (defmethod add-pattern ((sequencer sequencer-module)
                         (track sequencer-module-track)
                         (pattern pattern-module)
