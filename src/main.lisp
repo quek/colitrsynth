@@ -652,7 +652,7 @@
   (new-module-menu-button "sin" sin-osc-module)
   (new-module-menu-button "saw" saw-osc-module)
   (new-module-menu-button "adsr" adsr-module)
-  (new-module-menu-button "amp" adsr-module))
+  (new-module-menu-button "amp" amp-module))
 
 (defun open-new-module-menu ()
   (add-module (make-instance 'new-module-menu
@@ -695,71 +695,83 @@
           (format t "Beginning main loop.~%")
           (finish-output)
           (with-audio
-            (let* ((line-length 8)
-                   (sequencer (.sequencer *audio*))
-                   (track1 (add-new-track sequencer))
-                   (track2 (add-new-track sequencer))
-                   (master (.master *audio*))
-                   (pattern1 (make-instance 'pattern-module
-                                            :name "plack"
-                                            :length line-length
-                                            :lines (list-to-pattern-lines
-                                                    (list a4 e4 none g4
-                                                          a4 off  g4 c4))
-                                            :x 125 :y 250))
-                   (osc1 (make-instance 'sin-osc-module :x 245 :y 300))
-                   (adsr1 (make-instance 'adsr-module :d 0.2d0 :s 0d0
-                                                      :x 365 :y 250))
-                   (amp1 (make-instance 'amp-module
-                                        :x 485 :y 250))
-                   (pattern2 (make-instance 'pattern-module
-                                            :name "brass"
-                                            :length line-length
-                                            :lines (list-to-pattern-lines
-                                                    (list a3 e3 none g3
-                                                          a3 off  g3 c3))
-                                            :x 125 :y 350))
-                   (osc2 (make-instance 'saw-osc-module
-                                        :x 245 :y 400))
-                   (adsr2 (make-instance 'adsr-module :d 0.7d0 :s 0.8d0
-                                                      :x 365 :y 350))
-                   (amp2 (make-instance 'amp-module
-                                        :x 485 :y 350)))
-              (connect track1 osc1)
-              (connect track1 adsr1)
-              (connect osc1 amp1)
-              (connect adsr1 amp1)
-              (connect amp1 master)
-              (connect track2 osc2)
-              (connect track2 adsr2)
-              (connect osc2 amp2)
-              (connect adsr2 amp2)
-              (connect amp2 master)
-              (add-pattern track1 pattern1 0 line-length)
-              (add-pattern track1 pattern1 line-length (* 2 line-length))
-              (add-pattern track2 pattern2 line-length (* 2 line-length))
-              (add-pattern track1 pattern1 (* 2 line-length) (* 3 line-length))
-              (add-pattern track2 pattern2 (* 2 line-length) (* 3 line-length))
-              (setf (.modules *app*)
-                    (list sequencer master
-                          pattern1 osc1 adsr1 amp1 
-                          pattern2 osc2 adsr2 amp2))
-              (sdl2:with-event-loop (:method :poll)
-                (:keydown (:keysym keysym)
-                          (handle-sdl2-keydown-event keysym))
-                (:keyup (:keysym keysym)
-                        (handle-sdl2-keyup-event keysym))
-                (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
-                              (handle-sdl2-mousemotion-event x y xrel yrel state))
-                (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
-                                  (handle-sdl2-mousebuttondown-event button state clicks x y))
-                (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
-                                (handle-sdl2-mousebuttonup-event button state clicks x y))
-                (:idle ()
-                       (handle-sdl2-idle-event renderer))
-                (:quit ()
-                       (handle-sdl2-quit-event)
-                       t)))))))))
+            (make-default-modules)
+            ;;(make-test-modules)
+            (sdl2:with-event-loop (:method :poll)
+              (:keydown (:keysym keysym)
+                        (handle-sdl2-keydown-event keysym))
+              (:keyup (:keysym keysym)
+                      (handle-sdl2-keyup-event keysym))
+              (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
+                            (handle-sdl2-mousemotion-event x y xrel yrel state))
+              (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
+                                (handle-sdl2-mousebuttondown-event button state clicks x y))
+              (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
+                              (handle-sdl2-mousebuttonup-event button state clicks x y))
+              (:idle ()
+                     (handle-sdl2-idle-event renderer))
+              (:quit ()
+                     (handle-sdl2-quit-event)
+                     t))))))))
+
+(defun make-default-modules ()
+  (let* ((sequencer (.sequencer *audio*))
+         (master (.master *audio*)))
+    (add-new-track sequencer)
+    (add-new-track sequencer)
+    (setf (.modules *app*)
+          (list sequencer master))))
+
+(defun make-test-modules ()
+  (let* ((line-length 8)
+         (sequencer (.sequencer *audio*))
+         (track1 (add-new-track sequencer))
+         (track2 (add-new-track sequencer))
+         (master (.master *audio*))
+         (pattern1 (make-instance 'pattern-module
+                                  :name "plack"
+                                  :length line-length
+                                  :lines (list-to-pattern-lines
+                                          (list a4 e4 none g4
+                                                a4 off  g4 c4))
+                                  :x 125 :y 250))
+         (osc1 (make-instance 'sin-osc-module :x 245 :y 300))
+         (adsr1 (make-instance 'adsr-module :d 0.2d0 :s 0d0
+                                            :x 365 :y 250))
+         (amp1 (make-instance 'amp-module
+                              :x 485 :y 250))
+         (pattern2 (make-instance 'pattern-module
+                                  :name "brass"
+                                  :length line-length
+                                  :lines (list-to-pattern-lines
+                                          (list a3 e3 none g3
+                                                a3 off  g3 c3))
+                                  :x 125 :y 350))
+         (osc2 (make-instance 'saw-osc-module
+                              :x 245 :y 400))
+         (adsr2 (make-instance 'adsr-module :d 0.7d0 :s 0.8d0
+                                            :x 365 :y 350))
+         (amp2 (make-instance 'amp-module
+                              :x 485 :y 350)))
+    (connect track1 osc1)
+    (connect track1 adsr1)
+    (connect osc1 amp1)
+    (connect adsr1 amp1)
+    (connect amp1 master)
+    (connect track2 osc2)
+    (connect track2 adsr2)
+    (connect osc2 amp2)
+    (connect adsr2 amp2)
+    (connect amp2 master)
+    (add-pattern track1 pattern1 0 line-length)
+    (add-pattern track1 pattern1 line-length (* 2 line-length))
+    (add-pattern track2 pattern2 line-length (* 2 line-length))
+    (add-pattern track1 pattern1 (* 2 line-length) (* 3 line-length))
+    (add-pattern track2 pattern2 (* 2 line-length) (* 3 line-length))
+    (setf (.modules *app*)
+          (list sequencer master
+                pattern1 osc1 adsr1 amp1 
+                pattern2 osc2 adsr2 amp2))))
 
 (defun handle-sdl2-keydown-event (keysym)
   (let ((scancode (sdl2:scancode-value keysym))
