@@ -473,6 +473,15 @@
   ()
   (:default-initargs :width 690 :height *track-height*))
 
+(defmethod mousebuttondown ((self sequencer-module-track) button state clicks x y)
+  (let ((module (.selected-module *app*)))
+    (if (typep module 'pattern-module)
+        (add-pattern (.sequencer *audio*) self module
+                     (loop for pattern-position in (.pattern-positions self)
+                           maximize (.end pattern-position))
+                     (.length module))
+        (call-next-method))))
+
 (defclass pattern-position (pattern-position-mixin renderable
                             name-mixin)
   ())
