@@ -23,7 +23,8 @@
     :accessor .device-api)
    (device-name
     :initarg :device-name
-    :initform "Prism Sound USB Audio Class 2.0"
+    ;; :initform "Prism Sound USB Audio Class 2.0"
+    :initform "FL Studio ASIO"
     :accessor .device-name)
    (sample-rate
     :initarg :sample-rate
