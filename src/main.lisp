@@ -72,15 +72,21 @@
 
 (defmethod mousebuttondown ((self renderable) button state clicks x y)
   (call-next-method)
-  (mousebuttondown (child-module-at self x y) button state clicks x y))
+  (awhen (child-module-at self x y)
+    (mousebuttondown it button state clicks
+                     (- x (.x-relative it)) (- y (.y-relative it)))))
 
 (defmethod mousebuttonup ((self renderable) button state clicks x y)
   (call-next-method)
-  (mousebuttonup (child-module-at self x y) button state clicks x y))
+  (awhen (child-module-at self x y)
+   (mousebuttonup it button state clicks
+                  (- x (.x-relative it)) (- y (.y-relative it)))))
 
 (defmethod mousemotion ((self renderable) x y xrel yrel state)
   (call-next-method)
-  (mousemotion (child-module-at self x y) x y xrel yrel state))
+  (awhen (child-module-at self x y)
+   (mousemotion it (- x (.x-relative it)) (- y (.y-relative it))
+                xrel yrel state)))
 
 (defmethod move ((self renderable) xrel yrel)
     (incf (.x self) xrel)
@@ -105,12 +111,18 @@
   (+ (slot-value self 'x)
      (.x (.parent self))))
 
+(defmethod .x-relative ((self renderable))
+  (slot-value self 'x))
+
 (defmethod .y ((self null))
   0)
 
 (defmethod .y ((self renderable))
   (+ (slot-value self 'y)
      (.y (.parent self))))
+
+(defmethod .y-relative ((self renderable))
+  (slot-value self 'y))
 
 (defmethod (setf .x) (value (self renderable))
   (setf (slot-value self 'x) value))
@@ -474,14 +486,19 @@
   (:default-initargs :width 690 :height *track-height*))
 
 (defmethod mousebuttondown ((self sequencer-module-track) button state clicks x y)
-  (let ((module (.selected-module *app*)))
-    (if (typep module 'pattern-module)
-        (let* ((start (loop for pattern-position in (.pattern-positions self)
-                           maximize (.end pattern-position)))
-               (end (+ start (.length module))))
-          (add-pattern (.sequencer *audio*) self module
-                       start end))
-        (call-next-method))))
+  (case button
+    (1
+     (let ((module (.selected-module *app*)))
+       (if (typep module 'pattern-module)
+           (let* ((start (loop for pattern-position in (.pattern-positions self)
+                               maximize (.end pattern-position)))
+                  (end (+ start (.length module))))
+             (add-pattern self module start end))
+           (call-next-method))))
+    (3
+     (awhen (child-module-at self (print x) (print y))
+       (describe it)
+       (remove-pattern self it)))))
 
 (defclass pattern-position (pattern-position-mixin renderable
                             name-mixin)
@@ -535,8 +552,7 @@
           (.height pattern-editor) (- (.height self) (+ 10 *font-size*)))))
 
 ;; TODO audo.lisp の add-pattern と統合したくない？
-(defmethod add-pattern ((sequencer sequencer-module)
-                        (track sequencer-module-track)
+(defmethod add-pattern ((track sequencer-module-track)
                         (pattern pattern-module)
                         start end)
   (let ((pattern-position (call-next-method)))
@@ -548,6 +564,11 @@
           (.height pattern-position) (- (.height track) 4)
           (.name pattern-position) (.name pattern))
     pattern-position))
+
+(defmethod remove-pattern ((track sequencer-module-track)
+                           (pattern-position pattern-position))
+  (remove-child track pattern-position)
+  (call-next-method))
 
 (defmethod keydown ((self pattern-module) scancode mod-value)
   (keydown (.pattern-editor self) scancode mod-value))
@@ -661,11 +682,11 @@
               (connect osc2 amp2)
               (connect adsr2 amp2)
               (connect amp2 master)
-              (add-pattern sequencer track1 pattern1 0 line-length)
-              (add-pattern sequencer track1 pattern1 line-length (* 2 line-length))
-              (add-pattern sequencer track2 pattern2 line-length (* 2 line-length))
-              (add-pattern sequencer track1 pattern1 (* 2 line-length) (* 3 line-length))
-              (add-pattern sequencer track2 pattern2 (* 2 line-length) (* 3 line-length))
+              (add-pattern track1 pattern1 0 line-length)
+              (add-pattern track1 pattern1 line-length (* 2 line-length))
+              (add-pattern track2 pattern2 line-length (* 2 line-length))
+              (add-pattern track1 pattern1 (* 2 line-length) (* 3 line-length))
+              (add-pattern track2 pattern2 (* 2 line-length) (* 3 line-length))
               (setf (.modules *app*)
                     (list sequencer master
                           pattern1 osc1 adsr1 amp1 

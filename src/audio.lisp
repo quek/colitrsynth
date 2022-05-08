@@ -158,21 +158,32 @@
    (end :initform 0 :accessor .end)
    (loop :initform t :accessor .loop)))
 
+(defun update-sequencer-end ()
+  (let ((sequencer (.sequencer *audio*)))
+    (setf (.end sequencer)
+          (loop for track in (.tracks sequencer)
+                maximize (loop for pattern-position in (.pattern-positions track)
+                               maximize (.end pattern-position))))))
+
 (defun play-sequencer (self line frame)
-  (let* ((end (.end self))
-         (line (if (.loop self)
-                   (mod line end)
-                   line)))
-    (if (< end line)
-        (progn
-          ;; TODO reverb とか残す？
-          (loop for i below (.frames-per-buffer *audio*)
-                do (write-master-buffer))
-          (request-stop))
+  (let ((end (.end self)))
+    (if (zerop end)
         (loop for i below (.frames-per-buffer *audio*)
-              do (loop for track in (.tracks self)
-                       do (play-frame track line frame))
-                 (write-master-buffer)))))
+              do (write-master-buffer))
+        (let* (
+               (line (if (.loop self)
+                         (mod line end)
+                         line)))
+          (if (< end line)
+              (progn
+                ;; TODO reverb とか残す？
+                (loop for i below (.frames-per-buffer *audio*)
+                      do (write-master-buffer))
+                (request-stop))
+              (loop for i below (.frames-per-buffer *audio*)
+                    do (loop for track in (.tracks self)
+                             do (play-frame track line frame))
+                       (write-master-buffer)))))))
 
 (defclass line ()
   ((note :initarg :note :initform off :accessor .note)))
@@ -191,14 +202,19 @@
                       (loop repeat (.length self)
                             collect (make-instance 'line))))))
 
-(defmethod add-pattern ((sequencer sequencer) (track track) (pattern pattern) start end)
+(defmethod add-pattern ((track track) (pattern pattern) start end)
   (let ((pattern-position (make-instance 'pattern-position
                                          :pattern pattern
                                          :start start :end end)))
-   (push pattern-position
-         (.pattern-positions track))
-    (setf (.end sequencer) (max (.end sequencer) end))
+    (push pattern-position
+          (.pattern-positions track))
+    (update-sequencer-end)
     pattern-position))
+
+(defmethod remove-pattern ((track track) (pattern-position pattern-position-mixin))
+  (setf (.pattern-positions track)
+        (remove pattern-position (.pattern-positions track)))
+  (update-sequencer-end))
 
 (defun note-gate-at-line-frame (pattern line frame)
   (declare (ignore frame))              ;TODO
@@ -432,11 +448,11 @@
       (connect osc2 amp2)
       (connect adsr2 amp2)
       (connect amp2 master)
-      (add-pattern sequencer track1 pattern1 0 line-length)
-      (add-pattern sequencer track1 pattern1 line-length (* 2 line-length))
-      (add-pattern sequencer track2 pattern2 line-length (* 2 line-length))
-      (add-pattern sequencer track1 pattern1 (* 2 line-length) (* 3 line-length))
-      (add-pattern sequencer track2 pattern2 (* 2 line-length) (* 3 line-length))
+      (add-pattern track1 pattern1 0 line-length)
+      (add-pattern track1 pattern1 line-length (* 2 line-length))
+      (add-pattern track2 pattern2 line-length (* 2 line-length))
+      (add-pattern track1 pattern1 (* 2 line-length) (* 3 line-length))
+      (add-pattern track2 pattern2 (* 2 line-length) (* 3 line-length))
       (setf (.loop sequencer) nil)
       (play)
       (loop until (.request-stop *audio*) do (pa:pa-sleep 10)))))
