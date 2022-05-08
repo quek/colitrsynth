@@ -19,6 +19,7 @@
    (modules :initarg :modules :initform '() :accessor .modules)
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
+   (selected-module :initform nil :accessor .selected-module)
    (drag-move-module :initform nil :accessor .drag-move-module)
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (connect-from-module :initform nil :accessor .connect-from-module)))
@@ -201,6 +202,19 @@
                   drag-move-mixin
                   drag-connect-mixin)
   ())
+
+(defmethod mousebuttondown :before ((self module) button state clicks x y)
+  (setf (.selected-module *app*) self))
+
+(defmethod render :after ((self module) renderer)
+  (when (eq self (.selected-module *app*))
+    (sdl2:set-render-draw-color renderer #xff #xff #x00 #xff)
+    (sdl2:render-draw-rect
+     renderer
+     (sdl2:make-rect (- (.x self) 2)
+                     (- (.y self) 2)
+                     (+ (.width self) 4)
+                     (+ (.height self) 4)))))
 
 (defclass drag-move-mixin ()
   ())
