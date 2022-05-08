@@ -512,7 +512,8 @@
            (call-next-method))))
     (3
      (awhen (child-module-at self x y)
-       (remove-pattern self it)))))
+       (remove-pattern self it))
+     (call-next-method))))
 
 (defclass pattern-position (pattern-position-mixin renderable
                             name-mixin)
