@@ -135,7 +135,7 @@
   (loop for out in (.out self)
         do (play-frame out left right)))
 
-(defclass pattern-position ()
+(defclass pattern-position-mixin ()
   ((pattern :initarg :pattern :accessor .pattern)
    (start :initarg :start :accessor .start)
    (end :initarg :end :accessor .end)))
@@ -191,10 +191,14 @@
                       (loop repeat (.length self)
                             collect (make-instance 'line))))))
 
-(defun add-pattern (sequencer track pattern start end)
-  (push (make-instance 'pattern-position :pattern pattern :start start :end end)
-        (.pattern-positions track))
-  (setf (.end sequencer) (max (.end sequencer) end)))
+(defmethod add-pattern ((sequencer sequencer) (track track) (pattern pattern) start end)
+  (let ((pattern-position (make-instance 'pattern-position
+                                         :pattern pattern
+                                         :start start :end end)))
+   (push pattern-position
+         (.pattern-positions track))
+    (setf (.end sequencer) (max (.end sequencer) end))
+    pattern-position))
 
 (defun note-gate-at-line-frame (pattern line frame)
   (declare (ignore frame))              ;TODO

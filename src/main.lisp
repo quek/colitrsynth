@@ -19,7 +19,8 @@
    (modules :initarg :modules :initform '() :accessor .modules)
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
-   (drag-module :initform nil :accessor .drag-module)
+   (drag-move-module :initform nil :accessor .drag-move-module)
+   (drag-resize-module :initform nil :accessor .drag-resize-module)
    (connect-from-module :initform nil :accessor .connect-from-module)))
 
 (defun module-at-mouse (app)
@@ -34,6 +35,31 @@
                        (<= (.y module) (+ y (.y self)) (+ (.y module) (.height module)))
                        module)))
 
+
+(defgeneric render (self renderer)
+  (:method (self renderer)))
+
+(defgeneric mousebuttondown (self button state clicks x y)
+  (:method (self button state clicks x y)))
+
+(defgeneric mousebuttonup (self button state clicks x y)
+  (:method (self button state clicks x y)))
+
+(defgeneric keydown (self scancode mod-value)
+  (:method (self scancode mod-value)))
+
+(defgeneric keyup (self scancode mod-value)
+  (:method (self scancode mod-value)))
+
+(defgeneric mousemotion (self x y xrel yrel state)
+  (:method (self x y xrel yrel state)))
+
+(defgeneric move (self xrel yrel)
+  (:method (self xrel yrel)))
+
+(defgeneric resize (self xrel yrel)
+  (:method (self xrel yrel)))
+
 (defclass renderable ()
   ((color :initarg :color :initform (list #xdd #xdd #xdd *transparency*) :accessor .color)
    (x :initarg :x :initform 0)
@@ -43,8 +69,16 @@
    (parent :initarg :parent :initform nil :accessor .parent)
    (children :initarg :children :initform nil :accessor .children)))
 
+(defmethod move ((self renderable) xrel yrel)
+    (incf (.x self) xrel)
+    (incf (.y self) yrel))
+
+(defmethod resize ((self renderable) xrel yrel)
+  (setf (.width self) (max 20 (+ (.width self) xrel)))
+  (setf (.height self) (max 20 (+ (.height self) yrel))))
+
 (defmethod add-child ((parent renderable) (child renderable))
-  (push child (.children parent))
+  (setf (.children parent) (append (.children parent) (list child)))
   (setf (.parent child) parent))
 
 (defmethod remove-child ((parent renderable) (child renderable))
@@ -76,7 +110,8 @@
     (apply #'sdl2:set-render-draw-color renderer color)
     (sdl2:render-draw-rect renderer (sdl2:make-rect (.x self) (.y self) width height)))
   (loop for child in (.children self)
-        do (render child renderer)))
+        do (render child renderer))
+  (call-next-method))
 
 (defmethod render ((self audio-module) renderer)
   (sdl2:set-render-draw-color renderer #x22 #x8b #x22 *transparency*)
@@ -142,13 +177,57 @@
   ((name :initarg :name :initform "noname" :accessor .name)))
 
 (defmethod initialize-instance :after ((self name-mixin) &key)
-  (add-child self (make-instance 'text :value (.name self) :x 3 :y 3)))
+  (let ((text (make-instance 'text :value (.name self) :x 3 :y 3)))
+    (add-child self text)
+    (defmethod (setf .name) (value (self (eql self)))
+      (setf (.value text) value))))
 
-(defclass module (renderable name-mixin)
-  ((dragging :initform nil :accessor .dragging)
-   (resizing :initform nil :accessor .resizing)))
+(defclass module (renderable
+                  name-mixin
+                  drag-resize-mixin     ;drag-move-mixin より先に
+                  drag-move-mixin
+                  drag-connect-mixin)
+  ())
 
-(defmethod render ((self module) renderer)
+(defclass drag-move-mixin ()
+  ())
+
+(defmethod mousebuttondown ((self drag-move-mixin) button state clicks x y)
+  (case button
+    (1 (setf (.drag-move-module *app*) self)))
+  (call-next-method))
+
+(defmethod mousebuttonup ((self drag-move-mixin) button state clicks x y)
+  (case button
+    (1 (setf (.drag-move-module *app*) nil)))
+  (call-next-method))
+
+(defmethod mousemotion ((self drag-move-mixin) x y xrel yrel state)
+  (when (eq self (.drag-move-module *app*))
+    (move self xrel yrel))
+  (call-next-method))
+
+(defclass drag-resize-mixin ()
+  ())
+
+(defmethod mousebuttondown ((self drag-resize-mixin) button state clicks x y)
+  (if (and (= button 1)
+           (< (.width self) (+ 10 x))
+           (< (.height self) (+ 10 y)))
+      (setf (.drag-resize-module *app*) self)
+      (call-next-method)))
+
+(defmethod mousebuttonup ((self drag-resize-mixin) button state clicks x y)
+  (case button
+    (1 (setf (.drag-resize-module *app*) nil)))
+  (call-next-method))
+
+(defmethod mousemotion ((self drag-resize-mixin) x y xrel yrel state)
+  (when (eq self (.drag-resize-module *app*))
+    (resize self xrel yrel))
+  (call-next-method))
+
+(defmethod render ((self drag-resize-mixin) renderer)
   (call-next-method)
   (apply #'sdl2:set-render-draw-color renderer (.color self))
   (sdl2:render-draw-line renderer
@@ -162,46 +241,23 @@
                          (+ (.x self) (.width self) -1)
                          (+ (.y self) (.height self) -7)))
 
-(defgeneric mousebuttondown (self button state clicks x y)
-  (:method (self button state clicks x y))
-  (:method ((self module) button state clicks x y)
-    (if (and (< (.width self) (+ 10 x))
-             (< (.height self) (+ 10 y)))
-        (setf (.resizing self) t)
-        (setf (.dragging self) t))))
+(defclass drag-connect-mixin ()
+  ((connecting :initform nil :accessor .connecting)))
 
-(defgeneric mousebuttonup (self button state clicks x y)
-  (:method (self button state clicks x y))
-  (:method ((self module) button state clicks x y)
-    (setf (.resizing self) nil
-          (.dragging self) nil)))
+(defmethod mousebuttondown ((self drag-connect-mixin) button state clicks x y)
+  (case button
+    (3 (setf (.connect-from-module *app*) self)))
+  (call-next-method))
 
-(defgeneric keydown (self scancode mod-value)
-  (:method (self scancode mod-value)))
-
-(defgeneric keyup (self scancode mod-value)
-  (:method (self scancode mod-value)))
-
-(defgeneric mousemotion (self x y xrel yrel state)
-  (:method (self x y xrel yrel state))
-  (:method ((self module) x y xrel yrel state)
-    (when (eq self (.drag-module *app*))
-      (if (.resizing self)
-          (resize self xrel yrel)
-          (when (.dragging self)
-            (move self xrel yrel))))))
-
-(defgeneric move (self xrel yrel)
-  (:method (self xrel yrel))
-  (:method ((self renderable) xrel yrel)
-    (incf (.x self) xrel)
-    (incf (.y self) yrel)))
-
-(defgeneric resize (self xrel yrel)
-  (:method (self xrel yrel))
-  (:method ((self renderable) xrel yrel)
-    (setf (.width self) (max 20 (+ (.width self) xrel)))
-    (setf (.height self) (max 20 (+ (.height self) yrel)))))
+(defmethod mousebuttonup ((self drag-connect-mixin) button state clicks x y)
+  (case button
+    (3 (let ((from (.connect-from-module *app*)))
+         (when (and from (not (eq from self)))
+           (if (member self (.out from))
+               (disconnect from self)
+               (connect from self)))
+         (setf (.connect-from-module *app*) nil))))
+  (call-next-method))
 
 (defclass text (renderable)
   ((value :initarg :value :initform "くえっ" :accessor .value)
@@ -390,16 +446,9 @@
   ()
   (:default-initargs :width 690 :height *track-height*))
 
-(defmethod render ((self sequencer-module-track) renderer)
-  (call-next-method)
-  (loop for pattern-position in (.pattern-positions self)
-        do (sdl2:render-draw-rect
-            renderer
-            (sdl2:make-rect (* 5 (+ (.x self) (.start pattern-position)))
-                            (+ 2 (.y self))
-                            (* 5 (+ (.x self) (- (.end pattern-position)
-                                                 (.start pattern-position))))
-                            (+ -4 (.height self))))))
+(defclass pattern-position (pattern-position-mixin renderable
+                            name-mixin)
+  ())
 
 (defclass sequencer-module (sequencer module)
   ()
@@ -440,9 +489,6 @@
   ((pattern-editor :initform (make-instance 'pattern-editor) :accessor .pattern-editor))
   (:default-initargs :name "pattern"))
 
-(defmethod keydown ((self pattern-module) scancode mod-value)
-  (keydown (.pattern-editor self) scancode mod-value))
-
 (defmethod initialize-instance :after ((self pattern-module) &key)
   (let ((pattern-editor (.pattern-editor self)))
     (add-child self pattern-editor)
@@ -451,6 +497,23 @@
           (.y pattern-editor) (+ 5 *font-size*)
           (.width pattern-editor) (- (.width self) 10)
           (.height pattern-editor) (- (.height self) (+ 10 *font-size*)))))
+
+(defmethod add-pattern ((sequencer sequencer-module)
+                        (track sequencer-module-track)
+                        (pattern pattern-module)
+                        start end)
+  (let ((pattern-position (call-next-method)))
+    (add-child track pattern-position)
+    (setf (.x pattern-position) (* 5 (.start pattern-position))
+          (.y pattern-position) 2
+          (.width pattern-position) (* 5 (- (.end pattern-position)
+                                            (.start pattern-position)))
+          (.height pattern-position) (- (.height track) 4)
+          (.name pattern-position) (.name pattern))
+    pattern-position))
+
+(defmethod keydown ((self pattern-module) scancode mod-value)
+  (keydown (.pattern-editor self) scancode mod-value))
 
 (defmethod (setf .width) :after (value (self pattern-module))
   (setf (.width (.pattern-editor self)) (- (.width self) 10)))
@@ -565,6 +628,7 @@
               (add-pattern sequencer track1 pattern1 line-length (* 2 line-length))
               (add-pattern sequencer track2 pattern2 line-length (* 2 line-length))
               (add-pattern sequencer track1 pattern1 (* 2 line-length) (* 3 line-length))
+              (add-pattern sequencer track2 pattern2 (* 2 line-length) (* 3 line-length))
               (setf (.modules *app*)
                     (list sequencer master
                           pattern1 osc1 adsr1 amp1 
@@ -590,10 +654,6 @@
   (let ((scancode (sdl2:scancode-value keysym))
         (sym (sdl2:sym-value keysym))
         (mod-value (sdl2:mod-value keysym)))
-    (cond
-      ((sdl2:scancode= scancode :scancode-w) (format t "~a~%" "WALK"))
-      ((sdl2:scancode= scancode :scancode-s) (sdl2:show-cursor))
-      ((sdl2:scancode= scancode :scancode-h) (sdl2:hide-cursor)))
     (format t "Key sym: ~a, code: ~a, mod: ~a~%"
             sym
             scancode
@@ -601,9 +661,6 @@
     (keydown (module-at-mouse *app*) scancode mod-value)))
 
 (defun handle-sdl2-keyup-event (keysym)
-  #+nil
-  (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-escape)
-    (sdl2:push-event :quit))
   (let  ((scancode (sdl2:scancode-value keysym))
          (mod-value (sdl2:mod-value keysym)))
     (keyup (module-at-mouse *app*) scancode mod-value)))
@@ -613,42 +670,29 @@
           x xrel y yrel state)
   (setf (.mouse-x *app*) x)
   (setf (.mouse-y *app*) y)
-  (aif (.drag-module *app*)
-       (mousemotion it x y xrel yrel state)
-       (mousemotion (module-at-mouse *app*) x y xrel yrel state)))
+  (let ((module (or (.drag-move-module *app*)
+                    (.drag-resize-module *app*)
+                    (module-at-mouse *app*))))
+    (mousemotion module
+                 (- x (.x module)) (- y (.y module))
+                 xrel yrel state)))
 
 (defun handle-sdl2-mousebuttondown-event (button state clicks x y)
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (case button
-    (1                                  ;left
-     (let ((module (module-at-mouse *app*)))
-       (setf (.drag-module *app*) module)
-       (mousebuttondown module
-                        button state clicks
-                        (- x (.x module)) (- y (.y module)))))
-    (3                                  ;right
-     (setf (.connect-from-module *app*) (module-at-mouse *app*)))))
+  (awhen (module-at-mouse *app*)
+   (mousebuttondown it
+                    button state clicks
+                    (- x (.x it)) (- y (.y it)))))
 
 (defun handle-sdl2-mousebuttonup-event (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (sif (.drag-module *app*)
-       (progn
-         (mousebuttonup it button state clicks
-                        (- x (.x it)) (- y (.y it)))
-         (setf it nil))
-       (mousebuttonup (module-at-mouse *app*) button state clicks x y))
-  (case button
-    (3                                  ;right
-     (let ((from (.connect-from-module *app*)))
-       (when from
-         (let ((to (module-at-mouse *app*)))
-           (if (and to (not (eq from to)))
-               (if (member to (.out from))
-                   (disconnect from to)
-                   (connect from to)))))
-       (setf (.connect-from-module *app*) nil)))))
+  (let ((module (or (.drag-move-module *app*)
+                    (.drag-resize-module *app*)
+                    (module-at-mouse *app*))))
+    (mousebuttonup module button state clicks
+                   (- x (.x module)) (- y (.y module)))))
 
 (defun handle-sdl2-idle-event (renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
