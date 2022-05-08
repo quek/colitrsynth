@@ -5,6 +5,7 @@
 (defparameter *char-height* *font-size*)
 (defparameter *cursor-color* '(#x00 #x00 #xcc #x80))
 (defparameter *play-position-color* '(#x00 #x80 #x00 #x80))
+(defparameter *pixcel-per-line* 5)
 (defparameter *layout-space* 5)
 
 (defparameter *transparency* #xc0)
@@ -496,8 +497,7 @@
              (add-pattern self module start end))
            (call-next-method))))
     (3
-     (awhen (child-module-at self (print x) (print y))
-       (describe it)
+     (awhen (child-module-at self x y)
        (remove-pattern self it)))))
 
 (defclass pattern-position (pattern-position-mixin renderable
@@ -524,6 +524,14 @@
             (stop)
             (play))))))
 
+(defmethod render :after ((self sequencer-module) renderer)
+  (let* ((first (car (.tracks self)))
+         (last (car (last (.tracks self))))
+         (x (+ (.x first) (* (.current-line self) *pixcel-per-line*))))
+    (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
+    (sdl2:render-draw-line renderer x (.y first) x
+                           (+ (.y last) (.height last)))))
+
 (defmethod resize :after ((self sequencer-module) xrel yrel)
   ;; TODO 小さくするとはみ出るし、拡大縮小もした方がいいかもしれない
   (loop for track in (.tracks self)
@@ -531,7 +539,7 @@
 
 (defun add-new-track (sequencer-module)
   (let* ((y (+ 13 *font-size* (* (length (.tracks sequencer-module))
-                                 (+ *track-height* 5))))
+                                 (1- *track-height*))))
          (track (make-instance 'sequencer-module-track :x 5 :y y)))
     (add-child sequencer-module track)
     (setf (.tracks sequencer-module)
@@ -557,9 +565,9 @@
                         start end)
   (let ((pattern-position (call-next-method)))
     (add-child track pattern-position)
-    (setf (.x pattern-position) (* 5 (.start pattern-position))
+    (setf (.x pattern-position) (* *pixcel-per-line* (.start pattern-position))
           (.y pattern-position) 2
-          (.width pattern-position) (* 5 (- (.end pattern-position)
+          (.width pattern-position) (* *pixcel-per-line* (- (.end pattern-position)
                                             (.start pattern-position)))
           (.height pattern-position) (- (.height track) 4)
           (.name pattern-position) (.name pattern))

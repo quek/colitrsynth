@@ -156,7 +156,8 @@
 (defclass sequencer (audio-module)
   ((tracks :initarg :tracks :accessor .tracks :initform nil)
    (end :initform 0 :accessor .end)
-   (loop :initform t :accessor .loop)))
+   (loop :initform t :accessor .loop)
+   (current-line :initform 0 :accessor .current-line)))
 
 (defun update-sequencer-end ()
   (let ((sequencer (.sequencer *audio*)))
@@ -168,8 +169,10 @@
 (defun play-sequencer (self line frame)
   (let ((end (.end self)))
     (if (zerop end)
-        (loop for i below (.frames-per-buffer *audio*)
-              do (write-master-buffer))
+        (progn
+          (loop for i below (.frames-per-buffer *audio*)
+                do (write-master-buffer))
+          (setf (.current-line self) 0))
         (let* (
                (line (if (.loop self)
                          (mod line end)
@@ -180,10 +183,12 @@
                 (loop for i below (.frames-per-buffer *audio*)
                       do (write-master-buffer))
                 (request-stop))
-              (loop for i below (.frames-per-buffer *audio*)
-                    do (loop for track in (.tracks self)
-                             do (play-frame track line frame))
-                       (write-master-buffer)))))))
+              (progn
+                (loop for i below (.frames-per-buffer *audio*)
+                     do (loop for track in (.tracks self)
+                              do (play-frame track line frame))
+                        (write-master-buffer))
+                (setf (.current-line self) line)))))))
 
 (defclass line ()
   ((note :initarg :note :initform off :accessor .note)))
