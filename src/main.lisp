@@ -10,7 +10,57 @@
 
 (defparameter *transparency* #xc0)
 
+(defconstant +mouse-button-count+ 16)
+
 (defvar *app*)
+
+(defgeneric render (self renderer)
+  (:method (self renderer)))
+
+(defgeneric mousebuttondown (self button state clicks x y)
+  (:method (self button state clicks x y)
+    (setf (click-target-module button) self)))
+
+(defgeneric mousebuttonup (self button state clicks x y)
+  (:method (self button state clicks x y)
+    (when (eq self (click-target-module button))
+      (let ((root (root-parent self)))
+        (click root button
+               (- (.mouse-x *app*) (.absolute-x root))
+               (- (.mouse-y *app*) (.absolute-y root)))))))
+
+(defgeneric click (self button x y)
+  (:method (self button x y)))
+
+(defgeneric drag-start (self x y)
+  (:method (self x y)))
+
+(defgeneric drag (self xrel yrel)
+  (:method (self xrel yrel)))
+
+(defgeneric drag-end (self x y)
+  (:method (self x y)))
+
+(defgeneric drop (self dropped x y)
+  (:method (self dropped x y)))
+
+(defgeneric mousemotion (self x y xrel yrel state)
+  (:method (self x y xrel yrel state)))
+
+(defgeneric keydown (self scancode mod-value)
+  (:method (self scancode mod-value)))
+
+(defgeneric keyup (self scancode mod-value)
+  (:method (self scancode mod-value)))
+
+(defgeneric move (self xrel yrel)
+  (:method (self xrel yrel)))
+
+(defgeneric resize (self xrel yrel)
+  (:method (self xrel yrel)))
+
+(defgeneric .target (self)
+  (:method ((self null)) nil))
 
 (defclass app ()
   ((win :initarg :win :accessor .win)
@@ -21,11 +71,20 @@
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
    (selected-module :initform nil :accessor .selected-module)
-   (click-target-module :initform (make-array 16))
+   (click-target-module :initform (make-array +mouse-button-count+))
    (drag-move-module :initform nil :accessor .drag-move-module)
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (dragging :initform nil :accessor .dragging)
+   (drag-state :initform nil :accessor .drag-state)
    (connect-from-module :initform nil :accessor .connect-from-module)))
+
+(defclass drag-state ()
+  ((target :initarg :target :accessor .target)
+   (button :initarg :button :accessor .button)
+   (x :initarg :x :accessor .x)
+   (y :initarg :y :accessor .y)
+   (state :initarg :state :accessor .state)
+   (dragged :initform nil :accessor .dragged)))
 
 (defun click-target-module (button)
   (aref (slot-value *app* 'click-target-module) button))
@@ -51,43 +110,6 @@
                        (<= (.y module) y (+ (.y module) (.height module)))
                        module)))
 
-
-(defgeneric render (self renderer)
-  (:method (self renderer)))
-
-(defgeneric mousebuttondown (self button state clicks x y)
-  (:method (self button state clicks x y)
-    (setf (click-target-module button) self)))
-
-(defgeneric mousebuttonup (self button state clicks x y)
-  (:method (self button state clicks x y)
-    (when (eq self (click-target-module button))
-      (let ((root self))
-        (loop for x = (.parent self) then (.parent x)
-              while x
-              do (setf root x))
-        (click root button
-               (- (.mouse-x *app*) (.absolute-x root))
-               (- (.mouse-y *app*) (.absolute-y root)))))))
-
-(defgeneric click (self button x y)
-  (:method (self button x y)))
-
-(defgeneric mousemotion (self x y xrel yrel state)
-  (:method (self x y xrel yrel state)))
-
-(defgeneric keydown (self scancode mod-value)
-  (:method (self scancode mod-value)))
-
-(defgeneric keyup (self scancode mod-value)
-  (:method (self scancode mod-value)))
-
-(defgeneric move (self xrel yrel)
-  (:method (self xrel yrel)))
-
-(defgeneric resize (self xrel yrel)
-  (:method (self xrel yrel)))
-
 (defclass renderable ()
   ((color :initarg :color :initform (list #xdd #xdd #xdd *transparency*) :accessor .color)
    (x :initarg :x :initform 0 :accessor .x)
@@ -96,6 +118,11 @@
    (height :initarg :height :initform 80 :accessor .height)
    (parent :initarg :parent :initform nil :accessor .parent)
    (children :initarg :children :initform nil :accessor .children)))
+
+(defmethod root-parent ((self renderable))
+  (aif (.parent self)
+       (root-parent it)
+       self))
 
 (defmethod mousebuttondown ((self renderable) button state clicks x y)
   (call-next-method)
@@ -119,6 +146,9 @@
   (awhen (child-module-at self x y)
    (mousemotion it (- x (.x it)) (- y (.y it))
                 xrel yrel state)))
+
+(defmethod drag ((self renderable) xrel yrel)
+  (move self xrel yrel))
 
 (defmethod move ((self renderable) xrel yrel)
     (incf (.x self) xrel)
@@ -253,6 +283,35 @@
                      (- (.absolute-y self) 2)
                      (+ (.width self) 4)
                      (+ (.height self) 4)))))
+
+(defclass drag-mixin ()
+  ())
+
+(defmethod mousebuttondown ((self drag-mixin) button state clicks x y)
+  (setf (.drag-state *app*)
+        (make-instance 'drag-state :target self :button button
+                                   :x x :y y :state state))
+  (call-next-method))
+
+(defmethod mousemotion ((self drag-mixin) x y xrel yrel state)
+  (let ((drag-state (.drag-state *app*)))
+    (if (eq self (.target drag-state))
+        (progn
+          (sunless (.dragged drag-state)
+            (setf it t)
+            (drag-start self x y))
+          (drag self xrel yrel))
+        (call-next-method))))
+
+(defmethod mousebuttonup ((self drag-mixin) button state clicks x y)
+  (sif (.drag-state *app*)
+       (progn
+         (drag-end self x y)
+         (setf it nil)))
+  (call-next-method))
+
+(defclass drop-mixin ()
+  ())
 
 (defclass drag-move-mixin ()
   ())
@@ -544,11 +603,13 @@
        (remove-pattern self it))
      (call-next-method))))
 
-(defclass pattern-position (pattern-position-mixin drag-move-mixin renderable
+(defclass pattern-position (pattern-position-mixin
+                            drag-mixin
+                            renderable
                             name-mixin)
   ((move-delta-x :initform 0 :accessor .move-delta-x)))
 
-(defmethod move ((self pattern-position) xrel yrel)
+(defmethod drag ((self pattern-position) xrel yrel)
   (let* ((pixcel (+ (.x self) (.move-delta-x self) xrel))
          (line (pixcel-to-line pixcel))
          (rounded-pixcel (line-to-pixcel line)))
@@ -556,9 +617,9 @@
           (.move-delta-x self) (- pixcel rounded-pixcel))))
 
 (defclass sequencer-module (sequencer
-                            name-mixin
+                            drag-mixin
                             drag-resize-mixin     ;drag-move-mixin より先に
-                            drag-move-mixin
+                            name-mixin
                             renderable)
   ()
   (:default-initargs :name ""
@@ -832,7 +893,8 @@
           x xrel y yrel state)
   (setf (.mouse-x *app*) x)
   (setf (.mouse-y *app*) y)
-  (let ((module (or (.drag-move-module *app*)
+  (let ((module (or (.target (.drag-state *app*))
+                    (.drag-move-module *app*)
                     (.drag-resize-module *app*)
                     (module-at-mouse *app*))))
     (mousemotion module
