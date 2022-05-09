@@ -520,12 +520,18 @@
   ()
   (:default-initargs :width 690 :height *track-height*))
 
+(defun pixcel-to-line (pixcel)
+  (* (round (/ pixcel *pixcel-per-line*) 4) 4))
+
+(defun line-to-pixcel (line)
+  (* *pixcel-per-line* line))
+
 (defmethod click ((self sequencer-module-track) button x y)
   (case button
     (1
      (let ((module (.selected-module *app*)))
        (if (typep module 'pattern-module)
-           (let* ((start (* (round (/ x *pixcel-per-line*) 4) 4))
+           (let* ((start (pixcel-to-line x))
                   (end (+ start (.length module))))
              (when (every (lambda (x)
                             (or (<= end (.start x))
@@ -540,10 +546,14 @@
 
 (defclass pattern-position (pattern-position-mixin drag-move-mixin renderable
                             name-mixin)
-  ())
+  ((move-delta-x :initform 0 :accessor .move-delta-x)))
 
-(defmethod move ((self pattern-position-mixin) xrel yrel)
-  (incf (.x self) xrel))
+(defmethod move ((self pattern-position) xrel yrel)
+  (let* ((pixcel (+ (.x self) (.move-delta-x self) xrel))
+         (line (pixcel-to-line pixcel))
+         (rounded-pixcel (line-to-pixcel line)))
+    (setf (.x self) rounded-pixcel
+          (.move-delta-x self) (- pixcel rounded-pixcel))))
 
 (defclass sequencer-module (sequencer
                             name-mixin
