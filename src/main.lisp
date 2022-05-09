@@ -24,6 +24,7 @@
    (click-target-module :initform (make-array 16))
    (drag-move-module :initform nil :accessor .drag-move-module)
    (drag-resize-module :initform nil :accessor .drag-resize-module)
+   (dragging :initform nil :accessor .dragging)
    (connect-from-module :initform nil :accessor .connect-from-module)))
 
 (defun click-target-module (button)
@@ -61,11 +62,16 @@
 (defgeneric mousebuttonup (self button state clicks x y)
   (:method (self button state clicks x y)
     (when (eq self (click-target-module button))
-      (click self button))
-    (setf (click-target-module button) nil)))
+      (let ((root self))
+        (loop for x = (.parent self) then (.parent x)
+              while x
+              do (setf root x))
+        (click root button
+               (- (.mouse-x *app*) (.x root))
+               (- (.mouse-y *app*) (.y root)))))))
 
-(defgeneric click (self button)
-  (:method (self button)))
+(defgeneric click (self button x y)
+  (:method (self button x y)))
 
 (defgeneric mousemotion (self x y xrel yrel state)
   (:method (self x y xrel yrel state)))
@@ -100,13 +106,14 @@
 (defmethod mousebuttonup ((self renderable) button state clicks x y)
   (call-next-method)
   (awhen (child-module-at self x y)
-   (mousebuttonup it button state clicks
-                  (- x (.x-relative it)) (- y (.y-relative it)))))
+    (print (list x y (- x (.x-relative it)) (- y (.y-relative it))))
+    (mousebuttonup it button state clicks
+                   (- x (.x-relative it)) (- y (.y-relative it)))))
 
-(defmethod click ((self renderable) button)
+(defmethod click ((self renderable) button x y)
   (call-next-method)
-  (awhen (child-module-at self (.mouse-x *app*) (.mouse-y *app*))
-    (click it button)))
+  (awhen (child-module-at self x y)
+    (click it button (- x (.x-relative it)) (- y (.y-relative it)))))
 
 (defmethod mousemotion ((self renderable) x y xrel yrel state)
   (call-next-method)
@@ -234,10 +241,10 @@
     (defmethod (setf .name) (value (self (eql self)))
       (setf (.value text) value))))
 
-(defclass module (renderable
-                  name-mixin
+(defclass module (name-mixin
                   drag-resize-mixin     ;drag-move-mixin より先に
                   drag-move-mixin
+                  renderable
                   drag-connect-mixin)
   ())
 
@@ -263,12 +270,15 @@
   (call-next-method))
 
 (defmethod mousebuttonup ((self drag-move-mixin) button state clicks x y)
-  (case button
-    (1 (setf (.drag-move-module *app*) nil)))
-  (call-next-method))
+  (if (and (= button 1)
+           (eq self (.drag-move-module *app*))
+           (.dragging *app*))
+      nil
+      (call-next-method)))
 
 (defmethod mousemotion ((self drag-move-mixin) x y xrel yrel state)
   (when (eq self (.drag-move-module *app*))
+    (setf (.dragging *app*) t)
     (move self xrel yrel))
   (call-next-method))
 
@@ -283,12 +293,15 @@
       (call-next-method)))
 
 (defmethod mousebuttonup ((self drag-resize-mixin) button state clicks x y)
-  (case button
-    (1 (setf (.drag-resize-module *app*) nil)))
-  (call-next-method))
+  (if (and (= button 1)
+           (eq self (.drag-resize-module *app*))
+           (.dragging *app*))
+      nil
+      (call-next-method)))
 
 (defmethod mousemotion ((self drag-resize-mixin) x y xrel yrel state)
   (when (eq self (.drag-resize-module *app*))
+    (setf (.dragging *app*) t)
     (resize self xrel yrel))
   (call-next-method))
 
@@ -507,11 +520,11 @@
 
 (defparameter *track-height* 40)        ;TODO 固定長で妥協
 
-(defclass sequencer-module-track (track renderable drag-connect-mixin)
+(defclass sequencer-module-track (track  drag-connect-mixin renderable)
   ()
   (:default-initargs :width 690 :height *track-height*))
 
-(defmethod mousebuttondown ((self sequencer-module-track) button state clicks x y)
+(defmethod click ((self sequencer-module-track) button x y)
   (case button
     (1
      (let ((module (.selected-module *app*)))
@@ -522,6 +535,7 @@
              (add-pattern self module start end))
            (call-next-method))))
     (3
+     (print (list 'awhen-remove-pattern x y))
      (awhen (child-module-at self x y)
        (remove-pattern self it))
      (call-next-method))))
@@ -531,10 +545,10 @@
   ())
 
 (defclass sequencer-module (sequencer
-                            renderable
                             name-mixin
                             drag-resize-mixin     ;drag-move-mixin より先に
-                            drag-move-mixin)
+                            drag-move-mixin
+                            renderable)
   ()
   (:default-initargs :name ""
                      :color (list #x00 #xff #xff *transparency*)
@@ -652,7 +666,7 @@
                                         :y (* (+ *font-size* 4)
                                               (length (.children self))))))
      (add-child self button)
-     (defmethod click ((self (eql button)))
+     (defmethod click ((self (eql button)) button x y)
        (add-module (make-instance ',class :name ,name
                                           :x (- (.mouse-x *app*) 10)
                                           :y (- (.mouse-y *app*) 10)
@@ -670,7 +684,7 @@
                        :x (- (.mouse-x *app*) 10)
                        :y (- (.mouse-y *app*) 10))))
 
-(defmethod mousebuttondown ((self new-module-menu) button state clicks x y)
+(defmethod mousebuttonup ((self new-module-menu) button state clicks x y)
   (call-next-method)
   (remove-module self))
 
@@ -825,11 +839,18 @@
 (defun handle-sdl2-mousebuttonup-event (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (let ((module (or (.drag-move-module *app*)
-                    (.drag-resize-module *app*)
-                    (module-at-mouse *app*))))
-    (mousebuttonup module button state clicks
-                   (- x (.x module)) (- y (.y module)))))
+  (aif (and (.dragging *app*)
+            (or (.drag-move-module *app*)
+                (.drag-resize-module *app*)))
+       (mousebuttonup it button state clicks
+                      (- x (.x it)) (- y (.y it)))
+       (awhen (module-at-mouse *app*)
+         (mousebuttonup it button state clicks
+                        (- x (.x it)) (- y (.y it)))))
+  (setf (.drag-move-module *app*) nil)
+  (setf (.drag-resize-module *app*) nil)
+  (setf (.dragging *app*) nil)
+  (setf (click-target-module button) nil))
 
 (defun handle-sdl2-idle-event (renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
