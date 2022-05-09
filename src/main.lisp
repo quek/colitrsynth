@@ -21,9 +21,16 @@
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
    (selected-module :initform nil :accessor .selected-module)
+   (click-target-module :initform (make-array 16))
    (drag-move-module :initform nil :accessor .drag-move-module)
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (connect-from-module :initform nil :accessor .connect-from-module)))
+
+(defun click-target-module (button)
+  (aref (slot-value *app* 'click-target-module) button))
+
+(defun (setf click-target-module) (value button)
+  (setf (aref (slot-value *app* 'click-target-module) button) value))
 
 (defun add-module (module)
   (push module (.modules *app*)))
@@ -48,10 +55,17 @@
   (:method (self renderer)))
 
 (defgeneric mousebuttondown (self button state clicks x y)
-  (:method (self button state clicks x y)))
+  (:method (self button state clicks x y)
+    (setf (click-target-module button) self)))
 
 (defgeneric mousebuttonup (self button state clicks x y)
-  (:method (self button state clicks x y)))
+  (:method (self button state clicks x y)
+    (when (eq self (click-target-module button))
+      (click self button))
+    (setf (click-target-module button) nil)))
+
+(defgeneric click (self button)
+  (:method (self button)))
 
 (defgeneric mousemotion (self x y xrel yrel state)
   (:method (self x y xrel yrel state)))
@@ -88,6 +102,11 @@
   (awhen (child-module-at self x y)
    (mousebuttonup it button state clicks
                   (- x (.x-relative it)) (- y (.y-relative it)))))
+
+(defmethod click ((self renderable) button)
+  (call-next-method)
+  (awhen (child-module-at self (.mouse-x *app*) (.mouse-y *app*))
+    (click it button)))
 
 (defmethod mousemotion ((self renderable) x y xrel yrel state)
   (call-next-method)
@@ -331,14 +350,6 @@
 (defclass button (renderable)
   ()
   (:default-initargs :width 50 :height 30))
-
-(defgeneric click (self)
-  (:method ((self button))))
-
-(defmethod mousebuttondown ((self button) button state click x y)
-  (if (= button 1)
-      (click self)
-      (call-next-method)))
 
 (defmethod initialize-instance :after ((self button) &key text)
   (add-child self (make-instance 'text :value text :x 5 :y 2)))
@@ -695,8 +706,8 @@
           (format t "Beginning main loop.~%")
           (finish-output)
           (with-audio
-            (make-default-modules)
-            ;;(make-test-modules)
+            ;;(make-default-modules)
+            (make-test-modules)
             (sdl2:with-event-loop (:method :poll)
               (:keydown (:keysym keysym)
                         (handle-sdl2-keydown-event keysym))
@@ -807,9 +818,9 @@
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
   (awhen (module-at-mouse *app*)
-   (mousebuttondown it
-                    button state clicks
-                    (- x (.x it)) (- y (.y it)))))
+    (mousebuttondown it
+                     button state clicks
+                     (- x (.x it)) (- y (.y it)))))
 
 (defun handle-sdl2-mousebuttonup-event (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
