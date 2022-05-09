@@ -310,13 +310,15 @@
 
 (defmethod mousebuttonup ((self drag-mixin) button state clicks x y)
   (if (eq self (.target (.drag-state *app*)))
-       (progn
-         (drag-end self x y)
-         (drop (module-at-mouse *app*) self
-               (+ (.absolute-x self) x)
-               (+ (.absolute-y self) y))
-         (setf (.drag-state *app*) nil))
-       (call-next-method)))
+      (progn
+        (if (.dragged (.drag-state *app*))
+            (progn (drag-end self x y)
+                   (drop (module-at-mouse *app*) self
+                         (+ (.absolute-x self) x)
+                         (+ (.absolute-y self) y)))
+            (call-next-method))
+        (setf (.drag-state *app*) nil))
+      (call-next-method)))
 
 (defclass drop-mixin ()
   ())
