@@ -141,14 +141,19 @@
   (awhen (child-module-at self x y)
     (click it button (- x (.x it)) (- y (.y it)))))
 
+(defmethod drag ((self renderable) xrel yrel)
+  (move self xrel yrel))
+
+(defmethod drop ((self renderable) dropped x y)
+  (call-next-method)
+  (awhen (child-module-at self x y)
+    (drop it dropped (- x (.x it)) (- y (.y it)))))
+
 (defmethod mousemotion ((self renderable) x y xrel yrel state)
   (call-next-method)
   (awhen (child-module-at self x y)
    (mousemotion it (- x (.x it)) (- y (.y it))
                 xrel yrel state)))
-
-(defmethod drag ((self renderable) xrel yrel)
-  (move self xrel yrel))
 
 (defmethod move ((self renderable) xrel yrel)
     (incf (.x self) xrel)
@@ -304,11 +309,14 @@
         (call-next-method))))
 
 (defmethod mousebuttonup ((self drag-mixin) button state clicks x y)
-  (sif (.drag-state *app*)
+  (if (eq self (.target (.drag-state *app*)))
        (progn
          (drag-end self x y)
-         (setf it nil)))
-  (call-next-method))
+         (drop (module-at-mouse *app*) self
+               (+ (.absolute-x self) x)
+               (+ (.absolute-y self) y))
+         (setf (.drag-state *app*) nil))
+       (call-next-method)))
 
 (defclass drop-mixin ()
   ())
@@ -575,7 +583,10 @@
 
 (defparameter *track-height* 40)        ;TODO 固定長で妥協
 
-(defclass sequencer-module-track (track  drag-connect-mixin renderable)
+(defclass sequencer-module-track (track
+                                  drag-connect-mixin
+                                  drop-mixin
+                                  renderable)
   ()
   (:default-initargs :width 690 :height *track-height*))
 
@@ -603,6 +614,12 @@
        (remove-pattern self it))
      (call-next-method))))
 
+(defmethod drop ((self sequencer-module-track) (pattern-position pattern-position) x y)
+  (let ((delta (- (pixcel-to-line (.x pattern-position)) (.start pattern-position))))
+    (incf (.start pattern-position) delta)
+    (incf (.end pattern-position) delta)
+    (update-sequencer-end)))
+
 (defclass pattern-position (pattern-position-mixin
                             drag-mixin
                             renderable
@@ -615,6 +632,9 @@
          (rounded-pixcel (line-to-pixcel line)))
     (setf (.x self) rounded-pixcel
           (.move-delta-x self) (- pixcel rounded-pixcel))))
+
+(defmethod drag-end ((self pattern-position) x y)
+  (setf (.move-delta-x self) 0))
 
 (defclass sequencer-module (sequencer
                             drag-mixin
