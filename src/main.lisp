@@ -41,14 +41,14 @@
 
 (defun module-at-mouse (app)
   (loop for module in (.modules app)
-          thereis (and (<= (.x module) (.mouse-x app) (+ (.x module) (.width module)))
-                       (<= (.y module) (.mouse-y app) (+ (.y module) (.height module)))
+          thereis (and (<= (.absolute-x module) (.mouse-x app) (+ (.absolute-x module) (.width module)))
+                       (<= (.absolute-y module) (.mouse-y app) (+ (.absolute-y module) (.height module)))
                        module)))
 
 (defun child-module-at (self x y)
   (loop for module in (.children self)
-          thereis (and (<= (.x module) (+ x (.x self)) (+ (.x module) (.width module)))
-                       (<= (.y module) (+ y (.y self)) (+ (.y module) (.height module)))
+          thereis (and (<= (.x module) x (+ (.x module) (.width module)))
+                       (<= (.y module) y (+ (.y module) (.height module)))
                        module)))
 
 
@@ -67,8 +67,8 @@
               while x
               do (setf root x))
         (click root button
-               (- (.mouse-x *app*) (.x root))
-               (- (.mouse-y *app*) (.y root)))))))
+               (- (.mouse-x *app*) (.absolute-x root))
+               (- (.mouse-y *app*) (.absolute-y root)))))))
 
 (defgeneric click (self button x y)
   (:method (self button x y)))
@@ -90,8 +90,8 @@
 
 (defclass renderable ()
   ((color :initarg :color :initform (list #xdd #xdd #xdd *transparency*) :accessor .color)
-   (x :initarg :x :initform 0)
-   (y :initarg :y :initform 0)
+   (x :initarg :x :initform 0 :accessor .x)
+   (y :initarg :y :initform 0 :accessor .y)
    (width :initarg :width :initform 100 :accessor .width)
    (height :initarg :height :initform 80 :accessor .height)
    (parent :initarg :parent :initform nil :accessor .parent)
@@ -101,23 +101,23 @@
   (call-next-method)
   (awhen (child-module-at self x y)
     (mousebuttondown it button state clicks
-                     (- x (.x-relative it)) (- y (.y-relative it)))))
+                     (- x (.x it)) (- y (.y it)))))
 
 (defmethod mousebuttonup ((self renderable) button state clicks x y)
   (call-next-method)
   (awhen (child-module-at self x y)
     (mousebuttonup it button state clicks
-                   (- x (.x-relative it)) (- y (.y-relative it)))))
+                   (- x (.x it)) (- y (.y it)))))
 
 (defmethod click ((self renderable) button x y)
   (call-next-method)
   (awhen (child-module-at self x y)
-    (click it button (- x (.x-relative it)) (- y (.y-relative it)))))
+    (click it button (- x (.x it)) (- y (.y it)))))
 
 (defmethod mousemotion ((self renderable) x y xrel yrel state)
   (call-next-method)
   (awhen (child-module-at self x y)
-   (mousemotion it (- x (.x-relative it)) (- y (.y-relative it))
+   (mousemotion it (- x (.x it)) (- y (.y it))
                 xrel yrel state)))
 
 (defmethod move ((self renderable) xrel yrel)
@@ -139,33 +139,27 @@
 (defmethod .x ((self null))
   0)
 
-(defmethod .x ((self renderable))
-  (+ (slot-value self 'x)
-     (.x (.parent self))))
+(defmethod .absolute-x ((self null))
+  0)
 
-(defmethod .x-relative ((self renderable))
-  (slot-value self 'x))
+(defmethod .absolute-x ((self renderable))
+  (+ (.x self)
+     (.absolute-x (.parent self))))
 
 (defmethod .y ((self null))
   0)
 
-(defmethod .y ((self renderable))
-  (+ (slot-value self 'y)
-     (.y (.parent self))))
+(defmethod .absolute-y ((self null))
+  0)
 
-(defmethod .y-relative ((self renderable))
-  (slot-value self 'y))
-
-(defmethod (setf .x) (value (self renderable))
-  (setf (slot-value self 'x) value))
-
-(defmethod (setf .y) (value (self renderable))
-  (setf (slot-value self 'y) value))
+(defmethod .absolute-y ((self renderable))
+  (+ (.y self)
+     (.absolute-y (.parent self))))
 
 (defmethod render ((self renderable) renderer)
   (with-slots (color width height) self
     (apply #'sdl2:set-render-draw-color renderer color)
-    (sdl2:render-draw-rect renderer (sdl2:make-rect (.x self) (.y self) width height)))
+    (sdl2:render-draw-rect renderer (sdl2:make-rect (.absolute-x self) (.absolute-y self) width height)))
   (loop for child in (.children self)
         do (render child renderer))
   (call-next-method))
@@ -175,54 +169,54 @@
   ;; TODO そのうち直す
   (loop for out in (.out self)
         do (let (x1 y1 x2 y2)
-             (if (> (abs (- (.x self) (.x out)))
-                    (abs (- (.y self) (.y out))))
-                 (if (< (.x self) (.x out))
-                     (if (< (.y self) (.y out))
+             (if (> (abs (- (.absolute-x self) (.absolute-x out)))
+                    (abs (- (.absolute-y self) (.absolute-y out))))
+                 (if (< (.absolute-x self) (.absolute-x out))
+                     (if (< (.absolute-y self) (.absolute-y out))
                          (progn
-                           (setf x1 (+ (.x self) (.width self)))
-                           (setf y1 (+ (.y self) (/ (.height self) 2)))
-                           (setf x2 (.x out))
-                           (setf y2 (+ (.y out) (/ (.height out) 2))))
+                           (setf x1 (+ (.absolute-x self) (.width self)))
+                           (setf y1 (+ (.absolute-y self) (/ (.height self) 2)))
+                           (setf x2 (.absolute-x out))
+                           (setf y2 (+ (.absolute-y out) (/ (.height out) 2))))
                          (progn
-                           (setf x1 (+ (.x self) (.width self)))
-                           (setf y1 (+ (.y self) (/ (.height self) 2)))
-                           (setf x2 (.x out))
-                           (setf y2 (+ (.y out) (/ (.height out) 2)))))
-                     (if (< (.y self) (.y out))
+                           (setf x1 (+ (.absolute-x self) (.width self)))
+                           (setf y1 (+ (.absolute-y self) (/ (.height self) 2)))
+                           (setf x2 (.absolute-x out))
+                           (setf y2 (+ (.absolute-y out) (/ (.height out) 2)))))
+                     (if (< (.absolute-y self) (.absolute-y out))
                          (progn
-                           (setf x1 (.x self))
-                           (setf y1 (+ (.y self) (/ (.height self) 2)))
-                           (setf x2 (+ (.x out) (.width out)))
-                           (setf y2 (+ (.y out) (/ (.height out) 2))))
+                           (setf x1 (.absolute-x self))
+                           (setf y1 (+ (.absolute-y self) (/ (.height self) 2)))
+                           (setf x2 (+ (.absolute-x out) (.width out)))
+                           (setf y2 (+ (.absolute-y out) (/ (.height out) 2))))
                          (progn
-                           (setf x1 (.x self))
-                           (setf y1 (+ (.y self) (/ (.height self) 2)))
-                           (setf x2 (+ (.x out) (.width out)))
-                           (setf y2 (+ (.y out) (/ (.height out) 2))))))
-                 (if (< (.x self) (.x out))
-                     (if (< (.y self) (.y out))
+                           (setf x1 (.absolute-x self))
+                           (setf y1 (+ (.absolute-y self) (/ (.height self) 2)))
+                           (setf x2 (+ (.absolute-x out) (.width out)))
+                           (setf y2 (+ (.absolute-y out) (/ (.height out) 2))))))
+                 (if (< (.absolute-x self) (.absolute-x out))
+                     (if (< (.absolute-y self) (.absolute-y out))
                          (progn
-                           (setf x1 (+ (.x self) (/ (.width self) 2)))
-                           (setf y1 (+ (.y self) (.height self)))
-                           (setf x2 (+ (.x out) (/ (.width out) 2)))
-                           (setf y2 (.y out)))
+                           (setf x1 (+ (.absolute-x self) (/ (.width self) 2)))
+                           (setf y1 (+ (.absolute-y self) (.height self)))
+                           (setf x2 (+ (.absolute-x out) (/ (.width out) 2)))
+                           (setf y2 (.absolute-y out)))
                          (progn
-                           (setf x1 (+ (.x self) (/ (.width self) 2)))
-                           (setf y1 (.y self))
-                           (setf x2 (+ (.x out) (/ (.width out) 2)))
-                           (setf y2 (+ (.y out) (.height out)))))
-                     (if (< (.y self) (.y out))
+                           (setf x1 (+ (.absolute-x self) (/ (.width self) 2)))
+                           (setf y1 (.absolute-y self))
+                           (setf x2 (+ (.absolute-x out) (/ (.width out) 2)))
+                           (setf y2 (+ (.absolute-y out) (.height out)))))
+                     (if (< (.absolute-y self) (.absolute-y out))
                          (progn
-                           (setf x1 (+ (.x self) (/ (.width self) 2)))
-                           (setf y1 (+ (.y self) (.height self)))
-                           (setf x2 (+ (.x out) (/ (.width out) 2)))
-                           (setf y2 (.y out)))
+                           (setf x1 (+ (.absolute-x self) (/ (.width self) 2)))
+                           (setf y1 (+ (.absolute-y self) (.height self)))
+                           (setf x2 (+ (.absolute-x out) (/ (.width out) 2)))
+                           (setf y2 (.absolute-y out)))
                          (progn
-                           (setf x1 (+ (.x self) (/ (.width self) 2)))
-                           (setf y1 (.y self))
-                           (setf x2 (+ (.x out) (/ (.width out) 2)))
-                           (setf y2 (+ (.y out) (.height out)))))))
+                           (setf x1 (+ (.absolute-x self) (/ (.width self) 2)))
+                           (setf y1 (.absolute-y self))
+                           (setf x2 (+ (.absolute-x out) (/ (.width out) 2)))
+                           (setf y2 (+ (.absolute-y out) (.height out)))))))
              (setf x1 (floor x1)
                    x2 (floor x2)
                    y1 (floor y1)
@@ -255,8 +249,8 @@
     (sdl2:set-render-draw-color renderer #xff #xff #x00 #xff)
     (sdl2:render-draw-rect
      renderer
-     (sdl2:make-rect (- (.x self) 2)
-                     (- (.y self) 2)
+     (sdl2:make-rect (- (.absolute-x self) 2)
+                     (- (.absolute-y self) 2)
                      (+ (.width self) 4)
                      (+ (.height self) 4)))))
 
@@ -308,15 +302,15 @@
   (call-next-method)
   (apply #'sdl2:set-render-draw-color renderer (.color self))
   (sdl2:render-draw-line renderer
-                         (+ (.x self) (.width self) -10)
-                         (+ (.y self) (.height self) -1)
-                         (+ (.x self) (.width self) -1)
-                         (+ (.y self) (.height self) -10))
+                         (+ (.absolute-x self) (.width self) -10)
+                         (+ (.absolute-y self) (.height self) -1)
+                         (+ (.absolute-x self) (.width self) -1)
+                         (+ (.absolute-y self) (.height self) -10))
   (sdl2:render-draw-line renderer
-                         (+ (.x self) (.width self) -7)
-                         (+ (.y self) (.height self) -1)
-                         (+ (.x self) (.width self) -1)
-                         (+ (.y self) (.height self) -7)))
+                         (+ (.absolute-x self) (.width self) -7)
+                         (+ (.absolute-y self) (.height self) -1)
+                         (+ (.absolute-x self) (.width self) -1)
+                         (+ (.absolute-y self) (.height self) -7)))
 
 (defclass drag-connect-mixin ()
   ((connecting :initform nil :accessor .connecting)))
@@ -343,6 +337,8 @@
   (:default-initargs :width 0 :height 0))
 
 (defmethod render ((self text) renderer)
+  ;; (describe self)
+  ;; (print (list (.absolute-x self) (.absolute-y self)))
   (when (string/= (.value self) "")
     (when (string/= (.value self) (.last-value self))
       (setf (.last-value self) (.value self))
@@ -357,7 +353,8 @@
     (sdl2:render-copy renderer
                       (.texture self)
                       :source-rect nil
-                      :dest-rect (sdl2:make-rect (.x self) (.y self) (.width self) (.height self)))))
+                      :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
+                                                 (.width self) (.height self)))))
 
 (defclass button (renderable)
   ()
@@ -411,8 +408,8 @@
            (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
            (sdl2:render-fill-rect
             renderer
-            (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.x self) 2)
-                            (+ (* (.current-line (.pattern self)) *char-height*) (.y self) 2)
+            (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.absolute-x self) 2)
+                            (+ (* (.current-line (.pattern self)) *char-height*) (.absolute-y self) 2)
                             (.width self)
                             *char-height*))
            ;; cursor position
@@ -420,13 +417,13 @@
              (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
              (sdl2:render-fill-rect
               renderer
-              (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.x self) 2)
-                              (+ (* (.cursor-y self) *char-height*) (.y self) 2)
+              (sdl2:make-rect (+ (* (.cursor-x self) *char-width*)  (.absolute-x self) 2)
+                              (+ (* (.cursor-y self) *char-height*) (.absolute-y self) 2)
                               (if (zerop (.cursor-x self)) (* 3 *char-width*) *char-width*)
                               *char-height*)))
            (call-next-method)
            (sdl2:set-render-target renderer nil)
-           (let ((rect (sdl2:make-rect (.x self) (.y self)
+           (let ((rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
                                        (.width self) (.height self))))
              (sdl2:render-copy renderer texture :source-rect rect :dest-rect rect)))
       (sdl2:destroy-texture texture))))
@@ -533,7 +530,7 @@
              (when (every (lambda (x)
                             (or (<= end (.start x))
                                 (<= (.end x) start)))
-                          (.pattern-positions self)) 
+                          (.pattern-positions self))
                (add-pattern self module start end)))
            (call-next-method))))
     (3
@@ -541,9 +538,12 @@
        (remove-pattern self it))
      (call-next-method))))
 
-(defclass pattern-position (pattern-position-mixin renderable
+(defclass pattern-position (pattern-position-mixin drag-move-mixin renderable
                             name-mixin)
   ())
+
+(defmethod move ((self pattern-position-mixin) xrel yrel)
+  (incf (.x self) xrel))
 
 (defclass sequencer-module (sequencer
                             name-mixin
@@ -568,10 +568,10 @@
 (defmethod render :after ((self sequencer-module) renderer)
   (let* ((first (car (.tracks self)))
          (last (car (last (.tracks self))))
-         (x (+ (.x first) (* (.current-line self) *pixcel-per-line*))))
+         (x (+ (.absolute-x first) (* (.current-line self) *pixcel-per-line*))))
     (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
-    (sdl2:render-draw-line renderer x (.y first) x
-                           (+ (.y last) (.height last)))))
+    (sdl2:render-draw-line renderer x (.absolute-y first) x
+                           (+ (.absolute-y last) (.height last)))))
 
 (defmethod resize :after ((self sequencer-module) xrel yrel)
   ;; TODO 小さくするとはみ出るし、拡大縮小もした方がいいかもしれない
@@ -826,7 +826,7 @@
                     (.drag-resize-module *app*)
                     (module-at-mouse *app*))))
     (mousemotion module
-                 (- x (.x module)) (- y (.y module))
+                 (- x (.absolute-x module)) (- y (.absolute-y module))
                  xrel yrel state)))
 
 (defun handle-sdl2-mousebuttondown-event (button state clicks x y)
@@ -835,7 +835,7 @@
   (awhen (module-at-mouse *app*)
     (mousebuttondown it
                      button state clicks
-                     (- x (.x it)) (- y (.y it)))))
+                     (- x (.absolute-x it)) (- y (.absolute-y it)))))
 
 (defun handle-sdl2-mousebuttonup-event (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
@@ -844,10 +844,10 @@
             (or (.drag-move-module *app*)
                 (.drag-resize-module *app*)))
        (mousebuttonup it button state clicks
-                      (- x (.x it)) (- y (.y it)))
+                      (- x (.absolute-x it)) (- y (.absolute-y it)))
        (awhen (module-at-mouse *app*)
          (mousebuttonup it button state clicks
-                        (- x (.x it)) (- y (.y it)))))
+                        (- x (.absolute-x it)) (- y (.absolute-y it)))))
   (setf (.drag-move-module *app*) nil)
   (setf (.drag-resize-module *app*) nil)
   (setf (.dragging *app*) nil)
