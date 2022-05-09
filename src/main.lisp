@@ -106,7 +106,6 @@
 (defmethod mousebuttonup ((self renderable) button state clicks x y)
   (call-next-method)
   (awhen (child-module-at self x y)
-    (print (list x y (- x (.x-relative it)) (- y (.y-relative it))))
     (mousebuttonup it button state clicks
                    (- x (.x-relative it)) (- y (.y-relative it)))))
 
@@ -529,13 +528,15 @@
     (1
      (let ((module (.selected-module *app*)))
        (if (typep module 'pattern-module)
-           (let* ((start (loop for pattern-position in (.pattern-positions self)
-                               maximize (.end pattern-position)))
+           (let* ((start (* (round (/ x *pixcel-per-line*) 4) 4))
                   (end (+ start (.length module))))
-             (add-pattern self module start end))
+             (when (every (lambda (x)
+                            (or (<= end (.start x))
+                                (<= (.end x) start)))
+                          (.pattern-positions self)) 
+               (add-pattern self module start end)))
            (call-next-method))))
     (3
-     (print (list 'awhen-remove-pattern x y))
      (awhen (child-module-at self x y)
        (remove-pattern self it))
      (call-next-method))))
