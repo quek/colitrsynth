@@ -83,7 +83,7 @@
    (x :initarg :x :accessor .x)
    (y :initarg :y :accessor .y)
    (state :initarg :state :accessor .state)
-   (dragged :initform nil :accessor .dragged)))
+   (dragging :initform nil :accessor .dragging)))
 
 (defclass function-value-mixin ()
   ((value :initarg :value :initform 0.0d0)))
@@ -314,7 +314,7 @@
   (let ((drag-state (.drag-state *app*)))
     (if (eq self (.target drag-state))
         (progn
-          (sunless (.dragged drag-state)
+          (sunless (.dragging drag-state)
             (setf it t)
             (drag-start self x y))
           (drag self xrel yrel))
@@ -323,7 +323,7 @@
 (defmethod mousebuttonup ((self drag-mixin) button state clicks x y)
   (if (eq self (.target (.drag-state *app*)))
       (progn
-        (if (.dragged (.drag-state *app*))
+        (if (.dragging (.drag-state *app*))
             (progn (drag-end self x y)
                    (drop (module-at-mouse *app*) self
                          (+ (.absolute-x self) x)
@@ -759,7 +759,7 @@
 
 (defclass adsr-module (adsr module)
   ()
-  (:default-initargs :name "adsr"))
+  (:default-initargs :name "adsr" :height 95))
 
 (defmethod initialize-instance :after ((self adsr-module) &key)
   (let ((x *layout-space*)
@@ -979,13 +979,18 @@
 (defun handle-sdl2-mousebuttonup-event (button state clicks x y)
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (aif (and (.dragging *app*)
-            (.drag-resize-module *app*))
-       (mousebuttonup it button state clicks
-                      (- x (.absolute-x it)) (- y (.absolute-y it)))
-       (awhen (module-at-mouse *app*)
-         (mousebuttonup it button state clicks
-                        (- x (.absolute-x it)) (- y (.absolute-y it)))))
+  (print (list
+          (.dragging *app*)
+          (.target (.drag-state *app*))))
+  (awhen (or (let ((drag-state (.drag-state *app*)))
+               (and drag-state
+                    (.dragging drag-state)
+                    (.target drag-state)))
+             (and (.dragging *app*)
+                  (.drag-resize-module *app*))
+             (module-at-mouse *app*))
+    (mousebuttonup it button state clicks
+                   (- x (.absolute-x it)) (- y (.absolute-y it))))
   (setf (.drag-resize-module *app*) nil)
   (setf (.dragging *app*) nil)
   (setf (click-target-module button) nil))
