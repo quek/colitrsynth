@@ -85,6 +85,19 @@
    (state :initarg :state :accessor .state)
    (dragged :initform nil :accessor .dragged)))
 
+(defclass function-value-mixin ()
+  ((value :initarg :value :initform 0.0d0)))
+
+(defmethod .value ((self function-value-mixin))
+  (let ((value (slot-value self 'value)))
+    (if (functionp value)
+        (funcall value)
+        value)))
+
+(defmethod (setf .value) (value (self function-value-mixin))
+  (setf (slot-value self 'value) value))
+
+
 (defun click-target-module (button)
   (aref (slot-value *app* 'click-target-module) button))
 
@@ -378,31 +391,29 @@
          (setf (.connect-from-module *app*) nil))))
   (call-next-method))
 
-(defclass text (renderable)
-  ((value :initarg :value :initform "くえっ" :accessor .value)
-   (lat-value :initform "" :accessor .last-value)
+(defclass text (function-value-mixin renderable)
+  ((lat-value :initform "" :accessor .last-value)
    (texture :initform nil :accessor .texture))
-  (:default-initargs :width 0 :height 0))
+  (:default-initargs :width 0 :height 0 :value "くえっ"))
 
 (defmethod render ((self text) renderer)
-  ;; (describe self)
-  ;; (print (list (.absolute-x self) (.absolute-y self)))
-  (when (string/= (.value self) "")
-    (when (string/= (.value self) (.last-value self))
-      (setf (.last-value self) (.value self))
-      (awhen (.texture self)
-        (sdl2:destroy-texture it))
-      (let ((surface (apply #'sdl2-ttf:render-utf8-solid (.font *app*)
-                            (.value self)
-                            (.color self))))
-        (setf (.width self) (sdl2:surface-width surface)
-              (.height self) (sdl2:surface-height surface)
-              (.texture self) (sdl2:create-texture-from-surface renderer surface))))
-    (sdl2:render-copy renderer
-                      (.texture self)
-                      :source-rect nil
-                      :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
-                                                 (.width self) (.height self)))))
+  (let ((value (.value self)))
+    (when (string/= value "")
+      (when (string/= value (.last-value self))
+        (setf (.last-value self) value)
+        (awhen (.texture self)
+          (sdl2:destroy-texture it))
+        (let ((surface (apply #'sdl2-ttf:render-utf8-solid (.font *app*)
+                              value
+                              (.color self))))
+          (setf (.width self) (sdl2:surface-width surface)
+                (.height self) (sdl2:surface-height surface)
+                (.texture self) (sdl2:create-texture-from-surface renderer surface))))
+      (sdl2:render-copy renderer
+                        (.texture self)
+                        :source-rect nil
+                        :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
+                                                   (.width self) (.height self))))))
 
 (defclass button (renderable)
   ()
@@ -416,6 +427,34 @@
   (let ((text (car (.children self))))
     (setf (.width self) (+ 10 (.width text))
           (.height self) (+ 4 (.height text)))))
+
+(defclass onchange-mixin ()
+  ((onchange :initarg :onchange :initform (constantly nil) :accessor .onchange)))
+
+(defclass slider (onchange-mixin
+                  function-value-mixin drag-mixin renderable)
+  ((min :initarg :min :initform 0.0d0 :accessor .min)
+   (max :initarg :max :initform 1.0d0 :accessor .max)))
+
+(defmethod initialize-instance :after ((self slider) &key)
+  (add-child self (make-instance 'text :value (lambda () (format nil "~,5f" (.value self)))
+                                       :x *layout-space* :y (round (/ *layout-space*)))))
+
+(defmethod render ((self slider) renderer)
+  (call-next-method)
+  (let ((x (+ (round (* (/ (- (.value self) (.min self))
+                           (.max self))
+                        (.width self)))
+              (.absolute-x self))))
+    (sdl2:set-render-draw-color renderer #xff #x00 #xff #xff)
+    (sdl2:render-draw-line renderer
+                           x (1+ (.absolute-y self))
+                           x (+ (.absolute-y self) (.height self) -2))))
+
+(defmethod drag ((self slider) xrel yrel)
+  (funcall (.onchange self) (min (.max self)
+                                 (max (.min self)
+                                      (+ (.value self) (/ xrel 100.0))))))
 
 (defclass pattern-editor (renderable)
   ((pattern :accessor .pattern)
@@ -721,6 +760,34 @@
 (defclass adsr-module (adsr module)
   ()
   (:default-initargs :name "adsr"))
+
+(defmethod initialize-instance :after ((self adsr-module) &key)
+  (let ((x *layout-space*)
+        (y (+ *font-size* *layout-space*))
+        (width (- (.width self) (* 2 *layout-space*)))
+        (height (+ *font-size* (round (/ *layout-space* 2)))))
+    (add-child self
+               (make-instance 'slider :value (lambda () (.a self))
+                                      :x x :y y :width width :height height
+                                      :onchange (lambda (x) (setf (.a self) x))))
+    (add-child self
+               (make-instance 'slider :value (lambda () (.d self))
+                                      :x x
+                                      :y (incf y (+ height (round (/ *layout-space* 2))))
+                                      :width width :height height
+                                      :onchange (lambda (x) (setf (.d self) x))))
+    (add-child self
+               (make-instance 'slider :value (lambda () (.s self))
+                                      :x x
+                                      :y (incf y (+ height (round (/ *layout-space* 2))))
+                                      :width width :height height
+                                      :onchange (lambda (x) (setf (.s self) x))))
+    (add-child self
+               (make-instance 'slider :value (lambda () (.r self))
+                                      :x x
+                                      :y (incf y (+ height (round (/ *layout-space* 2))))
+                                      :width width :height height
+                                      :onchange (lambda (x) (setf (.r self) x))))))
 
 (defclass amp-module (amp module)
   ()
