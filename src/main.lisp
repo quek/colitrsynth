@@ -72,7 +72,6 @@
    (mouse-y :initform 0 :accessor .mouse-y)
    (selected-module :initform nil :accessor .selected-module)
    (click-target-module :initform (make-array +mouse-button-count+))
-   (drag-move-module :initform nil :accessor .drag-move-module)
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (dragging :initform nil :accessor .dragging)
    (drag-state :initform nil :accessor .drag-state)
@@ -270,8 +269,8 @@
       (setf (.value text) value))))
 
 (defclass module (name-mixin
-                  drag-resize-mixin     ;drag-move-mixin より先に
-                  drag-move-mixin
+                  drag-resize-mixin
+                  drag-mixin
                   renderable
                   drag-connect-mixin)
   ())
@@ -323,26 +322,6 @@
 (defclass drop-mixin ()
   ())
 
-(defclass drag-move-mixin ()
-  ())
-
-(defmethod mousebuttondown ((self drag-move-mixin) button state clicks x y)
-  (case button
-    (1 (setf (.drag-move-module *app*) self)))
-  (call-next-method))
-
-(defmethod mousebuttonup ((self drag-move-mixin) button state clicks x y)
-  (if (and (= button 1)
-           (eq self (.drag-move-module *app*))
-           (.dragging *app*))
-      nil
-      (call-next-method)))
-
-(defmethod mousemotion ((self drag-move-mixin) x y xrel yrel state)
-  (when (eq self (.drag-move-module *app*))
-    (setf (.dragging *app*) t)
-    (move self xrel yrel))
-  (call-next-method))
 
 (defclass drag-resize-mixin ()
   ())
@@ -616,12 +595,6 @@
        (remove-pattern self it))
      (call-next-method))))
 
-(defmethod drop ((self sequencer-module-track) (pattern-position pattern-position) x y)
-  (let ((delta (- (pixcel-to-line (.x pattern-position)) (.start pattern-position))))
-    (incf (.start pattern-position) delta)
-    (incf (.end pattern-position) delta)
-    (update-sequencer-end)))
-
 (defclass pattern-position (pattern-position-mixin
                             drag-mixin
                             renderable
@@ -638,9 +611,15 @@
 (defmethod drag-end ((self pattern-position) x y)
   (setf (.move-delta-x self) 0))
 
+(defmethod drop ((self sequencer-module-track) (pattern-position pattern-position) x y)
+  (let ((delta (- (pixcel-to-line (.x pattern-position)) (.start pattern-position))))
+    (incf (.start pattern-position) delta)
+    (incf (.end pattern-position) delta)
+    (update-sequencer-end)))
+
 (defclass sequencer-module (sequencer
+                            drag-resize-mixin
                             drag-mixin
-                            drag-resize-mixin     ;drag-move-mixin より先に
                             name-mixin
                             renderable)
   ()
@@ -916,7 +895,6 @@
   (setf (.mouse-x *app*) x)
   (setf (.mouse-y *app*) y)
   (let ((module (or (.target (.drag-state *app*))
-                    (.drag-move-module *app*)
                     (.drag-resize-module *app*)
                     (module-at-mouse *app*))))
     (mousemotion module
@@ -935,14 +913,12 @@
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
   (aif (and (.dragging *app*)
-            (or (.drag-move-module *app*)
-                (.drag-resize-module *app*)))
+            (.drag-resize-module *app*))
        (mousebuttonup it button state clicks
                       (- x (.absolute-x it)) (- y (.absolute-y it)))
        (awhen (module-at-mouse *app*)
          (mousebuttonup it button state clicks
                         (- x (.absolute-x it)) (- y (.absolute-y it)))))
-  (setf (.drag-move-module *app*) nil)
   (setf (.drag-resize-module *app*) nil)
   (setf (.dragging *app*) nil)
   (setf (click-target-module button) nil))
