@@ -301,6 +301,13 @@
    (frame :initarg :frame :initform 0 :accessor .frame
           :type fixnum)))
 
+(defmethod print-object ((self midi-event) stream)
+    (print-unreadable-object (self stream :type t)
+      (format stream "~x ~a ~d"
+              (.event self)
+              (midino-to-note (.note self))
+              (.frame self))))
+
 (defun write-midi-event (midi-event stream)
   (write-byte (.event midi-event) stream)
   (write-byte (.channel midi-event) stream)

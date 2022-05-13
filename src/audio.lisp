@@ -18,6 +18,12 @@
 
 (defparameter *frames-per-buffer* 1024)
 (defparameter *sample-rate* 48000.0d0)
+(defun sec-per-line ()
+  (/ 60.0d0 (.bpm *audio*) (.lpb *audio*)))
+(defun sec-per-frame ()
+  (/ 1.0d0 *sample-rate*))
+(defun frames-per-line ()
+  (/ (sec-per-line) (sec-per-frame)))
 
 (defun make-buffer (&key (initial-element 0.0d0) (element-type 'double-float))
   (make-array *frames-per-buffer* :initial-element initial-element :element-type element-type))
@@ -91,12 +97,14 @@
 (defun request-stop ()
   (setf (.request-stop *audio*) t))
 
+
 (defun line-and-frame ()
-  (let* ((sec-per-line (/ 60.0d0 (.bpm *audio*) (.lpb *audio*)))
-         (sec-per-frame (/ 1.0d0 (.sample-rate *audio*)))
+  (let* ((sec-per-line (sec-per-line))
+         (sec-per-frame (sec-per-frame))
          (current-sec (* sec-per-frame (.nframes *audio*))))
-    (multiple-value-bind (line remain) (floor (/ current-sec sec-per-line))
-      (values line (floor (/ remain sec-per-frame))))))
+    (let ((line (floor (/ current-sec sec-per-line)))
+          (frame (floor (/ (mod current-sec sec-per-line) sec-per-frame)))) 
+      (values line frame))))
 
 (defun write-master-buffer ()
   (flet ((limit (value)
@@ -154,7 +162,7 @@
                                  (< line end))
                             (midi-events-at-line-frame pattern (- line start) frame)
                             nil)))))
-    (route self midi-events nil)))
+    (route self midi-events frame)))
 
 (defclass sequencer (audio-module)
   ((tracks :initarg :tracks :accessor .tracks :initform nil)
@@ -221,47 +229,48 @@
   (update-sequencer-end))
 
 (defun midi-events-at-line-frame (pattern line frame)
-  ;; TODO frame 解像度が buffer になっている手抜きすぎる実装です。
   (setf (.current-line pattern) line)
-  (let* ((note (.note (aref (.lines pattern) line)))
-         (note (if (= note none)
-                   (.last-note pattern)
-                   note))
-         (gate (and (/= note off)
-                    (= (.last-note pattern) note))))
-    (prog1
-        `(,@(unless gate
-              `(,(make-instance 'midi-event :event +midi-event-off+
-                                            :note (.last-note pattern)
-                                            :frame frame)))
-          ,@(when (/= note off)
-              `(,(make-instance 'midi-event :event +midi-event-on+
-                                            :note note
-                                            :frame frame))))
-      (setf (.last-note pattern) note))))
+  (let* ((frames-per-line (frames-per-line))
+         (start-line (if (zerop frame)
+                         line
+                         (1+ line)))
+         (end-line (+ start-line (floor (/ (- *frames-per-buffer* frame) frames-per-line))))
+         events)
+    (loop for current-line from start-line to (min end-line (1- (.length pattern)))
+          for current-frame = (- (* (- current-line line) frames-per-line)
+                                 frame)
+          for note = (.note (aref (.lines pattern) current-line))
+          for last-note = (.last-note pattern)
+          if (<= c0 note)
+            do (push (make-instance 'midi-event :event +midi-event-on+
+                                                :note note
+                                                :frame current-frame)
+                     events)
+          if (and (= note off) (<= c0 last-note))
+            do (push (make-instance 'midi-event :event +midi-event-off+
+                                                :note last-note
+                                                :frame current-frame)
+                     events)
+          do (setf (.last-note pattern) note))
+    (nreverse events)))
 
 (defclass osc (audio-module)
-  ((note :initarg :note :initform off :accessor .note)
+  ((note :initarg :note :initform c4 :accessor .note)
    (buffer :initform (make-buffer) :accessor .buffer)
    (value :initform 0.0d0 :accessor .value)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
-(defmethod play-frame ((self osc) midi-events _)
-  (declare (ignore _))
+(defmethod play-frame ((self osc) midi-events frame)
   (loop for i below *frames-per-buffer*
-        with note = (or (loop for x in midi-events
-                                thereis (and (= (.event x) +midi-event-on+)
-                                             (.note x)))
-                        0)
-        do (let ((value
-                   (if (zerop note)
-                       0.0d0
-                       (progn
-                         (when (/= (.note self) note)
-                           (setf (.phase self) 0))
-                         (setf (.note self) note)
-                         (osc-frame-value self)))))
+        for note = (loop for x in midi-events
+                           thereis (and (= (.event x) +midi-event-on+)
+                                        (= (.frame x) (+ frame i))
+                                        (.note x)))
+        do (when note
+             (setf (.phase self) 0)
+             (setf (.note self) note))
+           (let ((value (osc-frame-value self)))
              (setf (aref (.buffer self) i) value)
              (setf (.value self) value)
              (incf (.phase self))))
@@ -295,39 +304,38 @@
    (frame :initform 0 :accessor .frame)
    (release-time :initform 0.0d0 :accessor .release-time)))
 
-(defmethod play-frame ((self adsr) midi-events _)
-  (declare (ignore _))
-  ;; FIXME frame を見ろ
-  (let ((gate (cond ((some (lambda (x) (= (.event x) +midi-event-on+)) midi-events)
-                     (setf (.frame self) 0)
-                     t)
-                    ((some (lambda (x) (= (.event x) +midi-event-off+)) midi-events)
-                     nil)
-                    (t (.last-gate self)))))
-    (loop for i below *frames-per-buffer*
-          do (let* ((sec-per-frame (/ 1.0d0 (.sample-rate *audio*)))
-                    (current (* sec-per-frame (.frame self)))
-                    (value (if gate
-                               (progn
-                                 (setf (.release-time self) nil)
-                                 (cond ((< current (.a self))
-                                        (* (/ 1.0d0 (.a self)) current))
-                                       ((< current (+ (.a self) (.d self)))
-                                        (- 1.0d0 (* (/ (- 1.0d0 (.s self)) (.d self))
-                                                    (- current (.a self)))))
-                                       (t (.s self))))
-                               (progn
-                                 (when (null (.release-time self))
-                                   (setf (.release-time self) current))
-                                 (let ((elapsed (- current (.release-time self))))
-                                   (if (< elapsed (.r self))
-                                       (- 1.0d0
-                                          (/ elapsed (.r self)))
-                                       0.0d0))))))
-               (setf (aref (.buffer self) i) value)
-               (incf (.frame self))))
-    (route self (.buffer self) (.buffer self))
-    (setf (.last-gate self) gate)))
+(defmethod play-frame ((self adsr) midi-events frame)
+  (loop for i below *frames-per-buffer*
+        for midi-event = (loop for x in midi-events
+                                 thereis (and (or (= (.event x) +midi-event-on+)
+                                                  (= (.event x) +midi-event-off+))
+                                              (= (.frame x) (+ frame i))
+                                              x))
+        for gate = (if midi-event
+                       (= (.event midi-event) +midi-event-on+)
+                       (.last-gate self))
+        with sec-per-frame = (/ 1.0d0 *sample-rate*)
+        for current = (* sec-per-frame (.frame self))
+        for value = (if gate
+                        (progn
+                          (setf (.release-time self) nil)
+                          (cond ((< current (.a self))
+                                 (* (/ 1.0d0 (.a self)) current))
+                                ((< current (+ (.a self) (.d self)))
+                                 (- 1.0d0 (* (/ (- 1.0d0 (.s self)) (.d self))
+                                             (- current (.a self)))))
+                                (t (.s self))))
+                        (progn
+                          (when (null (.release-time self))
+                            (setf (.release-time self) current))
+                          (let ((elapsed (- current (.release-time self))))
+                            (if (< elapsed (.r self))
+                                (- 1.0d0
+                                   (/ elapsed (.r self)))
+                                0.0d0))))
+        do (setf (aref (.buffer self) i) value)
+           (incf (.frame self))
+           (setf (.last-gate self) gate)))
 
 (defclass amp (audio-module)
   ((left :initform (make-buffer) :accessor .left)
@@ -367,6 +375,7 @@
              status-flags)
   (declare ;; (optimize (speed 3) (safety 0))
    (ignore input-buffer status-flags))
+  (assert (= frame-per-buffer *frames-per-buffer*))
   (let ((current-time (cffi:foreign-slot-value time-info '(:struct pa-stream-callback-time-info)
                                                'current-time)))
     (declare (double-float current-time))
