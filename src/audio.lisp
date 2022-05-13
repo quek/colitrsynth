@@ -16,6 +16,12 @@
 
 (defvar *audio* nil)
 
+(defparameter *frames-per-buffer* 1024)
+(defparameter *sample-rate* 48000.0d0)
+
+(defun make-buffer (&key (initial-element 0.0d0) (element-type 'double-float))
+  (make-array *frames-per-buffer* :initial-element initial-element :element-type element-type))
+
 (defclass audio ()
   ((device-api
     :initarg :device-api
@@ -28,12 +34,12 @@
     :accessor .device-name)
    (sample-rate
     :initarg :sample-rate
-    :initform 48000.0d0
+    :initform *sample-rate*
     :type double-float
     :accessor .sample-rate)
    (frames-per-buffer
     :initarg frames-per-buffer
-    :initform 1024
+    :initform *frames-per-buffer*
     :accessor .frames-per-buffer)
    (sample-format
     :initarg sample-format
@@ -61,7 +67,6 @@
     :type fixnum
     :accessor .output-channels)
    (buffer :accessor .buffer)
-   (buffer-index :initform 0 :accessor .buffer-index :type fixnum)
    (bpm :initarg :bpm :initform 90.0d0 :accessor .bpm
         :type double-float)
    (lpb :initarg :lpb :initform 4 :accessor .lpb)
@@ -93,32 +98,26 @@
     (multiple-value-bind (line remain) (floor (/ current-sec sec-per-line))
       (values line (floor (/ remain sec-per-frame))))))
 
-(defun push-to-buffer (value)
-  (setf (cffi:mem-aref (.buffer *audio*) :float (.buffer-index *audio*))
-        (coerce value 'single-float))
-  (incf (.buffer-index *audio*)))
-
 (defun write-master-buffer ()
-  (let* ((master (.master *audio*))
-         (volume (.volume master))
-         (left (* (.left master) volume))
-         (right (* (.right master) volume)))
-    (when (< 1.0d0 left)
-      (warn "音大きすぎ ~a" left)
-      (setf left 1d0))
-    (when (< left -1.0d0)
-      (warn "音大きすぎ ~a" left)
-      (setf left -1d0))
-    (when (< 1.0d0 right)
-      (warn "音大きすぎ ~a" right)
-      (setf right 1d0))
-    (when (< right -1.0d0)
-      (warn "音大きすぎ ~a" right)
-      (setf right -1d0))
-    (push-to-buffer left)
-    (push-to-buffer right)
-    (setf (.left master) 0.0d0
-          (.right master) 0.0d0)))
+  (flet ((limit (value)
+           (coerce
+            (cond ((< 1.0d0 value)
+                   (warn "音大きすぎ ~a" value)
+                   1.0d0)
+                  ((< value -1.0d0)
+                   (warn "音大きすぎ ~a" value)
+                   -1.0d0)
+                  (t value))
+            'single-float)))
+    (let* ((master (.master *audio*))
+           (volume (.volume master)))
+      (loop for i below *frames-per-buffer*
+            do (setf (cffi:mem-aref (.buffer *audio*) :float (* i 2))
+                     (limit (* (aref (.left master) i) volume))
+                     (cffi:mem-aref (.buffer *audio*) :float (1+ (* i 2)))
+                     (limit (* (aref (.right master) i) volume))
+                     (aref (.left master) i) 0.0d0
+                     (aref (.right master) i) 0.0d0)))))
 
 (defclass audio-module ()
   ((in :initarg :in :accessor .in :initform nil)
@@ -144,15 +143,18 @@
 (defgeneric play-frame (audio-module left right))
 
 (defclass track (audio-module)
-  ((pattern-positions :initform nil :accessor .pattern-positions)))
+  ((pattern-positions :initform nil :accessor .pattern-positions)
+   (buffer :initform (make-buffer :initial-element nil :element-type t) :accessor .buffer)))
 
 (defmethod play-frame ((self track) line frame)
-  (loop for pattern-position in (.pattern-positions self)
-        do (with-slots (pattern start end) pattern-position
-             (when (and (<= start line)
-                        (< line end))
-               (multiple-value-call #'route self
-                 (note-gate-at-line-frame pattern (- line start) frame))))))
+  (let ((midi-events
+          (loop for pattern-position in (.pattern-positions self)
+                nconc (with-slots (pattern start end) pattern-position
+                        (if (and (<= start line)
+                                 (< line end))
+                            (midi-events-at-line-frame pattern (- line start) frame)
+                            nil)))))
+    (route self midi-events nil)))
 
 (defclass sequencer (audio-module)
   ((tracks :initarg :tracks :accessor .tracks :initform nil)
@@ -171,24 +173,20 @@
   (let ((end (.end self)))
     (if (zerop end)
         (progn
-          (loop for i below (.frames-per-buffer *audio*)
-                do (write-master-buffer))
+          (write-master-buffer)
           (setf (.current-line self) 0))
-        (let* (
-               (line (if (.loop self)
+        (let* ((line (if (.loop self)
                          (mod line end)
                          line)))
           (if (< end line)
               (progn
                 ;; TODO reverb とか残す？
-                (loop for i below (.frames-per-buffer *audio*)
-                      do (write-master-buffer))
+                (write-master-buffer)
                 (request-stop))
               (progn
-                (loop for i below (.frames-per-buffer *audio*)
-                     do (loop for track in (.tracks self)
-                              do (play-frame track line frame))
-                        (write-master-buffer))
+                (loop for track in (.tracks self)
+                      do (play-frame track line frame))
+                (write-master-buffer)
                 (setf (.current-line self) line)))))))
 
 (defclass line ()
@@ -222,38 +220,52 @@
         (remove pattern-position (.pattern-positions track)))
   (update-sequencer-end))
 
-(defun note-gate-at-line-frame (pattern line frame)
-  (declare (ignore frame))              ;TODO
+(defun midi-events-at-line-frame (pattern line frame)
+  ;; TODO frame 解像度が buffer になっている手抜きすぎる実装です。
   (setf (.current-line pattern) line)
   (let* ((note (.note (aref (.lines pattern) line)))
          (note (if (= note none)
                    (.last-note pattern)
                    note))
          (gate (and (/= note off)
-                    ;;こんな実装でいいの？
                     (= (.last-note pattern) note))))
-    (setf (.last-note pattern) note)
-    (values note gate)))
+    (prog1
+        `(,@(unless gate
+              `(,(make-instance 'midi-event :event +midi-event-off+
+                                            :note (.last-note pattern)
+                                            :frame frame)))
+          ,@(when (/= note off)
+              `(,(make-instance 'midi-event :event +midi-event-on+
+                                            :note note
+                                            :frame frame))))
+      (setf (.last-note pattern) note))))
 
 (defclass osc (audio-module)
   ((note :initarg :note :initform off :accessor .note)
+   (buffer :initform (make-buffer) :accessor .buffer)
    (value :initform 0.0d0 :accessor .value)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
-(defmethod play-frame ((self osc) note gate)
-  (declare (ignore gate))
-  (let ((value
-          (if (= note off)
-              0.0d0
-              (progn
-                (when (/= (.note self) note)
-                  (setf (.phase self) 0))
-                (setf (.note self) note)
-                (osc-frame-value self)))))
-    (route self value value)
-    (setf (.value self) value))
-  (incf (.phase self)))
+(defmethod play-frame ((self osc) midi-events _)
+  (declare (ignore _))
+  (loop for i below *frames-per-buffer*
+        with note = (or (loop for x in midi-events
+                                thereis (and (= (.event x) +midi-event-on+)
+                                             (.note x)))
+                        0)
+        do (let ((value
+                   (if (zerop note)
+                       0.0d0
+                       (progn
+                         (when (/= (.note self) note)
+                           (setf (.phase self) 0))
+                         (setf (.note self) note)
+                         (osc-frame-value self)))))
+             (setf (aref (.buffer self) i) value)
+             (setf (.value self) value)
+             (incf (.phase self))))
+  (route self (.buffer self) (.buffer self)))
 
 (defclass sin-osc (osc)
   ())
@@ -278,61 +290,75 @@
    (d :initarg :d :initform 0.05d0 :accessor .d)
    (s :initarg :s :initform 0.3d0 :accessor .s)
    (r :initarg :r :initform 0.1d0 :accessor .r)
+   (buffer :initform (make-buffer) :accessor .buffer)
    (last-gate :initform nil :accessor .last-gate)
    (frame :initform 0 :accessor .frame)
-   (release-time :initform nil :accessor .release-time)
-   (release-value :initform nil :accessor .release-value)))
+   (release-time :initform 0.0d0 :accessor .release-time)))
 
-(defmethod play-frame ((self adsr) note gate)
-  (declare (ignore note))
-  (when (and gate (not (.last-gate self)))
-    (setf (.frame self) 0))
-  (let* ((sec-per-frame (/ 1.0d0 (.sample-rate *audio*)))
-         (current (* sec-per-frame (.frame self)))
-         (value (if gate
-                    (progn
-                      (setf (.release-time self) nil)
-                      (cond ((< current (.a self))
-                             (* (/ 1.0d0 (.a self)) current))
-                            ((< current (+ (.a self) (.d self)))
-                             (- 1.0d0 (* (/ (- 1.0d0 (.s self)) (.d self))
-                                         (- current (.a self)))))
-                            (t (.s self))))
-                    (progn
-                      (when (null (.release-time self))
-                        (setf (.release-time self) current))
-                      (let ((elapsed (- current (.release-time self))))
-                        (if (< elapsed (.r self))
-                            (- 1.0d0
-                               (/ elapsed (.r self)))
-                            0.0d0))))))
-    (route self value value)
-    (incf (.frame self))
+(defmethod play-frame ((self adsr) midi-events _)
+  (declare (ignore _))
+  ;; FIXME frame を見ろ
+  (let ((gate (cond ((some (lambda (x) (= (.event x) +midi-event-on+)) midi-events)
+                     (setf (.frame self) 0)
+                     t)
+                    ((some (lambda (x) (= (.event x) +midi-event-off+)) midi-events)
+                     nil)
+                    (t (.last-gate self)))))
+    (loop for i below *frames-per-buffer*
+          do (let* ((sec-per-frame (/ 1.0d0 (.sample-rate *audio*)))
+                    (current (* sec-per-frame (.frame self)))
+                    (value (if gate
+                               (progn
+                                 (setf (.release-time self) nil)
+                                 (cond ((< current (.a self))
+                                        (* (/ 1.0d0 (.a self)) current))
+                                       ((< current (+ (.a self) (.d self)))
+                                        (- 1.0d0 (* (/ (- 1.0d0 (.s self)) (.d self))
+                                                    (- current (.a self)))))
+                                       (t (.s self))))
+                               (progn
+                                 (when (null (.release-time self))
+                                   (setf (.release-time self) current))
+                                 (let ((elapsed (- current (.release-time self))))
+                                   (if (< elapsed (.r self))
+                                       (- 1.0d0
+                                          (/ elapsed (.r self)))
+                                       0.0d0))))))
+               (setf (aref (.buffer self) i) value)
+               (incf (.frame self))))
+    (route self (.buffer self) (.buffer self))
     (setf (.last-gate self) gate)))
 
 (defclass amp (audio-module)
-  ((left :initform 1.0d0 :accessor .left)
-   (right :initform 1.0d0 :accessor .right)
+  ((left :initform (make-buffer) :accessor .left)
+   (right :initform (make-buffer) :accessor .right)
    (in-count :initform 0 :accessor .in-count)))
 
 (defmethod play-frame ((self amp) left right)
-  (setf (.left self) (* (.left self) left)
-        (.right self) (* (.right self) right))
+  (loop for i below *frames-per-buffer*
+        do (setf (aref (.left self) i)
+                 (* (aref (.left self) i)
+                    (aref left i))
+                 (aref (.right self) i)
+                 (* (aref (.right self) i)
+                    (aref right i))))
   (when (<= (length (.in self))
             (incf (.in-count self)))
     (route self (.left self) (.right self))
     (setf (.in-count self) 0)
-    (setf (.left self) 1.0d0
-          (.right self) 1.0d0)))
+    (loop for i below *frames-per-buffer*
+          do (setf (aref (.left self) i) 1.0d0
+                   (aref (.right self) i) 1.0d0))))
 
 (defclass master (audio-module)
-  ((left :initform 0.0d0 :accessor .left)
-   (right :initform 0.0d0 :accessor .right)
+  ((left :initform (make-buffer) :accessor .left)
+   (right :initform (make-buffer) :accessor .right)
    (volume :initform 0.6d0 :accessor .volume)))
 
 (defmethod play-frame ((self master) left right)
-  (incf (.left self) left)
-  (incf (.right self) right))
+  (loop for i below *frames-per-buffer*
+        do (incf (aref (.left self) i) (aref left i))
+           (incf (aref (.right self) i) (aref right i))))
 
 (defun proc (input-buffer
              output-buffer
@@ -347,8 +373,7 @@
     (when (= (the double-float (.start-time *audio*)) 0.0d0)
       (setf (.start-time *audio*) current-time))
     (setf (.current-time *audio*) (the double-float (- current-time (the double-float (.start-time *audio*)))))
-    (setf (.buffer *audio*) output-buffer)
-    (setf (.buffer-index *audio*) 0))
+    (setf (.buffer *audio*) output-buffer))
 
   (multiple-value-bind (line frame) (line-and-frame)
     (play-sequencer (.sequencer *audio*) line frame))

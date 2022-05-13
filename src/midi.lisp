@@ -1,8 +1,6 @@
 (in-package :colitrsynth)
 
 (defun midino-to-freq (midino)
-  (declare (optimize (speed 3) (safety 0))
-           (fixnum midino))
   (* 440.0d0
      (expt 2.0d0
            (/ (the fixnum (- midino 69))
@@ -282,3 +280,35 @@
 (defconstant a9  129)
 (defconstant a#9 130)
 (defconstant b9  131)
+
+(deftype midi-event-type () 'unsigned-byte)
+(deftype midi-channel-type () 'unsigned-byte)
+(deftype midi-note-type () 'unsigned-byte)
+(deftype midi-velocity-type () 'unsigned-byte)
+
+(defconstant +midi-event-on+ #x90)
+(defconstant +midi-event-off+ #x80)
+
+(defclass midi-event ()
+  ((event :initarg :event :initform +midi-event-on+ :accessor .event
+          :type midi-event-type)
+   (channel :initarg :channel :initform 1 :accessor .channel
+            :type midi-channel-type)
+   (note :initarg :note :initform c4 :accessor .note
+         :type midi-note-type)
+   (velocity :initarg :velocity :initform 100 :accessor .velocity
+             :type midi-velocity-type)
+   (frame :initarg :frame :initform 0 :accessor .frame
+          :type fixnum)))
+
+(defun write-midi-event (midi-event stream)
+  (write-byte (.event midi-event) stream)
+  (write-byte (.channel midi-event) stream)
+  (write-byte (.note midi-event) stream)
+  (write-byte (.velocity midi-event) stream)
+  (write-byte (.frame midi-event) stream))
+
+#+nil
+(flex:with-output-to-sequence (out)
+ (write-midi-event (make-instance 'midi-event) out))
+
