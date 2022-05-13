@@ -303,9 +303,10 @@
 
 (defmethod print-object ((self midi-event) stream)
     (print-unreadable-object (self stream :type t)
-      (format stream "~x ~a ~d"
+      (format stream "~x ~a ~d ~d"
               (.event self)
               (midino-to-note (.note self))
+              (.velocity self)
               (.frame self))))
 
 (defun write-midi-event (midi-event stream)

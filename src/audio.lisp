@@ -234,21 +234,25 @@
          (start-line (if (zerop frame)
                          line
                          (1+ line)))
-         (end-line (+ start-line (floor (/ (- *frames-per-buffer* frame) frames-per-line))))
+         (end-line (+ line (floor (/ (+ frame *frames-per-buffer*) frames-per-line))))
          events)
     (loop for current-line from start-line to (min end-line (1- (.length pattern)))
-          for current-frame = (- (* (- current-line line) frames-per-line)
-                                 frame)
+          for current-frame = (floor (- (* (- current-line line) frames-per-line)
+                                        frame))
           for note = (.note (aref (.lines pattern) current-line))
           for last-note = (.last-note pattern)
+
+          if (or (and (<= c0 note)
+                      (<= c0 last-note)
+                      (/= note last-note))
+                 (and (= note off) (<= c0 last-note)))
+            do (push (make-instance 'midi-event :event +midi-event-off+
+                                                :note last-note
+                                                :frame current-frame)
+                     events)
           if (<= c0 note)
             do (push (make-instance 'midi-event :event +midi-event-on+
                                                 :note note
-                                                :frame current-frame)
-                     events)
-          if (and (= note off) (<= c0 last-note))
-            do (push (make-instance 'midi-event :event +midi-event-off+
-                                                :note last-note
                                                 :frame current-frame)
                      events)
           do (setf (.last-note pattern) note))
@@ -305,11 +309,17 @@
    (release-time :initform 0.0d0 :accessor .release-time)))
 
 (defmethod play-frame ((self adsr) midi-events frame)
+  (print (list 'asdr  midi-events frame))
   (loop for i below *frames-per-buffer*
         for midi-event = (loop for x in midi-events
                                  thereis (and (or (= (.event x) +midi-event-on+)
                                                   (= (.event x) +midi-event-off+))
-                                              (= (.frame x) (+ frame i))
+                                              (progn
+                                                #+nil
+                                                (print (list (= (.frame x) (+ frame i))
+                                                                  (.frame x)
+                                                                  (+ frame i)))
+                                               (= (.frame x) (+ frame i)))
                                               x))
         for gate = (if midi-event
                        (= (.event midi-event) +midi-event-on+)
@@ -335,7 +345,9 @@
                                 0.0d0))))
         do (setf (aref (.buffer self) i) value)
            (incf (.frame self))
-           (setf (.last-gate self) gate)))
+           (setf (.last-gate self) gate))
+  (let ((buffer (.buffer self)))
+    (route self buffer buffer)))
 
 (defclass amp (audio-module)
   ((left :initform (make-buffer) :accessor .left)
