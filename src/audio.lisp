@@ -309,43 +309,41 @@
    (release-time :initform 0.0d0 :accessor .release-time)))
 
 (defmethod play-frame ((self adsr) midi-events frame)
-  (print (list 'asdr  midi-events frame))
-  (loop for i below *frames-per-buffer*
-        for midi-event = (loop for x in midi-events
-                                 thereis (and (or (= (.event x) +midi-event-on+)
-                                                  (= (.event x) +midi-event-off+))
-                                              (progn
-                                                #+nil
-                                                (print (list (= (.frame x) (+ frame i))
-                                                                  (.frame x)
-                                                                  (+ frame i)))
-                                               (= (.frame x) (+ frame i)))
-                                              x))
-        for gate = (if midi-event
-                       (= (.event midi-event) +midi-event-on+)
-                       (.last-gate self))
-        with sec-per-frame = (/ 1.0d0 *sample-rate*)
-        for current = (* sec-per-frame (.frame self))
-        for value = (if gate
-                        (progn
-                          (setf (.release-time self) nil)
-                          (cond ((< current (.a self))
-                                 (* (/ 1.0d0 (.a self)) current))
-                                ((< current (+ (.a self) (.d self)))
-                                 (- 1.0d0 (* (/ (- 1.0d0 (.s self)) (.d self))
-                                             (- current (.a self)))))
-                                (t (.s self))))
-                        (progn
-                          (when (null (.release-time self))
-                            (setf (.release-time self) current))
-                          (let ((elapsed (- current (.release-time self))))
-                            (if (< elapsed (.r self))
-                                (- 1.0d0
-                                   (/ elapsed (.r self)))
-                                0.0d0))))
-        do (setf (aref (.buffer self) i) value)
-           (incf (.frame self))
-           (setf (.last-gate self) gate))
+  (flet ((midi-event (i on-or-off)
+           (loop for x in midi-events
+                   thereis (and (= (.event x) on-or-off)
+                                (= (.frame x) (mod (+ frame i) *frames-per-buffer*))
+                                x))))
+    (loop with sec-per-frame = (/ 1.0d0 *sample-rate*)
+          for i below *frames-per-buffer*
+          for off-event = (midi-event i +midi-event-off+)
+          for on-event = (midi-event i +midi-event-on+) 
+          for gate = (or on-event
+                         (and (not off-event)
+                              (.last-gate self)))
+          for current = (* sec-per-frame (.frame self))
+          if on-event
+            do (setf (.frame self) 0)
+          do (let ((value (if gate
+                              (progn
+                                (setf (.release-time self) nil)
+                                (cond ((< current (.a self))
+                                       (* (/ 1.0d0 (.a self)) current))
+                                      ((< current (+ (.a self) (.d self)))
+                                       (- 1.0d0 (* (/ (- 1.0d0 (.s self)) (.d self))
+                                                   (- current (.a self)))))
+                                      (t (.s self))))
+                              (progn
+                                (when (null (.release-time self))
+                                  (setf (.release-time self) current))
+                                (let ((elapsed (- current (.release-time self))))
+                                  (if (< elapsed (.r self))
+                                      (- 1.0d0
+                                         (/ elapsed (.r self)))
+                                      0.0d0))))))
+               (setf (aref (.buffer self) i) value)
+               (incf (.frame self))
+               (setf (.last-gate self) gate))))
   (let ((buffer (.buffer self)))
     (route self buffer buffer)))
 
