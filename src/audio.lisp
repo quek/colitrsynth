@@ -259,23 +259,33 @@
     (nreverse events)))
 
 (defclass osc (audio-module)
-  ((note :initarg :note :initform c4 :accessor .note)
+  ((note :initarg :note :initform off :accessor .note)
    (buffer :initform (make-buffer) :accessor .buffer)
    (value :initform 0.0d0 :accessor .value)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
 
 (defmethod play-frame ((self osc) midi-events frame)
-  (loop for i below *frames-per-buffer*
-        for note = (loop for x in midi-events
-                           thereis (and (= (.event x) +midi-event-on+)
-                                        (= (.frame x) (+ frame i))
-                                        (.note x)))
-        do (when note
-             (setf (.phase self) 0)
-             (setf (.note self) note))
-           (let ((value (osc-frame-value self)))
-             (setf (aref (.buffer self) i) value)
+  (flet ((midi-event (i on-or-off)
+           (loop for x in midi-events
+                   thereis (and (= (.event x) on-or-off)
+                                (= (.frame x) (mod (+ frame i) *frames-per-buffer*))
+                                x))))
+    (loop for i below *frames-per-buffer*
+          for on-event = (midi-event i +midi-event-on+)
+          for off-event = (midi-event i +midi-event-off+)
+          for value = (cond (on-event
+                             (setf (.phase self) 0
+                                   (.note self) (.note on-event))
+                             (osc-frame-value self))
+                            (off-event
+                             (setf (.note self) off)
+                             0.0d0)
+                            (t
+                             (if (= off (.note self))
+                                 0.0d0
+                                 (osc-frame-value self))))
+          do (setf (aref (.buffer self) i) value)
              (setf (.value self) value)
              (incf (.phase self))))
   (route self (.buffer self) (.buffer self)))
@@ -284,7 +294,7 @@
   ())
 
 (defmethod osc-frame-value ((self sin-osc))
-  (sin (* (/ (* 2 pi (midino-to-freq (.note self))) (.sample-rate *audio*))
+  (sin (* (/ (* 2 pi (midino-to-freq (.note self))) *sample-rate*)
           (.phase self))))
 
 (defclass saw-osc (osc)
@@ -293,7 +303,7 @@
 (defmethod osc-frame-value ((self saw-osc))
   (* 0.3d0        ;TODO 音大きいのでとりあえずつけとく。本来はいらない？
      (- (* (mod (/ (* (.phase self) (midino-to-freq (.note self)))
-                   (.sample-rate *audio*))
+                   *sample-rate*)
                 1d0)
            2d0)
         1d0)))
@@ -438,7 +448,7 @@
                           handle
                           nil
                           output-parameters
-                          (.sample-rate *audio*)
+                          *sample-rate*
                           (.frames-per-buffer *audio*)
                           0
                           (cffi:callback my-callback)
