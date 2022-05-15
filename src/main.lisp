@@ -5,8 +5,11 @@
 (defparameter *char-height* *font-size*)
 (defparameter *cursor-color* '(#x00 #x00 #xcc #x80))
 (defparameter *play-position-color* '(#x00 #x80 #x00 #x80))
+(defparameter *connection-line-color* '(#x22 #x8b #x22 #x80))
 (defparameter *pixcel-per-line* 5)
 (defparameter *layout-space* 5)
+(defparameter *plugin-host-exe* "C:/Users/ancient/Documents/Visual Studio 2022/PluginHost/Builds/VisualStudio2022/x64/Debug/App/PluginHost.exe")
+(defparameter *plugin-host-pipe-name* "\\\\.\\pipe\\pluin-host")
 
 (defparameter *transparency* #xc0)
 
@@ -190,11 +193,19 @@
   (+ (.x self)
      (.absolute-x (.parent self))))
 
+(defmethod .absolute-center-x ((self renderable))
+  (+ (.absolute-x self)
+     (round (/ (.width self) 2))))
+
 (defmethod .y ((self null))
   0)
 
 (defmethod .absolute-y ((self null))
   0)
+
+(defmethod .absolute-center-y ((self renderable))
+  (+ (.absolute-y self)
+     (round (/ (.height self) 2))))
 
 (defmethod .absolute-y ((self renderable))
   (+ (.y self)
@@ -209,63 +220,16 @@
   (call-next-method))
 
 (defmethod render ((self audio-module) renderer)
-  (sdl2:set-render-draw-color renderer #x22 #x8b #x22 *transparency*)
+  (apply #'sdl2:set-render-draw-color renderer *connection-line-color*)
   ;; TODO そのうち直す
   (loop for out in (.out self)
-        do (let (x1 y1 x2 y2)
-             (if (> (abs (- (.absolute-x self) (.absolute-x out)))
-                    (abs (- (.absolute-y self) (.absolute-y out))))
-                 (if (< (.absolute-x self) (.absolute-x out))
-                     (if (< (.absolute-y self) (.absolute-y out))
-                         (progn
-                           (setf x1 (+ (.absolute-x self) (.width self)))
-                           (setf y1 (+ (.absolute-y self) (/ (.height self) 2)))
-                           (setf x2 (.absolute-x out))
-                           (setf y2 (+ (.absolute-y out) (/ (.height out) 2))))
-                         (progn
-                           (setf x1 (+ (.absolute-x self) (.width self)))
-                           (setf y1 (+ (.absolute-y self) (/ (.height self) 2)))
-                           (setf x2 (.absolute-x out))
-                           (setf y2 (+ (.absolute-y out) (/ (.height out) 2)))))
-                     (if (< (.absolute-y self) (.absolute-y out))
-                         (progn
-                           (setf x1 (.absolute-x self))
-                           (setf y1 (+ (.absolute-y self) (/ (.height self) 2)))
-                           (setf x2 (+ (.absolute-x out) (.width out)))
-                           (setf y2 (+ (.absolute-y out) (/ (.height out) 2))))
-                         (progn
-                           (setf x1 (.absolute-x self))
-                           (setf y1 (+ (.absolute-y self) (/ (.height self) 2)))
-                           (setf x2 (+ (.absolute-x out) (.width out)))
-                           (setf y2 (+ (.absolute-y out) (/ (.height out) 2))))))
-                 (if (< (.absolute-x self) (.absolute-x out))
-                     (if (< (.absolute-y self) (.absolute-y out))
-                         (progn
-                           (setf x1 (+ (.absolute-x self) (/ (.width self) 2)))
-                           (setf y1 (+ (.absolute-y self) (.height self)))
-                           (setf x2 (+ (.absolute-x out) (/ (.width out) 2)))
-                           (setf y2 (.absolute-y out)))
-                         (progn
-                           (setf x1 (+ (.absolute-x self) (/ (.width self) 2)))
-                           (setf y1 (.absolute-y self))
-                           (setf x2 (+ (.absolute-x out) (/ (.width out) 2)))
-                           (setf y2 (+ (.absolute-y out) (.height out)))))
-                     (if (< (.absolute-y self) (.absolute-y out))
-                         (progn
-                           (setf x1 (+ (.absolute-x self) (/ (.width self) 2)))
-                           (setf y1 (+ (.absolute-y self) (.height self)))
-                           (setf x2 (+ (.absolute-x out) (/ (.width out) 2)))
-                           (setf y2 (.absolute-y out)))
-                         (progn
-                           (setf x1 (+ (.absolute-x self) (/ (.width self) 2)))
-                           (setf y1 (.absolute-y self))
-                           (setf x2 (+ (.absolute-x out) (/ (.width out) 2)))
-                           (setf y2 (+ (.absolute-y out) (.height out)))))))
-             (setf x1 (floor x1)
-                   x2 (floor x2)
-                   y1 (floor y1)
-                   y2 (floor y2)) 
+        do (let ((x1 (.absolute-center-x self))
+                 (y1 (.absolute-center-y self))
+                 (x2 (.absolute-center-x out))
+                 (y2 (.absolute-center-y out)))
+             (when (< x1 x2))
              (sdl2:render-draw-line renderer x1 y1 x2 y2)
+             #+nil
              (sdl2:render-draw-rect renderer (sdl2:make-rect (- x1 2) (- y1 2) 5 5))))
   (call-next-method))
 
@@ -378,6 +342,15 @@
 
 (defclass drag-connect-mixin ()
   ((connecting :initform nil :accessor .connecting)))
+
+(defmethod render :after ((self drag-connect-mixin) renderer)
+  (when (eq self (.connect-from-module *app*))
+    (apply #'sdl2:set-render-draw-color renderer *connection-line-color*)
+    (sdl2:render-draw-line renderer
+                           (.absolute-center-x self)
+                           (.absolute-center-y self)
+                           (.mouse-x *app*)
+                           (.mouse-y *app*))))
 
 (defmethod drag-start ((self drag-connect-mixin) x y (button (eql 3)))
   (setf (.connect-from-module *app*) self)
@@ -793,8 +766,30 @@
 
 (defclass plugin-module (audio-module module)
   ((plugin-name :initarg :plugin-name :accessor .plugin-name)
-   (host :accessor .host)
+   (host-process :accessor .host-process)
    (host-io :accessor .host-io)))
+
+(defmethod initialize-instance :after ((self plugin-module) &key plugin-name)
+  (setf (.host-process self)
+        (sb-ext:run-program *plugin-host-exe* nil :wait nil))
+  (let ((pipe (sb-win32::create-named-pipe *plugin-host-pipe-name*
+                                           sb-win32::pipe-access-duplex
+                                           sb-win32::pipe-type-byte
+                                           255 0 0 100 (cffi-sys::null-pointer))))
+    (setf (.host-io self) (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#+nil
+(progn
+ (setf h (make-instance 'plugin-module :plugin-name "Dexed.vst3"))
+ (loop for i from 1 below 11 do (write-byte i (.host-io h)))
+ (force-output (.host-io h))
+ (loop repeat 10 do (read-byte (.host-io h)))
+ )
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(make-instance 'plugin-module :plugin-name "Dexed.vst3")
 
 
 (defclass amp-module (amp module)
@@ -907,7 +902,7 @@
                                   :lines (list-to-pattern-lines
                                           (list a4 e4 none g4
                                                 a4 off  g4 c4))
-                                  :x 125 :y 250))
+                                  :x 5  :y 250 :height 200))
          (osc1 (make-instance 'sin-osc-module :x 245 :y 300))
          (adsr1 (make-instance 'adsr-module :d 0.2d0 :s 0d0
                                             :x 365 :y 250))
@@ -919,7 +914,7 @@
                                   :lines (list-to-pattern-lines
                                           (list a3 e3 none g3
                                                 a3 off  g3 c3))
-                                  :x 125 :y 350))
+                                  :x 125 :y 250 :height 200))
          (osc2 (make-instance 'saw-osc-module
                               :x 245 :y 400))
          (adsr2 (make-instance 'adsr-module :d 0.7d0 :s 0.8d0
@@ -1004,7 +999,8 @@
                    (- x (.absolute-x it)) (- y (.absolute-y it))))
   (setf (.drag-resize-module *app*) nil)
   (setf (.dragging *app*) nil)
-  (setf (click-target-module button) nil))
+  (setf (click-target-module button) nil)
+  (setf (.connect-from-module *app*) nil))
 
 (defun handle-sdl2-idle-event (renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
