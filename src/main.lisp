@@ -153,9 +153,6 @@
   (awhen (child-module-at self x y)
     (click it button (- x (.x it)) (- y (.y it)))))
 
-(defmethod drag ((self renderable) xrel yrel (button (eql 1)))
-  (move self xrel yrel))
-
 (defmethod drop ((self renderable) dropped x y button)
   (call-next-method)
   (awhen (child-module-at self x y)
@@ -283,7 +280,7 @@
 
 (defclass module (name-mixin
                   drag-resize-mixin
-                  drag-mixin
+                  drag-move-mixin
                   renderable
                   drag-connect-mixin)
   ())
@@ -308,6 +305,7 @@
   (setf (.drag-state *app*)
         (make-instance 'drag-state :target self :button button
                                    :x x :y y :state state))
+  (print (list 'call-next-method self))
   (call-next-method))
 
 (defmethod mousemotion ((self drag-mixin) x y xrel yrel state)
@@ -339,7 +337,13 @@
 (defclass drop-mixin ()
   ())
 
-(defclass drag-resize-mixin ()
+(defclass drag-move-mixin (drag-mixin)
+  ())
+
+(defmethod drag ((self drag-move-mixin) xrel yrel (button (eql 1)))
+  (move self xrel yrel))
+
+(defclass drag-resize-mixin (drag-mixin)
   ())
 
 (defmethod drag-start ((self drag-resize-mixin) x y (button (eql 1)))
@@ -601,6 +605,7 @@
 (defparameter *track-height* 40)        ;TODO 固定長で妥協
 
 (defclass sequencer-module-track (track
+                                  drag-mixin
                                   drag-connect-mixin
                                   drop-mixin
                                   renderable)
@@ -656,7 +661,7 @@
 
 (defclass sequencer-module (sequencer
                             drag-resize-mixin
-                            drag-mixin
+                            drag-move-mixin
                             name-mixin
                             renderable)
   ()
@@ -668,11 +673,10 @@
 (defmethod initialize-instance :after ((self sequencer-module) &key)
   (let ((play-button (make-instance 'button :text "▶" :x 5 :y 5)))
     (add-child self play-button)
-    (defmethod mousebuttondown ((self (eql play-button)) button state clicks x y)
-      (when (= button 1)
-        (if (.playing *audio*)
-            (stop)
-            (play))))))
+    (defmethod click ((self (eql play-button)) (button (eql 1)) x y)
+      (if (.playing *audio*)
+          (stop)
+          (play)))))
 
 (defmethod render :after ((self sequencer-module) renderer)
   (let* ((first (car (.tracks self)))
