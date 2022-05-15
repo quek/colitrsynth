@@ -32,17 +32,17 @@
 (defgeneric click (self button x y)
   (:method (self button x y)))
 
-(defgeneric drag-start (self x y)
-  (:method (self x y)))
+(defgeneric drag-start (self x y button)
+  (:method (self x y button)))
 
-(defgeneric drag (self xrel yrel)
-  (:method (self xrel yrel)))
+(defgeneric drag (self xrel yrel button)
+  (:method (self xrel yrel button)))
 
-(defgeneric drag-end (self x y)
-  (:method (self x y)))
+(defgeneric drag-end (self x y button)
+  (:method (self x y button)))
 
-(defgeneric drop (self dropped x y)
-  (:method (self dropped x y)))
+(defgeneric drop (self dropped x y button)
+  (:method (self dropped x y button)))
 
 (defgeneric mousemotion (self x y xrel yrel state)
   (:method (self x y xrel yrel state)))
@@ -153,13 +153,13 @@
   (awhen (child-module-at self x y)
     (click it button (- x (.x it)) (- y (.y it)))))
 
-(defmethod drag ((self renderable) xrel yrel)
+(defmethod drag ((self renderable) xrel yrel (button (eql 1)))
   (move self xrel yrel))
 
-(defmethod drop ((self renderable) dropped x y)
+(defmethod drop ((self renderable) dropped x y button)
   (call-next-method)
   (awhen (child-module-at self x y)
-    (drop it dropped (- x (.x it)) (- y (.y it)))))
+    (drop it dropped (- x (.x it)) (- y (.y it)) button)))
 
 (defmethod mousemotion ((self renderable) x y xrel yrel state)
   (call-next-method)
@@ -316,47 +316,46 @@
         (progn
           (sunless (.dragging drag-state)
             (setf it t)
-            (drag-start self x y))
-          (drag self xrel yrel))
+            (drag-start self x y (.button drag-state)))
+          (drag self xrel yrel (.button drag-state)))
         (call-next-method))))
 
 (defmethod mousebuttonup ((self drag-mixin) button state clicks x y)
-  (if (eq self (.target (.drag-state *app*)))
-      (progn
-        (if (.dragging (.drag-state *app*))
-            (progn (drag-end self x y)
-                   (drop (module-at-mouse *app*) self
-                         (+ (.absolute-x self) x)
-                         (+ (.absolute-y self) y)))
-            (call-next-method))
-        (setf (.drag-state *app*) nil))
-      (call-next-method)))
+  (let ((drag-state (.drag-state *app*)))
+    (if (eq self (.target drag-state))
+        (progn
+          (if (.dragging drag-state)
+              (progn
+                (drag-end self x y button)
+                (drop (module-at-mouse *app*) self
+                      (+ (.absolute-x self) x)
+                      (+ (.absolute-y self) y)
+                      button))
+              (call-next-method))
+          (setf drag-state nil))
+        (call-next-method)))
+  (setf (.drag-state *app*) nil))
 
 (defclass drop-mixin ()
   ())
 
-
 (defclass drag-resize-mixin ()
   ())
 
-(defmethod mousebuttondown ((self drag-resize-mixin) button state clicks x y)
-  (if (and (= button 1)
-           (< (.width self) (+ 10 x))
+(defmethod drag-start ((self drag-resize-mixin) x y (button (eql 1)))
+  (if (and (< (.width self) (+ 10 x))
            (< (.height self) (+ 10 y)))
       (setf (.drag-resize-module *app*) self)
       (call-next-method)))
 
-(defmethod mousebuttonup ((self drag-resize-mixin) button state clicks x y)
-  (if (and (= button 1)
-           (eq self (.drag-resize-module *app*))
-           (.dragging *app*))
-      nil
+(defmethod drag ((self drag-resize-mixin) xrel yrel (button (eql 1)))
+  (if (eq self (.drag-resize-module *app*))
+      (resize self xrel yrel)
       (call-next-method)))
 
-(defmethod mousemotion ((self drag-resize-mixin) x y xrel yrel state)
+(defmethod drag-end ((self drag-resize-mixin) x y (button (eql 1)))
   (when (eq self (.drag-resize-module *app*))
-    (setf (.dragging *app*) t)
-    (resize self xrel yrel))
+    (setf (.drag-resize-module *app*) nil))
   (call-next-method))
 
 (defmethod render ((self drag-resize-mixin) renderer)
@@ -376,19 +375,17 @@
 (defclass drag-connect-mixin ()
   ((connecting :initform nil :accessor .connecting)))
 
-(defmethod mousebuttondown ((self drag-connect-mixin) button state clicks x y)
-  (case button
-    (3 (setf (.connect-from-module *app*) self)))
+(defmethod drag-start ((self drag-connect-mixin) x y (button (eql 3)))
+  (setf (.connect-from-module *app*) self)
   (call-next-method))
 
-(defmethod mousebuttonup ((self drag-connect-mixin) button state clicks x y)
-  (case button
-    (3 (let ((from (.connect-from-module *app*)))
-         (when (and from (not (eq from self)))
-           (if (member self (.out from))
-               (disconnect from self)
-               (connect from self)))
-         (setf (.connect-from-module *app*) nil))))
+(defmethod drop ((self drag-connect-mixin) (dropped drag-connect-mixin) x y (button (eql 3)))
+  (let ((from (.connect-from-module *app*)))
+    (when (and from (not (eq from self)))
+      (if (member self (.out from))
+          (disconnect from self)
+          (connect from self)))
+    (setf (.connect-from-module *app*) nil))
   (call-next-method))
 
 (defclass text (function-value-mixin renderable)
@@ -451,7 +448,7 @@
                            x (1+ (.absolute-y self))
                            x (+ (.absolute-y self) (.height self) -2))))
 
-(defmethod drag ((self slider) xrel yrel)
+(defmethod drag ((self slider) xrel yrel button)
   (funcall (.onchange self) (min (.max self)
                                  (max (.min self)
                                       (+ (.value self) (/ xrel 100.0))))))
@@ -640,17 +637,18 @@
                             name-mixin)
   ((move-delta-x :initform 0 :accessor .move-delta-x)))
 
-(defmethod drag ((self pattern-position) xrel yrel)
+(defmethod drag ((self pattern-position) xrel yrel button)
   (let* ((pixcel (+ (.x self) (.move-delta-x self) xrel))
          (line (pixcel-to-line pixcel))
          (rounded-pixcel (line-to-pixcel line)))
     (setf (.x self) rounded-pixcel
           (.move-delta-x self) (- pixcel rounded-pixcel))))
 
-(defmethod drag-end ((self pattern-position) x y)
-  (setf (.move-delta-x self) 0))
+(defmethod drag-end ((self pattern-position) x y button)
+  (setf (.move-delta-x self) 0)
+  (call-next-method))
 
-(defmethod drop ((self sequencer-module-track) (pattern-position pattern-position) x y)
+(defmethod drop ((self sequencer-module-track) (pattern-position pattern-position) x y button)
   (let ((delta (- (pixcel-to-line (.x pattern-position)) (.start pattern-position))))
     (incf (.start pattern-position) delta)
     (incf (.end pattern-position) delta)
@@ -788,6 +786,12 @@
                                       :y (incf y (+ height (round (/ *layout-space* 2))))
                                       :width width :height height
                                       :onchange (lambda (x) (setf (.r self) x))))))
+
+(defclass plugin-module (audio-module module)
+  ((plugin-name :initarg :plugin-name :accessor .plugin-name)
+   (host :accessor .host)
+   (host-io :accessor .host-io)))
+
 
 (defclass amp-module (amp module)
   ()
@@ -940,10 +944,10 @@
 
 (defun handle-sdl2-keydown-event (keysym)
   (let ((scancode (sdl2:scancode-value keysym))
-        (sym (sdl2:sym-value keysym))
         (mod-value (sdl2:mod-value keysym)))
+    #+nil
     (format t "Key sym: ~a, code: ~a, mod: ~a~%"
-            sym
+            (sdl2:sym-value keysym)
             scancode
             mod-value)
     (aif (module-at-mouse *app*)
@@ -957,6 +961,7 @@
     (keyup (module-at-mouse *app*) scancode mod-value)))
 
 (defun handle-sdl2-mousemotion-event (x y xrel yrel state)
+  #+nil
   (format t "Mouse motion abs(rel): ~a (~a), ~a (~a)~%Mouse state: ~a~%"
           x xrel y yrel state)
   (setf (.mouse-x *app*) x)
@@ -969,6 +974,7 @@
                  xrel yrel state)))
 
 (defun handle-sdl2-mousebuttondown-event (button state clicks x y)
+  #+nil
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
   (awhen (module-at-mouse *app*)
@@ -977,6 +983,7 @@
                      (- x (.absolute-x it)) (- y (.absolute-y it)))))
 
 (defun handle-sdl2-mousebuttonup-event (button state clicks x y)
+  #+nil
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
   (print (list
