@@ -767,29 +767,65 @@
 (defclass plugin-module (audio-module module)
   ((plugin-name :initarg :plugin-name :accessor .plugin-name)
    (host-process :accessor .host-process)
-   (host-io :accessor .host-io)))
+   (host-io :accessor .host-io)
+   (out-buffer  :accessor .out-buffer
+                :initform (make-array (* *frames-per-buffer* 9) :element-type 'unsigned-byte))
+   (in-buffer  :accessor .in-buffer
+                :initform (make-array (* *frames-per-buffer* 4) :element-type 'unsigned-byte))
+   (left-buffer :initform (make-buffer) :accessor .left-buffer)
+   (right-buffer :initform (make-buffer) :accessor .right-buffer)))
 
-(defmethod initialize-instance :after ((self plugin-module) &key plugin-name)
+(defmethod initialize-instance :after ((self plugin-module) &key)
   (setf (.host-process self)
         (sb-ext:run-program *plugin-host-exe* nil :wait nil))
   (let ((pipe (sb-win32::create-named-pipe *plugin-host-pipe-name*
                                            sb-win32::pipe-access-duplex
                                            sb-win32::pipe-type-byte
                                            255 0 0 100 (cffi-sys::null-pointer))))
-    (setf (.host-io self) (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte))))
+    (setf (.host-io self)
+          (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-#+nil
-(progn
- (setf h (make-instance 'plugin-module :plugin-name "Dexed.vst3"))
- (loop for i from 1 below 11 do (write-byte i (.host-io h)))
- (force-output (.host-io h))
- (loop repeat 10 do (read-byte (.host-io h)))
- )
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod play-frame ((self plugin-module) midi-events frame)
+  (print (list 'play-frame midi-events frame))
+  (let ((i -1)
+        (length (length midi-events))
+        (out (.out-buffer self))
+        (in (.in-buffer self))
+        (io (.host-io self))
+        (left-buffer (.left-buffer self))
+        (right-buffer (.right-buffer self)))
+    (setf (aref out (incf i)) 2)
+    (setf (aref out (incf i)) (mod length #x100))
+    (setf (aref out (incf i)) (mod (ash length -8) #x100))
+    (loop for midi-event in midi-events
+          do (setf (aref out (incf i)) (.event midi-event))
+             (setf (aref out (incf i)) (.channel midi-event))
+             (setf (aref out (incf i)) (.note midi-event))
+             (setf (aref out (incf i)) (.velocity midi-event))
+             (setf (aref out (incf i)) (mod (.frame midi-event) #x100))
+             (setf (aref out (incf i)) (mod (ash (.frame midi-event) -8) #x100)))
+    (print (list "before write-sequence " i (aref out 0) (aref out 1) (aref out 2)))
+    (write-sequence out io :end (1+ i))
+    (force-output io)
+    (print "after write-sequence")
 
-
-(make-instance 'plugin-module :plugin-name "Dexed.vst3")
+    (loop for buffer in (list left-buffer right-buffer)
+          do (let ((position (read-sequence in io)))
+               (print (list 'read-sequence 'position position
+                            (aref in 0)
+                            (ash (aref in 1) 8)
+                            (ash (aref in 2) 16)
+                            (ash  (aref in 3) 24)))
+               (loop for i below *frames-per-buffer*
+                     do (setf (aref buffer i)
+                              (coerce (ieee-floats:decode-float32
+                                       (+ (aref in (* 4 i))
+                                          (ash (aref in (+ (* 4 i) 1)) 8)
+                                          (ash (aref in (+ (* 4 i) 2)) 16)
+                                          (ash  (aref in (+ (* 4 i) 3)) 24)))
+                                      'double-float)))))
+    (print (list "before route"))
+    (route self left-buffer right-buffer)))
 
 
 (defclass amp-module (amp module)
@@ -864,7 +900,8 @@
           (finish-output)
           (with-audio
             ;;(make-default-modules)
-            (make-test-modules)
+            ;; (make-test-modules)
+            (make-plugin-test-modules)
             (sdl2:with-event-loop (:method :poll)
               (:keydown (:keysym keysym)
                         (handle-sdl2-keydown-event keysym))
@@ -889,6 +926,27 @@
     (add-new-track sequencer)
     (setf (.modules *app*)
           (list sequencer master))))
+
+(defun make-plugin-test-modules ()
+  (let* ((line-length 8)
+         (sequencer (.sequencer *audio*))
+         (track1 (add-new-track sequencer))
+         (plugin (make-instance 'plugin-module :plugin-name "Dexed.vst3"
+                                               :name "Dexed" :x 200 :y 250))
+         (master (.master *audio*))
+         (pattern1 (make-instance 'pattern-module
+                                  :name "plack"
+                                  :length line-length
+                                  :lines (list-to-pattern-lines
+                                          (list a4 e4 none g4
+                                                a4 off  g4 c4))
+                                  :x 5  :y 250 :height 200)))
+    (connect track1 plugin)
+    (connect plugin master)
+    (add-pattern track1 pattern1 0 line-length)
+    (setf (.modules *app*)
+          (list sequencer master
+                pattern1 plugin))))
 
 (defun make-test-modules ()
   (let* ((line-length 8)

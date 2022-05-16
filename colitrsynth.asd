@@ -2,6 +2,7 @@
   :depends-on (:sdl2
                :sdl2-ttf
                :cl-portaudio
+               :ieee-floats
                :anaphora)
   :pathname "src"
   :serial t
