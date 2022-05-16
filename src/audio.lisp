@@ -101,10 +101,16 @@
 (defun line-and-frame ()
   (let* ((sec-per-line (sec-per-line))
          (sec-per-frame (sec-per-frame))
-         (current-sec (* sec-per-frame (.nframes *audio*))))
-    (let ((line (floor (/ current-sec sec-per-line)))
-          (frame (floor (/ (mod current-sec sec-per-line) sec-per-frame)))) 
-      (values line frame))))
+         (current-sec (* sec-per-frame (.nframes *audio*)))
+         (start-line (floor (/ current-sec sec-per-line)))
+         (start-frame (floor (/ (mod current-sec sec-per-line) sec-per-frame)))
+         (end-line start-line)
+         (end-frame (+ start-frame *frames-per-buffer*)))
+    (when (< sec-per-line (+ (* sec-per-frame start-frame)
+                           (* sec-per-frame *frames-per-buffer*)))
+      (incf end-line)
+      (decf end-frame (floor (/ sec-per-line sec-per-frame))))
+    (values start-line start-frame end-line end-frame)))
 
 (defun write-master-buffer ()
   (flet ((limit (value)
@@ -154,15 +160,17 @@
   ((pattern-positions :initform nil :accessor .pattern-positions)
    (buffer :initform (make-buffer :initial-element nil :element-type t) :accessor .buffer)))
 
-(defmethod play-frame ((self track) line frame)
+(defun play-track (self start-line start-frame end-line end-frame)
   (let ((midi-events
           (loop for pattern-position in (.pattern-positions self)
                 nconc (with-slots (pattern start end) pattern-position
-                        (if (and (<= start line)
-                                 (< line end))
-                            (midi-events-at-line-frame pattern (- line start) frame)
+                        (if (and (<= start end-line)
+                                 (< start-line end))
+                            (midi-events-at-line-frame pattern
+                                                       (- start-line start) start-frame
+                                                       (- end-line start) end-frame)
                             nil)))))
-    (route self midi-events frame)))
+    (route self midi-events start-frame)))
 
 (defclass sequencer (audio-module)
   ((tracks :initarg :tracks :accessor .tracks :initform nil)
@@ -177,25 +185,26 @@
                 maximize (loop for pattern-position in (.pattern-positions track)
                                maximize (.end pattern-position))))))
 
-(defun play-sequencer (self line frame)
+(defun play-sequencer (self start-line start-frame end-line end-frame)
   (let ((end (.end self)))
     (if (zerop end)
         (progn
           (write-master-buffer)
           (setf (.current-line self) 0))
-        (let* ((line (if (.loop self)
-                         (mod line end)
-                         line)))
-          (if (< end line)
+        (progn
+          (when (.loop self)
+            (setf start-line (mod start-line end))
+            (setf end-line (mod end-line end)))
+          (if (< end start-line)
               (progn
                 ;; TODO reverb とか残す？
                 (write-master-buffer)
                 (request-stop))
               (progn
                 (loop for track in (.tracks self)
-                      do (play-frame track line frame))
+                      do (play-track track start-line start-frame end-line end-frame))
                 (write-master-buffer)
-                (setf (.current-line self) line)))))))
+                (setf (.current-line self) start-line)))))))
 
 (defclass line ()
   ((note :initarg :note :initform none :accessor .note)))
@@ -228,17 +237,18 @@
         (remove pattern-position (.pattern-positions track)))
   (update-sequencer-end))
 
-(defun midi-events-at-line-frame (pattern line frame)
-  (setf (.current-line pattern) line)
+(defun midi-events-at-line-frame (pattern start-line start-frame end-line end-frame)
+  (declare (ignore end-frame))          ;delay 実装していないので end-frame はまだ使わない
+  (setf (.current-line pattern) start-line)
   (let* ((frames-per-line (frames-per-line))
-         (start-line (if (zerop frame)
-                         line
-                         (1+ line)))
-         (end-line (+ line (floor (/ (+ frame *frames-per-buffer*) frames-per-line))))
+         (arg-start-line start-line)
+         (start-line (if (zerop start-frame)
+                         start-line
+                         (1+ start-line)))
          events)
     (loop for current-line from start-line to (min end-line (1- (.length pattern)))
-          for current-frame = (floor (- (* (- current-line line) frames-per-line)
-                                        frame))
+          for current-frame = (floor (- (* (- current-line arg-start-line) frames-per-line)
+                                        start-frame))
           for note = (.note (aref (.lines pattern) current-line))
           for last-note = (.last-note pattern)
 
@@ -256,6 +266,8 @@
                                                 :frame current-frame)
                      events)
           do (setf (.last-note pattern) note))
+    (when events
+      (print (list events start-line start-frame end-line)))
     (nreverse events)))
 
 (defclass osc (audio-module)
@@ -404,8 +416,8 @@
     (setf (.current-time *audio*) (the double-float (- current-time (the double-float (.start-time *audio*)))))
     (setf (.buffer *audio*) output-buffer))
 
-  (multiple-value-bind (line frame) (line-and-frame)
-    (play-sequencer (.sequencer *audio*) line frame))
+  (multiple-value-bind (start-line start-frame end-line end-frame) (line-and-frame)
+    (play-sequencer (.sequencer *audio*) start-line start-frame end-line end-frame))
   (incf (.nframes *audio*) frame-per-buffer)
   0)
 

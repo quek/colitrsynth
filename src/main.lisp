@@ -786,7 +786,6 @@
           (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte))))
 
 (defmethod play-frame ((self plugin-module) midi-events frame)
-  (print (list 'play-frame midi-events frame))
   (let ((i -1)
         (length (length midi-events))
         (out (.out-buffer self))
@@ -804,18 +803,18 @@
              (setf (aref out (incf i)) (.velocity midi-event))
              (setf (aref out (incf i)) (mod (.frame midi-event) #x100))
              (setf (aref out (incf i)) (mod (ash (.frame midi-event) -8) #x100)))
-    (print (list "before write-sequence " i (aref out 0) (aref out 1) (aref out 2)))
+    ;; (print (list "before write-sequence " i (aref out 0) (aref out 1) (aref out 2)))
     (write-sequence out io :end (1+ i))
     (force-output io)
-    (print "after write-sequence")
+    ;; (print "after write-sequence")
 
     (loop for buffer in (list left-buffer right-buffer)
           do (let ((position (read-sequence in io)))
-               (print (list 'read-sequence 'position position
-                            (aref in 0)
-                            (ash (aref in 1) 8)
-                            (ash (aref in 2) 16)
-                            (ash  (aref in 3) 24)))
+               ;; (print (list 'read-sequence 'position position
+               ;;              (aref in 0)
+               ;;              (ash (aref in 1) 8)
+               ;;              (ash (aref in 2) 16)
+               ;;              (ash  (aref in 3) 24)))
                (loop for i below *frames-per-buffer*
                      do (setf (aref buffer i)
                               (coerce (ieee-floats:decode-float32
@@ -824,7 +823,7 @@
                                           (ash (aref in (+ (* 4 i) 2)) 16)
                                           (ash  (aref in (+ (* 4 i) 3)) 24)))
                                       'double-float)))))
-    (print (list "before route"))
+    ;;(print (list "before route" (aref left-buffer 0) (aref right-buffer 0)))
     (route self left-buffer right-buffer)))
 
 
