@@ -160,17 +160,34 @@
   ((pattern-positions :initform nil :accessor .pattern-positions)
    (buffer :initform (make-buffer :initial-element nil :element-type t) :accessor .buffer)))
 
-(defun play-track (self start-line start-frame end-line end-frame)
-  (let ((midi-events
-          (loop for pattern-position in (.pattern-positions self)
-                nconc (with-slots (pattern start end) pattern-position
-                        (if (and (<= start end-line)
-                                 (< start-line end))
-                            (midi-events-at-line-frame pattern
-                                                       (- start-line start) start-frame
-                                                       (- end-line start) end-frame)
-                            nil)))))
-    (route self midi-events start-frame)))
+(defun play-track (track start-line start-frame end-line end-frame)
+  (let* ((frames-per-line (frames-per-line))
+         (midi-events
+           (loop for pattern-position in (.pattern-positions track)
+                 nconc (with-slots (pattern start end) pattern-position
+                         (cond ((and (or (< end-line start-line)
+                                         (and (= start-line end-line)
+                                              (< end-frame start-frame))))
+
+                                (append
+                                 (if (and (<= start start-line)
+                                          (< start-line end))
+                                     (midi-events-at-line-frame pattern
+                                                                (- start-line start) start-frame
+                                                                (- start-line start) frames-per-line))
+                                 (if (and (<= start end-line)
+                                          (< end-line end))
+                                     (midi-events-at-line-frame pattern
+                                                                (- end-line start) 0
+                                                                (- end-line start) end-frame))))
+                               ((and (<= start end-line)
+                                     (< start-line end))
+                                (midi-events-at-line-frame pattern
+                                                           (- start-line start) start-frame
+                                                           (- end-line start) end-frame)))))))
+    (when midi-events
+      (print (list midi-events start-line start-frame end-line end-frame)))
+    (route track midi-events start-frame)))
 
 (defclass sequencer (audio-module)
   ((tracks :initarg :tracks :accessor .tracks :initform nil)
@@ -246,6 +263,7 @@
                          start-line
                          (1+ start-line)))
          events)
+    ;; TODO ループして先頭に戻るとき
     (loop for current-line from start-line to (min end-line (1- (.length pattern)))
           for current-frame = (floor (- (* (- current-line arg-start-line) frames-per-line)
                                         start-frame))
@@ -258,16 +276,17 @@
                  (and (= note off) (<= c0 last-note)))
             do (push (make-instance 'midi-event :event +midi-event-off+
                                                 :note last-note
+                                                :velocity 0
                                                 :frame current-frame)
                      events)
           if (<= c0 note)
             do (push (make-instance 'midi-event :event +midi-event-on+
                                                 :note note
+                                                :velocity 100
                                                 :frame current-frame)
                      events)
-          do (setf (.last-note pattern) note))
-    (when events
-      (print (list events start-line start-frame end-line)))
+          if (/= note none)
+            do (setf (.last-note pattern) note))
     (nreverse events)))
 
 (defclass osc (audio-module)
