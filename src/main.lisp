@@ -6,6 +6,7 @@
 (defparameter *cursor-color* '(#x00 #x00 #xcc #x80))
 (defparameter *play-position-color* '(#x00 #x80 #x00 #x80))
 (defparameter *connection-line-color* '(#x22 #x8b #x22 #x80))
+(defparameter *connection-point-color* '(#xff #xff #xff #x80))
 (defparameter *pixcel-per-line* 5)
 (defparameter *layout-space* 5)
 (defparameter *plugin-host-exe* "C:/Users/ancient/Documents/Visual Studio 2022/PluginHost/Builds/VisualStudio2022/x64/Debug/App/PluginHost.exe")
@@ -220,7 +221,6 @@
   (call-next-method))
 
 (defmethod render ((self audio-module) renderer)
-  (apply #'sdl2:set-render-draw-color renderer *connection-line-color*)
   (flet ((intersec (ax ay bx by cx cy dx dy)
            (let* ((deno (- (* (- bx ax) (- dy cy))
                            (* (- by ay) (- dx cx)))))
@@ -277,8 +277,10 @@
                          (intersec x1 y1 x2 y2 xe3 ye3 xe4 ye4)
                          (intersec x1 y1 x2 y2 xe4 ye4 xe1 ye1)
                          (cons x2 y2))
+                   (apply #'sdl2:set-render-draw-color renderer *connection-line-color*)
                    (sdl2:render-draw-line renderer xs ys xe ye)
-                   (sdl2:render-draw-rect renderer
+                   (apply #'sdl2:set-render-draw-color renderer *connection-point-color*)
+                   (sdl2:render-fill-rect renderer
                                           (sdl2:make-rect (- xs 2) (- ys 2) 5 5)))))))
   (call-next-method))
 
@@ -318,7 +320,6 @@
   (setf (.drag-state *app*)
         (make-instance 'drag-state :target self :button button
                                    :x x :y y :state state))
-  (print (list 'call-next-method self))
   (call-next-method))
 
 (defmethod mousemotion ((self drag-mixin) x y xrel yrel state)
@@ -827,7 +828,7 @@
 
 (defmethod initialize-instance :after ((self plugin-module) &key)
   (setf (.host-process self)
-        (sb-ext:run-program *plugin-host-exe* nil :wait nil))
+        (sb-ext:run-program *plugin-host-exe* (list (.plugin-name self)) :wait nil))
   (let ((pipe (sb-win32::create-named-pipe (format nil "~a~a" *plugin-host-pipe-name*
                                                    (sb-ext:process-pid (.host-process self)))
                                            sb-win32::pipe-access-duplex
@@ -893,17 +894,18 @@
                                           :y (- (.mouse-y *app*) 10)
                                           ,@initargs)))))
 
-(defmacro new-plugin-module-menu-button (plugin-description)
-  (let ((name (.name plugin-description)))
-    `(let ((button (make-instance 'button :text ,name
-                                          :y (* (+ *font-size* 4)
-                                                (length (.children self))))))
-       (add-child self button)
-       (defmethod click ((self (eql button)) button x y)
-         (add-module (make-instance 'plugin-module :name ,name
-                                                   :x (- (.mouse-x *app*) 10)
-                                                   :y (- (.mouse-y *app*) 10)
-                                                   :plugin-description ,plugin-description))))))
+(defclass menu-plugin-button (button)
+  ((plugin-description :initarg :plugin-description
+                       :accessor .plugin-description)))
+
+(defmethod click ((self menu-plugin-button) button x y)
+  (let* ((plugin-description (.plugin-description self))
+         (name (.name plugin-description)))
+    (add-module (make-instance 'plugin-module :name name
+                                              :plugin-name name
+                                              :x (- (.mouse-x *app*) 10)
+                                              :y (- (.mouse-y *app*) 10)
+                                              :plugin-description plugin-description))))
 
 (defmethod initialize-instance :after ((self new-module-menu) &key)
   (new-builtin-module-menu-button "pattern" pattern-module :length 8)
@@ -912,15 +914,12 @@
   (new-builtin-module-menu-button "adsr" adsr-module)
   (new-builtin-module-menu-button "amp" amp-module)
   (loop for plugin-description in (load-known-plugins)
-        do (let ((button (make-instance 'button :text (.name plugin-description)
-                                                :y (* (+ *font-size* 4)
-                                                      (length (.children self))))))
-             (add-child self button)
-             (defmethod click ((self (eql button)) button x y)
-               (add-module (make-instance 'plugin-module :name (.name plugin-description)
-                                                         :x (- (.mouse-x *app*) 10)
-                                                         :y (- (.mouse-y *app*) 10)
-                                                         :plugin-description plugin-description))))))
+        do (let ((button (make-instance 'menu-plugin-button
+                                        :text (.name plugin-description)
+                                        :plugin-description plugin-description 
+                                        :y (* (+ *font-size* 4)
+                                              (length (.children self))))))
+             (add-child self button))))
 
 (defun open-new-module-menu ()
   (add-module (make-instance 'new-module-menu
@@ -1031,7 +1030,7 @@
   (let* ((line-length 8)
          (sequencer (.sequencer *audio*))
          (track1 (add-new-track sequencer))
-         (plugin (make-instance 'plugin-module :plugin-name "Dexed.vst3"
+         (plugin (make-instance 'plugin-module :plugin-name "Dexed"
                                                :name "Dexed" :x 200 :y 250))
          (master (.master *audio*))
          (pattern1 (make-instance 'pattern-module
@@ -1143,9 +1142,6 @@
   #+nil
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (print (list
-          (.dragging *app*)
-          (.target (.drag-state *app*))))
   (awhen (or (let ((drag-state (.drag-state *app*)))
                (and drag-state
                     (.dragging drag-state)
