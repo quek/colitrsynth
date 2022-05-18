@@ -263,7 +263,6 @@
                          start-line
                          (1+ start-line)))
          events)
-    ;; TODO ループして先頭に戻るとき
     (loop for current-line from start-line to (min end-line (1- (.length pattern)))
           for current-frame = (floor (- (* (- current-line arg-start-line) frames-per-line)
                                         start-frame))

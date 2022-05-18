@@ -3,6 +3,7 @@
                :sdl2-ttf
                :cl-portaudio
                :ieee-floats
+               :cxml :cxml-stp :xpath
                :anaphora)
   :pathname "src"
   :serial t

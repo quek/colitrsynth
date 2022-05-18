@@ -814,7 +814,8 @@
                                       :onchange (lambda (x) (setf (.r self) x))))))
 
 (defclass plugin-module (audio-module module)
-  ((plugin-name :initarg :plugin-name :accessor .plugin-name)
+  ((plugin-description :initarg :plugin-description :accessor .plugin-description)
+   (plugin-name :initarg :plugin-name :accessor .plugin-name)
    (host-process :accessor .host-process)
    (host-io :accessor .host-io)
    (out-buffer  :accessor .out-buffer
@@ -827,7 +828,8 @@
 (defmethod initialize-instance :after ((self plugin-module) &key)
   (setf (.host-process self)
         (sb-ext:run-program *plugin-host-exe* nil :wait nil))
-  (let ((pipe (sb-win32::create-named-pipe *plugin-host-pipe-name*
+  (let ((pipe (sb-win32::create-named-pipe (format nil "~a~a" *plugin-host-pipe-name*
+                                                   (sb-ext:process-pid (.host-process self)))
                                            sb-win32::pipe-access-duplex
                                            sb-win32::pipe-type-byte
                                            255 0 0 100 (cffi-sys::null-pointer))))
@@ -852,18 +854,11 @@
              (setf (aref out (incf i)) (.velocity midi-event))
              (setf (aref out (incf i)) (mod (.frame midi-event) #x100))
              (setf (aref out (incf i)) (mod (ash (.frame midi-event) -8) #x100)))
-    ;; (print (list "before write-sequence " i (aref out 0) (aref out 1) (aref out 2)))
     (write-sequence out io :end (1+ i))
     (force-output io)
-    ;; (print "after write-sequence")
-
     (loop for buffer in (list left-buffer right-buffer)
           do (let ((position (read-sequence in io)))
-               ;; (print (list 'read-sequence 'position position
-               ;;              (aref in 0)
-               ;;              (ash (aref in 1) 8)
-               ;;              (ash (aref in 2) 16)
-               ;;              (ash  (aref in 3) 24)))
+               (declare (ignore position))
                (loop for i below *frames-per-buffer*
                      do (setf (aref buffer i)
                               (coerce (ieee-floats:decode-float32
@@ -872,7 +867,6 @@
                                           (ash (aref in (+ (* 4 i) 2)) 16)
                                           (ash  (aref in (+ (* 4 i) 3)) 24)))
                                       'double-float)))))
-    ;;(print (list "before route" (aref left-buffer 0) (aref right-buffer 0)))
     (route self left-buffer right-buffer)))
 
 
@@ -888,7 +882,7 @@
   ()
   (:default-initargs :width 100 :height 200))
 
-(defmacro new-module-menu-button (name class &rest initargs)
+(defmacro new-builtin-module-menu-button (name class &rest initargs)
   `(let ((button (make-instance 'button :text ,name
                                         :y (* (+ *font-size* 4)
                                               (length (.children self))))))
@@ -899,12 +893,34 @@
                                           :y (- (.mouse-y *app*) 10)
                                           ,@initargs)))))
 
+(defmacro new-plugin-module-menu-button (plugin-description)
+  (let ((name (.name plugin-description)))
+    `(let ((button (make-instance 'button :text ,name
+                                          :y (* (+ *font-size* 4)
+                                                (length (.children self))))))
+       (add-child self button)
+       (defmethod click ((self (eql button)) button x y)
+         (add-module (make-instance 'plugin-module :name ,name
+                                                   :x (- (.mouse-x *app*) 10)
+                                                   :y (- (.mouse-y *app*) 10)
+                                                   :plugin-description ,plugin-description))))))
+
 (defmethod initialize-instance :after ((self new-module-menu) &key)
-  (new-module-menu-button "pattern" pattern-module :length 8)
-  (new-module-menu-button "sin" sin-osc-module)
-  (new-module-menu-button "saw" saw-osc-module)
-  (new-module-menu-button "adsr" adsr-module)
-  (new-module-menu-button "amp" amp-module))
+  (new-builtin-module-menu-button "pattern" pattern-module :length 8)
+  (new-builtin-module-menu-button "sin" sin-osc-module)
+  (new-builtin-module-menu-button "saw" saw-osc-module)
+  (new-builtin-module-menu-button "adsr" adsr-module)
+  (new-builtin-module-menu-button "amp" amp-module)
+  (loop for plugin-description in (load-known-plugins)
+        do (let ((button (make-instance 'button :text (.name plugin-description)
+                                                :y (* (+ *font-size* 4)
+                                                      (length (.children self))))))
+             (add-child self button)
+             (defmethod click ((self (eql button)) button x y)
+               (add-module (make-instance 'plugin-module :name (.name plugin-description)
+                                                         :x (- (.mouse-x *app*) 10)
+                                                         :y (- (.mouse-y *app*) 10)
+                                                         :plugin-description plugin-description))))))
 
 (defun open-new-module-menu ()
   (add-module (make-instance 'new-module-menu
@@ -914,6 +930,42 @@
 (defmethod mousebuttonup ((self new-module-menu) button state clicks x y)
   (call-next-method)
   (remove-module self))
+
+
+(defclass plugin-description ()
+  ((name :initarg :name :accessor .name)
+   (format :initarg :format :accessor .format)
+   (category :initarg :category :accessor .category)
+   (manufacturer :initarg :manufacturer :accessor .manufacturer)
+   (version :initarg :version :accessor .version)
+   (file :initarg :file :accessor .file)
+   (unique-id :initarg :unique-id :accessor .unique-id)
+   (is-instrument :initarg :is-instrument :accessor .is-instrument)
+   (num-inputs :initarg :num-inputs :accessor .num-inputs)
+   (num-outputs :initarg :num-outputs :accessor .num-outputs)
+   (uid :initarg :uid :accessor .uid)))
+
+(defun load-known-plugins ()
+  (let ((xml (cxml:parse-file (format nil "~a\\CoLiTrSynth\\Plugin Host.settings"
+                                      (sb-ext:posix-getenv "APPDATA"))
+                              (stp:make-builder)))
+        (plugin-descriptions))
+    (xpath:do-node-set (node (xpath:evaluate "/PROPERTIES/VALUE[@name=\"pluginList\"]/KNOWNPLUGINS/*" xml))
+      (push (make-instance 'plugin-description
+                           :name (xpath:string-value (xpath:evaluate "@name" node))
+                           :format (xpath:string-value (xpath:evaluate "@format" node))
+                           :category (xpath:string-value (xpath:evaluate "@category" node))
+                           :manufacturer (xpath:string-value (xpath:evaluate "@manufacturer" node))
+                           :version (xpath:string-value (xpath:evaluate "@version" node))
+                           :file (xpath:string-value (xpath:evaluate "@file" node))
+                           :unique-id (xpath:string-value (xpath:evaluate "@uniqueId" node))
+                           :is-instrument (xpath:string-value (xpath:evaluate "@isInstrument" node))
+                           :num-inputs (xpath:string-value (xpath:evaluate "@numInputs" node))
+                           :num-outputs (xpath:string-value (xpath:evaluate "@numOutputs" node))
+                           :uid (xpath:string-value (xpath:evaluate "@uid" node)))
+            plugin-descriptions))
+    plugin-descriptions))
+
 
 (defun main ()
   (sb-thread:make-thread 'main-loop))
