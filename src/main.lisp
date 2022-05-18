@@ -300,8 +300,15 @@
                   drag-connect-mixin)
   ())
 
+(defmethod mousebuttondown :before ((self null) button state clicks x y)
+  (setf (.selected-module *app*) nil))
+
 (defmethod mousebuttondown :before ((self module) button state clicks x y)
-  (setf (.selected-module *app*) self))
+  (setf (.selected-module *app*) self)
+  (setf (.modules *app*)
+        (stable-sort (.modules *app*) (lambda (x y)
+                                        (declare (ignore y))
+                                        (eql x self)))))
 
 (defmethod render :after ((self module) renderer)
   (when (eq self (.selected-module *app*))
@@ -524,7 +531,7 @@
                             (.width self)
                             *char-height*))
            ;; cursor position
-           (when (eq (.parent self) (module-at-mouse *app*))
+           (when (eq (.parent self) (.selected-module *app*))
              (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
              (sdl2:render-fill-rect
               renderer
@@ -1106,7 +1113,7 @@
             (sdl2:sym-value keysym)
             scancode
             mod-value)
-    (aif (module-at-mouse *app*)
+    (aif (.selected-module *app*)
          (keydown it scancode mod-value)
          (cond ((sdl2:scancode= scancode :scancode-f)
                 (open-new-module-menu))))))
@@ -1114,7 +1121,7 @@
 (defun handle-sdl2-keyup-event (keysym)
   (let  ((scancode (sdl2:scancode-value keysym))
          (mod-value (sdl2:mod-value keysym)))
-    (keyup (module-at-mouse *app*) scancode mod-value)))
+    (keyup (.selected-module *app*) scancode mod-value)))
 
 (defun handle-sdl2-mousemotion-event (x y xrel yrel state)
   #+nil
@@ -1133,10 +1140,10 @@
   #+nil
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (awhen (module-at-mouse *app*)
-    (mousebuttondown it
+  (let ((module (module-at-mouse *app*)))
+    (mousebuttondown module
                      button state clicks
-                     (- x (.absolute-x it)) (- y (.absolute-y it)))))
+                     (- x (.absolute-x module)) (- y (.absolute-y module)))))
 
 (defun handle-sdl2-mousebuttonup-event (button state clicks x y)
   #+nil
