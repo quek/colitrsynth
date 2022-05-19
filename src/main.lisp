@@ -838,9 +838,14 @@
    (in-buffer  :accessor .in-buffer
                 :initform (make-array (* *frames-per-buffer* 4) :element-type 'unsigned-byte))
    (left-buffer :initform (make-buffer) :accessor .left-buffer)
-   (right-buffer :initform (make-buffer) :accessor .right-buffer)))
+   (right-buffer :initform (make-buffer) :accessor .right-buffer)
+   (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
 
 (defmethod initialize-instance :after ((self plugin-module) &key)
+  (let ((button (make-instance 'button :text "open" :x *layout-space* :y (+ *font-size* *layout-space*))))
+    (add-child self button)
+    (defmethod click ((button (eql button)) btn x y)
+      (open-editor self)))
   (setf (.host-process self)
         (sb-ext:run-program *plugin-host-exe* (list (.plugin-name self)) :wait nil))
   (let ((pipe (sb-win32::create-named-pipe (format nil "~a~a" *plugin-host-pipe-name*
@@ -869,21 +874,26 @@
              (setf (aref out (incf i)) (.velocity midi-event))
              (setf (aref out (incf i)) (mod (.frame midi-event) #x100))
              (setf (aref out (incf i)) (mod (ash (.frame midi-event) -8) #x100)))
-    (write-sequence out io :end (1+ i))
-    (force-output io)
-    (loop for buffer in (list left-buffer right-buffer)
-          do (let ((position (read-sequence in io)))
-               (declare (ignore position))
-               (loop for i below *frames-per-buffer*
-                     do (setf (aref buffer i)
-                              (coerce (ieee-floats:decode-float32
-                                       (+ (aref in (* 4 i))
-                                          (ash (aref in (+ (* 4 i) 1)) 8)
-                                          (ash (aref in (+ (* 4 i) 2)) 16)
-                                          (ash  (aref in (+ (* 4 i) 3)) 24)))
-                                      'double-float)))))
+    (sb-thread:with-mutex ((.mutex self))
+      (write-sequence out io :end (1+ i))
+      (force-output io)
+      (loop for buffer in (list left-buffer right-buffer)
+            do (let ((position (read-sequence in io)))
+                 (declare (ignore position))
+                 (loop for i below *frames-per-buffer*
+                       do (setf (aref buffer i)
+                                (coerce (ieee-floats:decode-float32
+                                         (+ (aref in (* 4 i))
+                                            (ash (aref in (+ (* 4 i) 1)) 8)
+                                            (ash (aref in (+ (* 4 i) 2)) 16)
+                                            (ash  (aref in (+ (* 4 i) 3)) 24)))
+                                        'double-float))))))
     (route self left-buffer right-buffer)))
 
+(defun open-editor (plugin-module)
+  (sb-thread:with-mutex ((.mutex plugin-module))
+    (write-byte 1 (.host-io plugin-module))
+    (force-output (.host-io plugin-module))))
 
 (defclass amp-module (amp module)
   ()
