@@ -422,6 +422,13 @@
     (setf (.connect-from-module *app*) nil))
   (call-next-method))
 
+(defclass disable-drag-connect-mixin ()
+  ())
+
+(defmethod drag-start ((self disable-drag-connect-mixin) x y (button (eql 3))))
+
+(defmethod drop ((self disable-drag-connect-mixin) dropped x y (button (eql 3))))
+
 (defclass text (function-value-mixin renderable)
   ((lat-value :initform "" :accessor .last-value)
    (texture :initform nil :accessor .texture))
@@ -903,7 +910,7 @@
   ()
   (:default-initargs :name "master" :color (list #xff #xa5 #x00 *transparency*)))
 
-(defclass new-module-menu (renderable)
+(defclass new-module-menu (disable-drag-connect-mixin  module)
   ()
   (:default-initargs :width 100 :height 200))
 
@@ -946,12 +953,16 @@
              (add-child self button))))
 
 (defun open-new-module-menu ()
-  (add-module (make-instance 'new-module-menu
-                       :x (- (.mouse-x *app*) 10)
-                       :y (- (.mouse-y *app*) 10))))
+  (let ((module (make-instance 'new-module-menu
+                               :x (- (.mouse-x *app*) 10)
+                               :y (- (.mouse-y *app*) 10))))
+    (add-module module)
+    (setf (.selected-module *app*) module)))
 
 (defmethod mousebuttonup ((self new-module-menu) button state clicks x y)
   (call-next-method)
+  (when (eq self (.selected-module *app*))
+    (setf (.selected-module *app*) nil))
   (remove-module self))
 
 
