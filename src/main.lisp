@@ -690,10 +690,7 @@
     (update-sequencer-end)))
 
 (defclass sequencer-module (sequencer
-                            drag-resize-mixin
-                            drag-move-mixin
-                            name-mixin
-                            renderable)
+                            module)
   ()
   (:default-initargs :name ""
                      :color (list #x00 #xff #xff *transparency*)
@@ -720,6 +717,16 @@
   ;; TODO 小さくするとはみ出るし、拡大縮小もした方がいいかもしれない
   (loop for track in (.tracks self)
         do (resize track xrel 0)))
+
+(defmethod drag-start ((self sequencer-module) x y (button (eql 3)))
+  "sequencer-module-track にディスパッチする。"
+  (awhen (child-module-at self x y)
+    (drag-start it (- x (.x it)) (- y (.y it)) button)))
+
+(defmethod drop ((self sequencer-module) (dropped drag-connect-mixin) x y (button (eql 3)))
+  "sequencer-module-track にディスパッチする。"
+  (awhen (child-module-at self x y)
+    (drop it dropped (- x (.x it)) (- y (.y it)) button)))
 
 (defun add-new-track (sequencer-module)
   (let* ((y (+ 13 *font-size* (* (length (.tracks sequencer-module))
