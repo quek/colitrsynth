@@ -51,11 +51,11 @@
 (defgeneric mousemotion (self x y xrel yrel state)
   (:method (self x y xrel yrel state)))
 
-(defgeneric keydown (self scancode mod-value)
-  (:method (self scancode mod-value)))
+(defgeneric keydown (self value scancode mod-value)
+  (:method (self value scancode mod-value)))
 
-(defgeneric keyup (self scancode mod-value)
-  (:method (self scancode mod-value)))
+(defgeneric keyup (self value scancode mod-value)
+  (:method (self value scancode mod-value)))
 
 (defgeneric move (self xrel yrel)
   (:method (self xrel yrel)))
@@ -177,8 +177,9 @@
   (setf (.height self) (max 20 (+ (.height self) yrel))))
 
 (defmethod add-child ((parent renderable) (child renderable))
-  (setf (.children parent) (append (.children parent) (list child)))
-  (setf (.parent child) parent))
+  (unless (eq parent (.parent child))
+    (setf (.children parent) (append (.children parent) (list child)))
+    (setf (.parent child) parent)))
 
 (defmethod remove-child ((parent renderable) (child renderable))
   (setf (.children parent) (remove child (.children parent)))
@@ -460,6 +461,9 @@
 (defmethod initialize-instance :after ((self button) &key text)
   (add-child self (make-instance 'text :value text :x 5 :y 2)))
 
+(defmethod .label ((self button))
+  (.value (car (.children self))))
+
 (defmethod render :after ((self button) renderer)
   ;; after でやるので初回描画時は崩れてるはずだけど妥協
   (let ((text (car (.children self))))
@@ -553,7 +557,7 @@
              (sdl2:render-copy renderer texture :source-rect rect :dest-rect rect)))
       (sdl2:destroy-texture texture))))
 
-(defmethod keydown ((self pattern-editor) scancode mod-value)
+(defmethod keydown ((self pattern-editor) value scancode mod-value)
   (flet ((set-note (note)
            (setf (.note (aref (.lines (.pattern self)) (.cursor-y self)))
                  note)))
@@ -776,8 +780,8 @@
   (remove-child track pattern-position)
   (call-next-method))
 
-(defmethod keydown ((self pattern-module) scancode mod-value)
-  (keydown (.pattern-editor self) scancode mod-value))
+(defmethod keydown ((self pattern-module) value scancode mod-value)
+  (keydown (.pattern-editor self) value scancode mod-value))
 
 (defmethod (setf .width) :after (value (self pattern-module))
   (setf (.width (.pattern-editor self)) (- (.width self) 10)))
@@ -910,20 +914,52 @@
   ()
   (:default-initargs :name "master" :color (list #xff #xa5 #x00 *transparency*)))
 
-(defclass new-module-menu (disable-drag-connect-mixin  module)
-  ()
-  (:default-initargs :width 100 :height 200))
+(defclass menu-module (disable-drag-connect-mixin module)
+  ((filter :initform "" :accessor .filter)
+   (buttons :initform nil :accessor .buttons))
+  (:default-initargs :width 300 :height 200 :name "Menu"))
+
+(defmethod render :before ((self menu-module) renderer)
+  (let ((regex (ppcre:create-scanner
+                (format nil ".*~{~c~^.*~}"
+                        (coerce (.filter self) 'list))
+                :case-insensitive-mode t)))
+    (loop for button in (.buttons self)
+          with i = 0
+          if (ppcre:scan regex (.label button))
+            do (add-child self button)
+               (setf (.y button) (* (+ *font-size* 4)
+                                    (incf i)))
+          else
+            do (remove-child self button))))
 
 (defmacro new-builtin-module-menu-button (name class &rest initargs)
   `(let ((button (make-instance 'button :text ,name
                                         :y (* (+ *font-size* 4)
                                               (length (.children self))))))
      (add-child self button)
-     (defmethod click ((self (eql button)) button x y)
+     (push button (.buttons self))
+     (defmethod click ((button (eql button)) btn x y)
        (add-module (make-instance ',class :name ,name
                                           :x (- (.mouse-x *app*) 10)
                                           :y (- (.mouse-y *app*) 10)
-                                          ,@initargs)))))
+                                          ,@initargs))
+       (close self))))
+
+(defmethod keydown ((self menu-module) value scancode mod-value)
+  (cond ((sdl2:scancode= scancode :scancode-escape)
+         (close self))
+        ((= value #x08)
+         (setf (.filter self)
+               (subseq (.filter self) 0 (max 0 (1- (length (.filter self)))))))
+        ((<= value 127)
+         (setf (.filter self) (format nil "~a~a" (.filter self) (code-char value))))))
+
+(defmethod close ((self menu-module) &key abort)
+  (declare (ignore abort))
+  (when (eq self (.selected-module *app*))
+    (setf (.selected-module *app*) nil))
+  (remove-module self))
 
 (defclass menu-plugin-button (button)
   ((plugin-description :initarg :plugin-description
@@ -936,9 +972,10 @@
                                               :plugin-name name
                                               :x (- (.mouse-x *app*) 10)
                                               :y (- (.mouse-y *app*) 10)
-                                              :plugin-description plugin-description))))
+                                              :plugin-description plugin-description))
+    (close (.parent self))))
 
-(defmethod initialize-instance :after ((self new-module-menu) &key)
+(defmethod initialize-instance :after ((self menu-module) &key)
   (new-builtin-module-menu-button "pattern" pattern-module :length 8)
   (new-builtin-module-menu-button "sin" sin-osc-module)
   (new-builtin-module-menu-button "saw" saw-osc-module)
@@ -950,21 +987,17 @@
                                         :plugin-description plugin-description 
                                         :y (* (+ *font-size* 4)
                                               (length (.children self))))))
-             (add-child self button))))
+             (add-child self button)
+             (push button (.buttons self))))
+  (setf (.buttons self) (sort (.buttons self) #'string<
+                              :key (lambda (x) (string-downcase (.label x))))))
 
-(defun open-new-module-menu ()
-  (let ((module (make-instance 'new-module-menu
+(defun open-menu ()
+  (let ((module (make-instance 'menu-module
                                :x (- (.mouse-x *app*) 10)
                                :y (- (.mouse-y *app*) 10))))
     (add-module module)
     (setf (.selected-module *app*) module)))
-
-(defmethod mousebuttonup ((self new-module-menu) button state clicks x y)
-  (call-next-method)
-  (when (eq self (.selected-module *app*))
-    (setf (.selected-module *app*) nil))
-  (remove-module self))
-
 
 (defclass plugin-description ()
   ((name :initarg :name :accessor .name)
@@ -1134,7 +1167,8 @@
                 pattern2 osc2 adsr2 amp2))))
 
 (defun handle-sdl2-keydown-event (keysym)
-  (let ((scancode (sdl2:scancode-value keysym))
+  (let ((value (sdl2:sym-value keysym))
+        (scancode (sdl2:scancode-value keysym))
         (mod-value (sdl2:mod-value keysym)))
     #+nil
     (format t "Key sym: ~a, code: ~a, mod: ~a~%"
@@ -1142,14 +1176,15 @@
             scancode
             mod-value)
     (aif (.selected-module *app*)
-         (keydown it scancode mod-value)
+         (keydown it value scancode mod-value)
          (cond ((sdl2:scancode= scancode :scancode-f)
-                (open-new-module-menu))))))
+                (open-menu))))))
 
 (defun handle-sdl2-keyup-event (keysym)
-  (let  ((scancode (sdl2:scancode-value keysym))
+  (let  ((value (sdl2:sym-value keysym))
+         (scancode (sdl2:scancode-value keysym))
          (mod-value (sdl2:mod-value keysym)))
-    (keyup (.selected-module *app*) scancode mod-value)))
+    (keyup (.selected-module *app*) value scancode mod-value)))
 
 (defun handle-sdl2-mousemotion-event (x y xrel yrel state)
   #+nil
