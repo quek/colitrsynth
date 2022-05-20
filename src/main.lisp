@@ -926,36 +926,56 @@
   (:default-initargs :name "master" :color (list #xff #xa5 #x00 *transparency*)))
 
 (defclass menu-module (disable-drag-connect-mixin module)
-  ((filter :initform "" :accessor .filter)
+  ((filter :initform "initialize-instance :after で上書く" :accessor .filter)
    (buttons :initform nil :accessor .buttons))
   (:default-initargs :width 300 :height 200 :name "Menu"))
 
-(defmethod render :before ((self menu-module) renderer)
-  (let ((regex (ppcre:create-scanner
-                (format nil ".*~{~c~^.*~}"
-                        (coerce (.filter self) 'list))
-                :case-insensitive-mode t)))
-    (loop for button in (.buttons self)
-          with i = 0
-          if (ppcre:scan regex (.label button))
-            do (add-child self button)
-               (setf (.y button) (* (+ *font-size* 4)
-                                    (incf i)))
-          else
-            do (remove-child self button))))
-
-(defmacro new-builtin-module-menu-button (name class &rest initargs)
-  `(let ((button (make-instance 'button :text ,name
+(defmethod initialize-instance :after ((self menu-module) &key)
+  (let ((button (make-instance 'button :text "Manage Plugins")))
+    (add-child self button)
+    (push button (.buttons self))
+    (defmethod click ((button (eql button)) btn x y)
+      (sb-ext:run-program *plugin-host-exe* nil :wait nil)
+      (close self)))
+  (loop for (name class) in `(("pattern" pattern-module)
+                              ("sin" sin-osc-module)
+                              ("saw" saw-osc-module)
+                              ("adsr" adsr-module)
+                              ("amp" amp-module))
+        do (let ((button (make-instance 'button :text name)))
+             (add-child self button)
+             (push button (.buttons self))
+             (defmethod click ((button (eql button)) btn x y)
+               (add-module (make-instance class :name name
+                                                :x (- (.mouse-x *app*) 10)
+                                                :y (- (.mouse-y *app*) 10)))
+               (close self))))
+  (loop for plugin-description in (load-known-plugins)
+        do (let ((button (make-instance 'menu-plugin-button
+                                        :text (.name plugin-description)
+                                        :plugin-description plugin-description 
                                         :y (* (+ *font-size* 4)
                                               (length (.children self))))))
-     (add-child self button)
-     (push button (.buttons self))
-     (defmethod click ((button (eql button)) btn x y)
-       (add-module (make-instance ',class :name ,name
-                                          :x (- (.mouse-x *app*) 10)
-                                          :y (- (.mouse-y *app*) 10)
-                                          ,@initargs))
-       (close self))))
+             (add-child self button)
+             (push button (.buttons self))))
+  (setf (.buttons self) (sort (.buttons self) #'string<
+                              :key (lambda (x) (string-downcase (.label x)))))
+  (setf (.filter self) ""))
+
+(defmethod (setf .filter) :around (value (self menu-module))
+  (when (not (equal (.filter self) value))
+    (call-next-method)
+    (let ((regex (ppcre:create-scanner
+                  (format nil ".*~{~c~^.*~}" (coerce value 'list))
+                  :case-insensitive-mode t)))
+      (loop for button in (.buttons self)
+            with i = 0
+            if (ppcre:scan regex (.label button))
+              do (add-child self button)
+                 (setf (.y button) (* (+ *font-size* 4)
+                                      (incf i)))
+            else
+              do (remove-child self button)))))
 
 (defmethod keydown ((self menu-module) value scancode mod-value)
   (cond ((sdl2:scancode= scancode :scancode-escape)
@@ -986,23 +1006,6 @@
                                               :y (- (.mouse-y *app*) 10)
                                               :plugin-description plugin-description))
     (close (.parent self))))
-
-(defmethod initialize-instance :after ((self menu-module) &key)
-  (new-builtin-module-menu-button "pattern" pattern-module :length 8)
-  (new-builtin-module-menu-button "sin" sin-osc-module)
-  (new-builtin-module-menu-button "saw" saw-osc-module)
-  (new-builtin-module-menu-button "adsr" adsr-module)
-  (new-builtin-module-menu-button "amp" amp-module)
-  (loop for plugin-description in (load-known-plugins)
-        do (let ((button (make-instance 'menu-plugin-button
-                                        :text (.name plugin-description)
-                                        :plugin-description plugin-description 
-                                        :y (* (+ *font-size* 4)
-                                              (length (.children self))))))
-             (add-child self button)
-             (push button (.buttons self))))
-  (setf (.buttons self) (sort (.buttons self) #'string<
-                              :key (lambda (x) (string-downcase (.label x))))))
 
 (defun open-menu ()
   (let ((module (make-instance 'menu-module
