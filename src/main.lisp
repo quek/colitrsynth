@@ -937,13 +937,15 @@
                       (setf (aref out (incf j)) (mod (ash n -24) #x100))))
     (sb-thread:with-mutex ((.mutex self))
       (write-byte +plugin-command-effect+ io)
-
+      ;; TODO バッファの一部のみ read, write される対応
+      ;; ここの force-output がないと write-byte したのが write-sequence した分と一緒に
+      ;; 1 + 4095, 4096 とリードされ 1 バイト分読まれずに残ってしまう。
+      (force-output io)
       (write-sequence out io :end (* *frames-per-buffer* 4 2))
       (force-output io)
       (loop for buffer in (list left-buffer right-buffer)
-            do (let ((position (read-sequence in io :end (* 1024 4))))
+            do (let ((position (read-sequence in io :end (* *frames-per-buffer* 4))))
                  ;; (declare (ignore position))
-                 (print (list 'read-sequence position))
                  (loop for i below *frames-per-buffer*
                        do (setf (aref buffer i)
                                 (coerce (ieee-floats:decode-float32

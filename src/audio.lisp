@@ -185,8 +185,6 @@
                                 (midi-events-at-line-frame pattern
                                                            (- start-line start) start-frame
                                                            (- end-line start) end-frame)))))))
-    (when midi-events
-      (print (list midi-events start-line start-frame end-line end-frame)))
     (route track midi-events start-frame)))
 
 (defclass sequencer (audio-module)
