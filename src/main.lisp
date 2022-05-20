@@ -301,6 +301,9 @@
                   drag-connect-mixin)
   ())
 
+(defmethod close ((self module) &key abort)
+  (declare (ignore abort)))
+
 (defmethod mousebuttondown :before ((self null) button state clicks x y)
   (setf (.selected-module *app*) nil))
 
@@ -867,6 +870,14 @@
     (setf (.host-io self)
           (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte))))
 
+(defmethod close ((self plugin-module) &key abort)
+  (declare (ignore abort))
+  (let ((io (.host-io self)))
+    (sb-thread:with-mutex ((.mutex self))
+      (write-byte 3 io)
+      (force-output io)))
+  (call-next-method))
+
 (defmethod play-frame ((self plugin-module) midi-events frame)
   (let ((i -1)
         (length (length midi-events))
@@ -959,7 +970,8 @@
   (declare (ignore abort))
   (when (eq self (.selected-module *app*))
     (setf (.selected-module *app*) nil))
-  (remove-module self))
+  (remove-module self)
+  (call-next-method))
 
 (defclass menu-plugin-button (button)
   ((plugin-description :initarg :plugin-description
@@ -1240,6 +1252,8 @@
   (sdl2:delay #.(floor (/ 1000 60.0))))   ;ms
 
 (defun handle-sdl2-quit-event ()
+  (loop for module in (.modules *app*)
+        do (close module))
   (when (.font *app*)
     (sdl2-ttf:close-font (.font *app*))
     (setf (.font *app*) nil))
