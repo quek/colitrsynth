@@ -842,6 +842,12 @@
                                       :width width :height height
                                       :onchange (lambda (x) (setf (.r self) x))))))
 
+(defconstant +plugin-command-instrument+ 1)
+(defconstant +plugin-command-effect+ 2)
+(defconstant +plugin-command-manage+ 3)
+(defconstant +plugin-command-edit+ 4)
+(defconstant +plugin-command-quit+ 5)
+
 (defclass plugin-module (audio-module module)
   ((plugin-description :initarg :plugin-description :accessor .plugin-description)
    (plugin-name :initarg :plugin-name :accessor .plugin-name)
@@ -854,6 +860,9 @@
    (left-buffer :initform (make-buffer) :accessor .left-buffer)
    (right-buffer :initform (make-buffer) :accessor .right-buffer)
    (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
+
+(defclass instrument-plugin-module (plugin-module) ())
+(defclass effect-plugin-module (plugin-module) ())
 
 (defmethod initialize-instance :after ((self plugin-module) &key)
   (let ((button (make-instance 'button :text "open" :x *layout-space* :y (+ *font-size* *layout-space*))))
@@ -874,11 +883,11 @@
   (declare (ignore abort))
   (let ((io (.host-io self)))
     (sb-thread:with-mutex ((.mutex self))
-      (write-byte 3 io)
+      (write-byte +plugin-command-quit+ io)
       (force-output io)))
   (call-next-method))
 
-(defmethod play-frame ((self plugin-module) midi-events frame)
+(defmethod play-frame ((self instrument-plugin-module) midi-events frame)
   (let ((i -1)
         (length (length midi-events))
         (out (.out-buffer self))
@@ -886,7 +895,7 @@
         (io (.host-io self))
         (left-buffer (.left-buffer self))
         (right-buffer (.right-buffer self)))
-    (setf (aref out (incf i)) 2)
+    (setf (aref out (incf i)) +plugin-command-instrument+)
     (setf (aref out (incf i)) (mod length #x100))
     (setf (aref out (incf i)) (mod (ash length -8) #x100))
     (loop for midi-event in midi-events
@@ -912,9 +921,42 @@
                                         'double-float))))))
     (route self left-buffer right-buffer)))
 
+(defmethod play-frame ((self effect-plugin-module) left right)
+  (let ((out (.out-buffer self))
+        (in (.in-buffer self))
+        (io (.host-io self))
+        (left-buffer (.left-buffer self))
+        (right-buffer (.right-buffer self)))
+    (loop for lr in (list left right)
+          with j = -1
+          do (loop for i below *frames-per-buffer*
+                   for n = (ieee-floats:encode-float32 (aref lr i))
+                   do (setf (aref out (incf j)) (mod n #x100))
+                      (setf (aref out (incf j)) (mod (ash n -8) #x100))
+                      (setf (aref out (incf j)) (mod (ash n -16) #x100))
+                      (setf (aref out (incf j)) (mod (ash n -24) #x100))))
+    (sb-thread:with-mutex ((.mutex self))
+      (write-byte +plugin-command-effect+ io)
+
+      (write-sequence out io :end (* *frames-per-buffer* 4 2))
+      (force-output io)
+      (loop for buffer in (list left-buffer right-buffer)
+            do (let ((position (read-sequence in io :end (* 1024 4))))
+                 ;; (declare (ignore position))
+                 (print (list 'read-sequence position))
+                 (loop for i below *frames-per-buffer*
+                       do (setf (aref buffer i)
+                                (coerce (ieee-floats:decode-float32
+                                         (+ (aref in (* 4 i))
+                                            (ash (aref in (+ (* 4 i) 1)) 8)
+                                            (ash (aref in (+ (* 4 i) 2)) 16)
+                                            (ash  (aref in (+ (* 4 i) 3)) 24)))
+                                        'double-float))))))
+    (route self left-buffer right-buffer)))
+
 (defun open-editor (plugin-module)
   (sb-thread:with-mutex ((.mutex plugin-module))
-    (write-byte 1 (.host-io plugin-module))
+    (write-byte +plugin-command-edit+ (.host-io plugin-module))
     (force-output (.host-io plugin-module))))
 
 (defclass amp-module (amp module)
@@ -999,12 +1041,15 @@
 
 (defmethod click ((self menu-plugin-button) button x y)
   (let* ((plugin-description (.plugin-description self))
-         (name (.name plugin-description)))
-    (add-module (make-instance 'plugin-module :name name
-                                              :plugin-name name
-                                              :x (- (.mouse-x *app*) 10)
-                                              :y (- (.mouse-y *app*) 10)
-                                              :plugin-description plugin-description))
+         (name (.name plugin-description))
+         (class (if (.is-instrument plugin-description)
+                    'instrument-plugin-module
+                    'effect-plugin-module)))
+    (add-module (make-instance class :name name
+                                     :plugin-name name
+                                     :x (- (.mouse-x *app*) 10)
+                                     :y (- (.mouse-y *app*) 10)
+                                     :plugin-description plugin-description))
     (close (.parent self))))
 
 (defun open-menu ()
@@ -1033,18 +1078,20 @@
                               (stp:make-builder)))
         (plugin-descriptions))
     (xpath:do-node-set (node (xpath:evaluate "/PROPERTIES/VALUE[@name=\"pluginList\"]/KNOWNPLUGINS/*" xml))
-      (push (make-instance 'plugin-description
-                           :name (xpath:string-value (xpath:evaluate "@name" node))
-                           :format (xpath:string-value (xpath:evaluate "@format" node))
-                           :category (xpath:string-value (xpath:evaluate "@category" node))
-                           :manufacturer (xpath:string-value (xpath:evaluate "@manufacturer" node))
-                           :version (xpath:string-value (xpath:evaluate "@version" node))
-                           :file (xpath:string-value (xpath:evaluate "@file" node))
-                           :unique-id (xpath:string-value (xpath:evaluate "@uniqueId" node))
-                           :is-instrument (xpath:string-value (xpath:evaluate "@isInstrument" node))
-                           :num-inputs (xpath:string-value (xpath:evaluate "@numInputs" node))
-                           :num-outputs (xpath:string-value (xpath:evaluate "@numOutputs" node))
-                           :uid (xpath:string-value (xpath:evaluate "@uid" node)))
+      (push (make-instance
+             'plugin-description
+             :name (xpath:string-value (xpath:evaluate "@name" node))
+             :format (xpath:string-value (xpath:evaluate "@format" node))
+             :category (xpath:string-value (xpath:evaluate "@category" node))
+             :manufacturer (xpath:string-value (xpath:evaluate "@manufacturer" node))
+             :version (xpath:string-value (xpath:evaluate "@version" node))
+             :file (xpath:string-value (xpath:evaluate "@file" node))
+             :unique-id (xpath:string-value (xpath:evaluate "@uniqueId" node))
+             :is-instrument (equal (xpath:string-value (xpath:evaluate "@isInstrument" node))
+                                   "1")
+             :num-inputs (xpath:string-value (xpath:evaluate "@numInputs" node))
+             :num-outputs (xpath:string-value (xpath:evaluate "@numOutputs" node))
+             :uid (xpath:string-value (xpath:evaluate "@uid" node)))
             plugin-descriptions))
     plugin-descriptions))
 
@@ -1113,8 +1160,12 @@
   (let* ((line-length 8)
          (sequencer (.sequencer *audio*))
          (track1 (add-new-track sequencer))
-         (plugin (make-instance 'plugin-module :plugin-name "Dexed"
-                                               :name "Dexed" :x 200 :y 250))
+         (plugin (make-instance 'instrument-plugin-module
+                                :plugin-name "Dexed"
+                                :name "Dexed" :x 200 :y 250))
+         ;; (reverb (make-instance 'effect-plugin-module
+         ;;                        :plugin-name "MTurboRevebMB"
+         ;;                        :name "MTurboRevebMB" :x 350 :y 250))
          (master (.master *audio*))
          (pattern1 (make-instance 'pattern-module
                                   :name "plack"
@@ -1125,10 +1176,13 @@
                                   :x 5  :y 250 :height 200)))
     (connect track1 plugin)
     (connect plugin master)
+    ;; (connect plugin reverb)
+    ;; (connect reverb master)
     (add-pattern track1 pattern1 0 line-length)
     (setf (.modules *app*)
           (list sequencer master
-                pattern1 plugin))))
+                pattern1 plugin ;; reverb
+                ))))
 
 (defun make-test-modules ()
   (let* ((line-length 8)
