@@ -441,6 +441,8 @@
     (setf (.connect-from-module *app*) nil))
   (call-next-method))
 
+(defmethod drop ((self sequencer-module-track) (dropped drag-connect-mixin) x y (button (eql 3))))
+
 (defclass disable-drag-connect-mixin ()
   ())
 
