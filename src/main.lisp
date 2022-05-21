@@ -7,6 +7,8 @@
 (defparameter *play-position-color* '(#x00 #x80 #x00 #x80))
 (defparameter *connection-line-color* '(#x22 #x8b #x22 #x80))
 (defparameter *connection-point-color* '(#xff #xff #xff #x80))
+(defparameter *selected-module-color* '(#xff #xff #x00 #xff))
+(defparameter *selected-pattern-color* '(#xff #x80 #x80 #xff))
 (defparameter *pixcel-per-line* 5)
 (defparameter *layout-space* 5)
 (defparameter *plugin-host-exe* "C:/Users/ancient/Documents/Visual Studio 2022/PluginHost/Builds/VisualStudio2022/x64/Debug/App/PluginHost.exe")
@@ -28,7 +30,7 @@
 (defgeneric mousebuttonup (self button state clicks x y)
   (:method (self button state clicks x y)
     (when (eq self (click-target-module button))
-      (let ((root (root-parent self)))
+      (let ((root (.root-parent self)))
         (click root button
                (- (.mouse-x *app*) (.absolute-x root))
                (- (.mouse-y *app*) (.absolute-y root)))))))
@@ -75,6 +77,7 @@
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
    (selected-module :initform nil :accessor .selected-module)
+   (selected-pattern :initform nil :accessor .selected-pattern)
    (click-target-module :initform (make-array +mouse-button-count+))
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (dragging :initform nil :accessor .dragging)
@@ -135,9 +138,9 @@
    (parent :initarg :parent :initform nil :accessor .parent)
    (children :initarg :children :initform nil :accessor .children)))
 
-(defmethod root-parent ((self renderable))
+(defmethod .root-parent ((self renderable))
   (aif (.parent self)
-       (root-parent it)
+       (.root-parent it)
        self))
 
 (defmethod mousebuttondown ((self renderable) button state clicks x y)
@@ -323,14 +326,18 @@
                                         (eql x self)))))
 
 (defmethod render :after ((self module) renderer)
-  (when (eq self (.selected-module *app*))
-    (sdl2:set-render-draw-color renderer #xff #xff #x00 #xff)
-    (sdl2:render-draw-rect
-     renderer
-     (sdl2:make-rect (- (.absolute-x self) 2)
-                     (- (.absolute-y self) 2)
-                     (+ (.width self) 4)
-                     (+ (.height self) 4)))))
+  (let ((color (cond ((eq self (.selected-pattern *app*))
+                      *selected-pattern-color*)
+                     ((eq self (.selected-module *app*))
+                      *selected-module-color*))))
+    (when color
+      (apply #'sdl2:set-render-draw-color renderer color)
+      (sdl2:render-draw-rect
+       renderer
+       (sdl2:make-rect (- (.absolute-x self) 2)
+                       (- (.absolute-y self) 2)
+                       (+ (.width self) 4)
+                       (+ (.height self) 4))) )))
 
 (defclass drag-mixin ()
   ())
@@ -679,7 +686,7 @@
 (defmethod click ((self sequencer-module-track) button x y)
   (case button
     (1
-     (let ((module (.selected-module *app*)))
+     (let ((module (.selected-pattern *app*)))
        (if (typep module 'pattern-module)
            (let* ((start (pixcel-to-line x))
                   (end (+ start (.length module))))
@@ -726,12 +733,17 @@
                      :height 200))
 
 (defmethod initialize-instance :after ((self sequencer-module) &key)
-  (let ((play-button (make-instance 'button :text "▶" :x 5 :y 5)))
+  (let* ((play-button (make-instance 'button :text "▶" :x 5 :y 5))
+         (add-track-button (make-instance 'button :text "+track" :x 35 :y 5)))
     (add-child self play-button)
-    (defmethod click ((self (eql play-button)) (button (eql 1)) x y)
-      (if (.playing *audio*)
-          (stop)
-          (play)))))
+    (add-child self add-track-button)
+    (let ((sequencer self))
+      (defmethod click ((self (eql play-button)) (button (eql 1)) x y)
+        (if (.playing *audio*)
+            (stop)
+            (play)))
+      (defmethod click ((self (eql add-track-button)) (button (eql 1)) x y)
+        (add-new-track sequencer)))))
 
 (defmethod render :after ((self sequencer-module) renderer)
   (let* ((first (car (.tracks self)))
@@ -791,6 +803,9 @@
           (.height pattern-position) (- (.height track) 4)
           (.name pattern-position) (.name pattern))
     pattern-position))
+
+(defmethod mousebuttondown :before ((self pattern) button state clicks x y)
+  (setf (.selected-pattern *app*) self))
 
 (defmethod remove-pattern ((track sequencer-module-track)
                            (pattern-position pattern-position))
@@ -1004,19 +1019,16 @@
     (defmethod click ((button (eql button)) btn x y)
       (sb-ext:run-program *plugin-host-exe* nil :wait nil)
       (close self)))
-  (loop for (name class) in `(("pattern" pattern-module)
-                              ("sin" sin-osc-module)
-                              ("saw" saw-osc-module)
-                              ("adsr" adsr-module)
-                              ("amp" amp-module))
-        do (let ((button (make-instance 'button :text name)))
+  (loop for (name class) in `(("Pattern" pattern-module)
+                              ("Sin" sin-osc-module)
+                              ("Saw" saw-osc-module)
+                              ("Adsr" adsr-module)
+                              ("Amp" amp-module))
+        do (let ((button (make-instance 'menu-builtin-button
+                                        :text name
+                                        :class class)))
              (add-child self button)
-             (push button (.buttons self))
-             (defmethod click ((button (eql button)) btn x y)
-               (add-module (make-instance class :name name
-                                                :x (- (.mouse-x *app*) 10)
-                                                :y (- (.mouse-y *app*) 10)))
-               (close self))))
+             (push button (.buttons self))))
   (loop for plugin-description in (load-known-plugins)
         do (let ((button (make-instance 'menu-plugin-button
                                         :text (.name plugin-description)
@@ -1060,11 +1072,20 @@
   (remove-module self)
   (call-next-method))
 
+(defclass menu-builtin-button (button)
+  ((class :initarg :class :accessor .class)))
+
+(defmethod click ((self menu-builtin-button) (button (eql 1)) x y)
+  (add-module (make-instance (.class self) :name (.label self)
+                                           :x (- (.mouse-x *app*) 10)
+                                           :y (- (.mouse-y *app*) 10)))
+  (close (.root-parent self)))
+
 (defclass menu-plugin-button (button)
   ((plugin-description :initarg :plugin-description
                        :accessor .plugin-description)))
 
-(defmethod click ((self menu-plugin-button) button x y)
+(defmethod click ((self menu-plugin-button) (button (eql 1)) x y)
   (let* ((plugin-description (.plugin-description self))
          (name (.name plugin-description))
          (class (if (.is-instrument plugin-description)
@@ -1075,7 +1096,7 @@
                                      :x (- (.mouse-x *app*) 10)
                                      :y (- (.mouse-y *app*) 10)
                                      :plugin-description plugin-description))
-    (close (.parent self))))
+    (close (.root-parent self))))
 
 (defun open-menu ()
   (let ((module (make-instance 'menu-module

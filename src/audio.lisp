@@ -231,7 +231,7 @@
   ((note :initarg :note :initform none :accessor .note)))
 
 (defclass pattern (audio-module)
-  ((length :initarg :length :initform #x40 :accessor .length)
+  ((length :initarg :length :initform #x20 :accessor .length)
    (lines :initarg :lines :accessor .lines)
    (current-line :initform 0 :accessor .current-line)
    (last-note :initform off :accessor .last-note)))
