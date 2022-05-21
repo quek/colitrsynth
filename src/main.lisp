@@ -529,7 +529,10 @@
               do (setf (.line pattern-editor-line) pattern-line)))))
 
 (defmethod render ((self pattern-editor) renderer)
-  (let ((texture (sdl2:create-texture renderer :rgba8888 :target 800 600)))
+  (let ((texture (multiple-value-call
+                     #'sdl2:create-texture renderer :rgba8888 :target
+                   (multiple-value-call (lambda (w h) (values (* w 2) (* h 2)))
+                     (sdl2:get-window-size (.win *app*))))))
     (unwind-protect
          (progn
            (sdl2:set-render-target renderer texture)
@@ -865,7 +868,7 @@
 (defclass effect-plugin-module (plugin-module) ())
 
 (defmethod initialize-instance :after ((self plugin-module) &key)
-  (let ((button (make-instance 'button :text "open" :x *layout-space* :y (+ *font-size* *layout-space*))))
+  (let ((button (make-instance 'button :text "Open" :x *layout-space* :y (+ *font-size* *layout-space*))))
     (add-child self button)
     (defmethod click ((button (eql button)) btn x y)
       (open-editor self)))
@@ -884,7 +887,7 @@
   (let ((io (.host-io self)))
     (sb-thread:with-mutex ((.mutex self))
       (write-byte +plugin-command-quit+ io)
-      (force-output io)))
+      (ignore-errors (force-output io))))
   (call-next-method))
 
 (defmethod play-frame ((self instrument-plugin-module) midi-events frame)
@@ -907,6 +910,9 @@
              (setf (aref out (incf i)) (mod (ash (.frame midi-event) -8) #x100)))
     (sb-thread:with-mutex ((.mutex self))
       (write-sequence out io :end (1+ i))
+      ;; Couldn't write to #<SB-SYS:FD-STREAM for "descriptor 2284" {1007B89EF3}>:
+      ;; プロセスがパイプの他端を開くのを待っています。
+      ;; [Condition of type SB-INT:SIMPLE-STREAM-ERROR]
       (force-output io)
       (loop for buffer in (list left-buffer right-buffer)
             do (let ((position (read-sequence in io)))
@@ -945,7 +951,7 @@
       (force-output io)
       (loop for buffer in (list left-buffer right-buffer)
             do (let ((position (read-sequence in io :end (* *frames-per-buffer* 4))))
-                 ;; (declare (ignore position))
+                 (declare (ignore position))
                  (loop for i below *frames-per-buffer*
                        do (setf (aref buffer i)
                                 (coerce (ieee-floats:decode-float32
@@ -955,6 +961,12 @@
                                             (ash  (aref in (+ (* 4 i) 3)) 24)))
                                         'double-float))))))
     (route self left-buffer right-buffer)))
+
+(defmethod print-object ((self plugin-module) stream)
+    (print-unreadable-object (self stream :type t)
+      (format stream "~a ~a"
+              (.plugin-name self)
+              (.host-process self))))
 
 (defun open-editor (plugin-module)
   (sb-thread:with-mutex ((.mutex plugin-module))
@@ -1120,6 +1132,7 @@
       (finish-output)
 
       (sdl2:with-window (win :title "CoLiTrSynth" :w (.width *app*) :h (.height *app*)
+                             :flags '(:resizable)
                          :x 1 :y 25)    ;デバッグするのにこの位置が楽
         (setf (.win *app*) win)
         (sdl2:with-renderer (renderer win :flags '(:accelerated))
@@ -1163,14 +1176,11 @@
          (sequencer (.sequencer *audio*))
          (track1 (add-new-track sequencer))
          (plugin (make-instance 'instrument-plugin-module
-                                :plugin-name "Dexed"
-                                :name "Dexed" :x 200 :y 250))
-         ;; (reverb (make-instance 'effect-plugin-module
-         ;;                        :plugin-name "MTurboRevebMB"
-         ;;                        :name "MTurboRevebMB" :x 350 :y 250))
+                                :plugin-name "Zebralette"
+                                :name "Zebralette" :x 200 :y 250))
          (master (.master *audio*))
          (pattern1 (make-instance 'pattern-module
-                                  :name "plack"
+                                  :name "Pattern1"
                                   :length line-length
                                   :lines (list-to-pattern-lines
                                           (list a4 e4 none g4
@@ -1178,8 +1188,6 @@
                                   :x 5  :y 250 :height 200)))
     (connect track1 plugin)
     (connect plugin master)
-    ;; (connect plugin reverb)
-    ;; (connect reverb master)
     (add-pattern track1 pattern1 0 line-length)
     (setf (.modules *app*)
           (list sequencer master
