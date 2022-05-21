@@ -531,7 +531,10 @@
 (defmethod render ((self pattern-editor) renderer)
   (let ((texture (multiple-value-call
                      #'sdl2:create-texture renderer :rgba8888 :target
-                   (multiple-value-call (lambda (w h) (values (* w 2) (* h 2)))
+                   (multiple-value-call
+                       ;; window からはみ出ると render-copy でひずむので
+                       (lambda (w h) (values (+ w (.width self))
+                                             (+ h (.height self))))
                      (sdl2:get-window-size (.win *app*))))))
     (unwind-protect
          (progn
