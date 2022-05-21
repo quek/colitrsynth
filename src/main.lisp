@@ -304,6 +304,14 @@
 (defmethod close ((self module) &key abort)
   (declare (ignore abort)))
 
+(defmethod keydown ((self module) value scancode mod-value)
+  (if (sdl2:scancode= scancode :scancode-delete)
+      (progn
+       (disconnect-all self)
+       (remove-module self)
+       (close self))
+      (call-next-method)))
+
 (defmethod mousebuttondown :before ((self null) button state clicks x y)
   (setf (.selected-module *app*) nil))
 

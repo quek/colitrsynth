@@ -145,6 +145,12 @@
   (setf (.out in) (remove out (.out in)))
   (setf (.in out) (remove in (.in out))))
 
+(defmethod disconnect-all ((self audio-module))
+  (loop for in in (copy-list (.in self))
+        do (disconnect in self))
+  (loop for out in (copy-list (.out self))
+        do (disconnect self out)))
+
 (defmethod route ((self audio-module) left right)
   (loop for out in (.out self)
         do (play-frame out left right)))
