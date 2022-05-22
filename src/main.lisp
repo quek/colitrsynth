@@ -557,9 +557,10 @@
   (let ((texture (multiple-value-call
                      #'sdl2:create-texture renderer :rgba8888 :target
                    (multiple-value-call
-                       ;; window からはみ出ると render-copy でひずむので
+                       ;; window からはみ出ると表示がひずむので
                        (lambda (w h) (values (+ w (.width self))
-                                             (+ h (.height self))))
+                                             ;; 最後の方にスクロールしたとき表示がひずむので
+                                             (+ h (.height self) (.height self))))
                      (sdl2:get-window-size (.win *app*))))))
     (unwind-protect
          (let ((play-x (+ (* (.cursor-x self) *char-width*)  (.absolute-x self) 2))
@@ -1237,7 +1238,7 @@
           (list sequencer master))))
 
 (defun make-plugin-test-modules ()
-  (let* ((line-length 8)
+  (let* ((line-length #x20)
          (sequencer (.sequencer *audio*))
          (track1 (add-new-track sequencer))
          (plugin (make-instance 'instrument-plugin-module
@@ -1248,8 +1249,10 @@
                                   :name "Pattern1"
                                   :length line-length
                                   :lines (list-to-pattern-lines
-                                          (list a4 e4 none g4
-                                                a4 off  g4 c4))
+                                          (list a4 none none none e5 none a5 none
+                                                a4 off e5 a4 off a4 off e5 a5 off
+                                                a4 none none none e5 none a5 none
+                                                a4 off e5 a4 off a4 off e5 a5 off))
                                   :x 5  :y 250 :height 200)))
     (connect track1 plugin)
     (connect plugin master)
