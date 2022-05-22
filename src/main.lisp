@@ -463,7 +463,7 @@
 (defmethod drop ((self disable-drag-connect-mixin) dropped x y (button (eql 3))))
 
 (defclass text (function-value-mixin renderable)
-  ((lat-value :initform "" :accessor .last-value)
+  ((last-value :initform "" :accessor .last-value)
    (texture :initform nil :accessor .texture))
   (:default-initargs :width 0 :height 0 :value "くえっ"))
 
@@ -820,8 +820,18 @@
                      :height 300))
 
 (defmethod initialize-instance :after ((self pattern-module) &key)
-  (let ((pattern-editor (.pattern-editor self)))
+  (let* ((pattern-editor (.pattern-editor self))
+         (octave (make-instance 'text :value (lambda ()
+                                               (format nil "~d" (.octave pattern-editor)))
+                                      :x (- (.width self) (* *char-width* 4) *layout-space*)
+                                      :y *layout-space*))
+         (edit-step (make-instance 'text :value (lambda ()
+                                                  (format nil "~2,'0d" (.edit-step pattern-editor)))
+                                         :x (- (.width self) (* *char-width* 2) *layout-space*)
+                                         :y *layout-space*)))
     (add-child self pattern-editor)
+    (add-child self octave)
+    (add-child self edit-step)
     (setf (.pattern pattern-editor) self
           (.x pattern-editor) 5
           (.y pattern-editor) (+ 5 *font-size*)
