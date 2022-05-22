@@ -533,6 +533,8 @@
    (edit-step :initform 0 :accessor .edit-step)))
 
 (defmethod render :before ((self pattern-editor) renderer)
+  (when (.playing *audio*)
+    (setf (.cursor-y self) (.current-line (.pattern self))))
   (let ((pattern-lines (.lines (.pattern self))))
     (if (/= (length pattern-lines)
             (length (.lines self)))
@@ -543,7 +545,7 @@
           (loop for pattern-line across pattern-lines
                 for y from 2 by *char-height*
                 for line = (make-instance 'pattern-editor-line :line pattern-line
-                                                        :x 3 :y y)
+                                                               :x 3 :y y)
                 do (push line (.lines self))
                    (add-child self line))
           (setf (.lines self) (nreverse (.lines self))))
@@ -590,7 +592,7 @@
                   (dst-y (.absolute-y self))
                   (dst-w (.width self))
                   (dst-h (.height self))
-                  (offset-y (- play-y dst-y (round (/ dst-h 2)) (- (round (/ *char-height* 2)))))
+                  (offset-y (- cursor-y dst-y (round (/ dst-h 2)) (- (round (/ *char-height* 2)))))
                   (src-x dst-x)
                   (src-y (+ dst-y offset-y))
                   (src-w dst-w)
