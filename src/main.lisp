@@ -626,7 +626,8 @@
                (zerop (.cursor-x self)))
              (set-note (note)
                (when (on-note)
-                 (setf (.note (aref (.lines (.pattern self)) (.cursor-y self)))
+                 ;; TODO column
+                 (setf (.note (aref (.columns (aref (.lines (.pattern self)) (.cursor-y self))) 0))
                        note)
                  (step-next)))
              (set-velocity (velocity)
@@ -635,9 +636,12 @@
                  (5 (set-velocity-0x velocity))))
              (set-velocity-x0 (velocity)
                (when (<= velocity 7)
-                 (setf (.velocity (aref (.lines (.pattern self)) (.cursor-y self)))
-                       (+ (* velocity #x10)
-                          (mod (.velocity (aref (.lines (.pattern self)) (.cursor-y self))) #x10)))
+                 ;; TODO column
+                 (let* ((line (aref (.lines (.pattern self)) (.cursor-y self)))
+                        (column (aref (.columns line) 0)))
+                   (setf (.velocity column)
+                         (+ (* velocity #x10)
+                            (mod (.velocity column) #x10))))
                  (step-next)))
              (set-velocity-0x (velocity)
                (setf (.velocity (aref (.lines (.pattern self)) (.cursor-y self)))
@@ -757,7 +761,8 @@
 
 (defmethod render :before ((self pattern-editor-line) renderer)
   (let* ((line (.line self))
-         (midino (.note line))
+         (column (aref (.columns line) 0))
+         (midino (.note column))
          (string (case midino
                    (#.off "OFF")
                    (#.none "---")
@@ -766,7 +771,7 @@
                       (if (char/= (char string 1) #\#)
                           (format nil "~a-~a ~2,'0X"
                                   (char string 0) (char string 1)
-                                  (.velocity line))
+                                  (.velocity column))
                           string))))))
     (setf (.value self) (format nil "~2,'0X ~a" *pattern-line-index* string))))
 

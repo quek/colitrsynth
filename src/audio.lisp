@@ -227,15 +227,21 @@
                 (write-master-buffer)
                 (setf (.current-line self) start-line)))))))
 
-(defclass line ()
+(defclass column ()
   ((note :initarg :note :initform none :accessor .note)
    (velocity :initarg :velocity :initform 100 :accessor .velocity)))
+
+(defclass line ()
+  ((columns :initarg :columns :accessor .columns
+            :initform (make-array 16 :initial-contents
+                                  (loop repeat 16 collect (make-instance 'column))))
+   (length :initarg :lenght :initform 1 :accessor .length)))
 
 (defclass pattern (audio-module)
   ((length :initarg :length :initform #x20 :accessor .length)
    (lines :initarg :lines :accessor .lines)
    (current-line :initform 0 :accessor .current-line)
-   (last-note :initform off :accessor .last-note)))
+   (last-notes :initform (make-array 16 :initial-element off) :accessor .last-notes)))
 
 (defmethod initialize-instance :after ((self pattern) &key)
   (unless (slot-boundp self 'lines)
@@ -272,26 +278,27 @@
           for current-frame = (floor (- (* (- current-line arg-start-line) frames-per-line)
                                         start-frame))
           for line = (aref (.lines pattern) current-line)
-          for note = (.note line)
-          for last-note = (.last-note pattern)
-
-          if (or (and (<= c0 note)
-                      (<= c0 last-note)
-                      (/= note last-note))
-                 (and (= note off) (<= c0 last-note)))
-            do (push (make-instance 'midi-event :event +midi-event-off+
-                                                :note last-note
-                                                :velocity 0
-                                                :frame current-frame)
-                     events)
-          if (<= c0 note)
-            do (push (make-instance 'midi-event :event +midi-event-on+
-                                                :note note
-                                                :velocity (.velocity line)
-                                                :frame current-frame)
-                     events)
-          if (/= note none)
-            do (setf (.last-note pattern) note))
+          do (loop for column across (.columns line)
+                   for i below (.length line)
+                   for note = (.note column)
+                   for last-note = (aref (.last-notes pattern) i)
+                   if (or (and (<= c0 note)
+                               (<= c0 last-note)
+                               (/= note last-note))
+                          (and (= note off) (<= c0 last-note)))
+                     do (push (make-instance 'midi-event :event +midi-event-off+
+                                                         :note last-note
+                                                         :velocity 0
+                                                         :frame current-frame)
+                              events)
+                   if (<= c0 note)
+                     do (push (make-instance 'midi-event :event +midi-event-on+
+                                                         :note note
+                                                         :velocity (.velocity column)
+                                                         :frame current-frame)
+                              events)
+                   if (/= note none)
+                     do (setf (aref (.last-notes pattern) i) note)))
     (nreverse events)))
 
 (defclass osc (audio-module)
@@ -506,7 +513,9 @@
   (make-array (length list)
               :initial-contents 
               (loop for x in list
-                    collect (make-instance 'line :note x))))
+                    for line = (make-instance 'line)
+                    do (setf (.note (aref (.columns line) 0)) x)
+                    collect line)))
 
 (defun scratch-audio ()
   ;;(declare (optimize (speed 3) (safety 0)))
