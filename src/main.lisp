@@ -322,7 +322,9 @@
 (defmethod keydown ((self module) value scancode mod-value)
   (if (and (sdl2:scancode= scancode :scancode-delete)
            (not (zerop (logand mod-value sdl2-ffi:+kmod-shift+)))
-           (not (zerop (logand mod-value sdl2-ffi:+kmod-ctrl+))))
+           (not (zerop (logand mod-value sdl2-ffi:+kmod-ctrl+)))
+           (not (eq self (.sequencer *audio*)))
+           (not (eq self (.master *audio*))))
       (progn
         (disconnect-all self)
         (remove-module self)
