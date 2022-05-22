@@ -760,20 +760,26 @@
   ((line :initarg :line :accessor .line)))
 
 (defmethod render :before ((self pattern-editor-line) renderer)
-  (let* ((line (.line self))
-         (column (aref (.columns line) 0))
-         (midino (.note column))
-         (string (case midino
-                   (#.off "OFF")
-                   (#.none "---")
-                   (t
-                    (let ((string (format nil "~a" (midino-to-note midino))))
-                      (if (char/= (char string 1) #\#)
-                          (format nil "~a-~a ~2,'0X"
-                                  (char string 0) (char string 1)
-                                  (.velocity column))
-                          string))))))
-    (setf (.value self) (format nil "~2,'0X ~a" *pattern-line-index* string))))
+  (setf (.value self)
+        (with-output-to-string (out)
+          (format out "~2,'0X" *pattern-line-index*)
+          (loop with line = (.line self)
+                repeat (.length line)
+                for column across (.columns line)
+                for note = (.note column)
+                do (cond ((= note off)
+                          (write-string "OFF   " out))
+                         ((= note none)
+                          (write-string "---   " out))
+                         (t
+                          (let* ((c-s-o (format nil "~a" (midino-to-note note)))
+                                 (c (char c-s-o 0))
+                                 (s (if (char= (char c-s-o 1) #\#)
+                                        #\#
+                                        #\-))
+                                 (o (char c-s-o (if (char= s #\#) 2 1))))
+                            (format out " ~c~c~c ~2,'0X"
+                                    c s o (.velocity column)))))))))
 
 (defparameter *track-height* 40)        ;TODO 固定長で妥協
 
