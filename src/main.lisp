@@ -573,13 +573,15 @@
                                              (+ h (.height self) (.height self))))
                      (sdl2:get-window-size (.win *app*))))))
     (unwind-protect
-         (let ((play-x (+ (* (.cursor-x self) *char-width*)  (.absolute-x self) 2))
+         (let ((play-x (.absolute-x self))
                (play-y (+ (* (.current-line (.pattern self)) *char-height*) (.absolute-y self) 2))
                (play-w (.width self))
                (play-h *char-height*)
                (cursor-x (+ (* *char-width* (+ 3 (.cursor-x self)))  (.absolute-x self) 2))
                (cursor-y (+ (* (.cursor-y self) *char-height*) (.absolute-y self) 2))
-               (cursor-w (if (zerop (.cursor-x self)) (* *char-width* 3) *char-width*))
+               (cursor-w (if (zerop (mod (.cursor-x self) +column-width+))
+                             (* *char-width* 3)
+                             *char-width*))
                (cursor-h *char-height*))
            (sdl2:set-render-target renderer texture)
            (sdl2:set-texture-blend-mode texture :blend)
@@ -1374,9 +1376,9 @@
                                   :length line-length
                                   :lines (list-to-pattern-lines
                                           (list a4 none none none e5 none a5 none
-                                                a4 off e5 a4 off a4 off e5 a5 off
+                                                a4 off e5 a4 off a4 off e5
                                                 a4 none none none e5 none a5 none
-                                                a4 off e5 a4 off a4 off e5 a5 off))
+                                                a4 off e5 a4 off a4 off e5))
                                   :x 5  :y 250 :height 200)))
     (connect track1 plugin)
     (connect plugin master)
