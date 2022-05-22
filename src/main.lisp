@@ -54,7 +54,13 @@
   (:method (self x y xrel yrel state)))
 
 (defgeneric keydown (self value scancode mod-value)
-  (:method (self value scancode mod-value)))
+  (:method (self value scancode mod-value)
+    (cond ((sdl2:scancode= scancode :scancode-space )
+           (if (.playing *audio*)
+               (stop)
+               (play)))
+          ((sdl2:scancode= scancode :scancode-f)
+           (open-menu)))))
 
 (defgeneric keyup (self value scancode mod-value)
   (:method (self value scancode mod-value)))
@@ -1299,10 +1305,7 @@
             (sdl2:sym-value keysym)
             scancode
             mod-value)
-    (aif (.selected-module *app*)
-         (keydown it value scancode mod-value)
-         (cond ((sdl2:scancode= scancode :scancode-f)
-                (open-menu))))))
+    (keydown (.selected-module *app*) value scancode mod-value)))
 
 (defun handle-sdl2-keyup-event (keysym)
   (let  ((value (sdl2:sym-value keysym))
