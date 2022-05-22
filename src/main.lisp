@@ -14,6 +14,10 @@
 (defparameter *plugin-host-exe* "C:/Users/ancient/Documents/Visual Studio 2022/PluginHost/Builds/VisualStudio2022/x64/Debug/App/PluginHost.exe")
 (defparameter *plugin-host-pipe-name* "\\\\.\\pipe\\pluin-host")
 
+;;;; 処理の都合上必要なこ
+(defvar *pattern-scroll-lock* nil)
+(defvar *pattern-line-index*)
+
 (defparameter *transparency* #xc0)
 
 (defconstant +mouse-button-count+ 16)
@@ -55,10 +59,12 @@
 
 (defgeneric keydown (self value scancode mod-value)
   (:method (self value scancode mod-value)
-    (cond ((sdl2:scancode= scancode :scancode-space )
-           (if (.playing *audio*)
-               (stop)
-               (play)))
+    (cond ((sdl2:scancode= scancode :scancode-scrolllock)
+           (setf *pattern-scroll-lock* (not *pattern-scroll-lock*)))
+          ((sdl2:scancode= scancode :scancode-space )
+              (if (.playing *audio*)
+                  (stop)
+                  (play)))
           ((sdl2:scancode= scancode :scancode-f)
            (open-menu)))))
 
@@ -533,7 +539,8 @@
    (edit-step :initform 0 :accessor .edit-step)))
 
 (defmethod render :before ((self pattern-editor) renderer)
-  (when (.playing *audio*)
+  (when (and (.playing *audio*)
+             (not *pattern-scroll-lock*))
     (setf (.cursor-y self) (.current-line (.pattern self))))
   (let ((pattern-lines (.lines (.pattern self))))
     (if (/= (length pattern-lines)
@@ -549,6 +556,7 @@
                 do (push line (.lines self))
                    (add-child self line))
           (setf (.lines self) (nreverse (.lines self))))
+        ;; PERFORMANCE 毎回やる必要ないよね
         (loop for pattern-line across pattern-lines
               for pattern-editor-line in (.lines self)
               do (setf (.line pattern-editor-line) pattern-line)))))
@@ -567,7 +575,7 @@
                (play-y (+ (* (.current-line (.pattern self)) *char-height*) (.absolute-y self) 2))
                (play-w (.width self))
                (play-h *char-height*)
-               (cursor-x (+ (* (.cursor-x self) *char-width*)  (.absolute-x self) 2))
+               (cursor-x (+ (* *char-width* (+ 3 (.cursor-x self)))  (.absolute-x self) 2))
                (cursor-y (+ (* (.cursor-y self) *char-height*) (.absolute-y self) 2))
                (cursor-w (if (zerop (.cursor-x self)) (* 3 *char-width*) *char-width*))
                (cursor-h *char-height*))
@@ -587,7 +595,9 @@
               renderer
               (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h)))
            (loop for child in (.children self)
-                 do (render child renderer))
+                 for i from 0
+                 do (let ((*pattern-line-index* i))
+                      (render child renderer)))
            (sdl2:set-render-target renderer nil)
            (let* ((dst-x (.absolute-x self))
                   (dst-y (.absolute-y self))
@@ -611,13 +621,14 @@
                    note)))
       (cond ((or (sdl2:scancode= scancode :scancode-up)
                  (sdl2:scancode= scancode :scancode-k))
-             (setf (.cursor-y self)
-                   (max (1- (.cursor-y self)) 0)))
+             (when (minusp (decf (.cursor-y self)))
+               (setf (.cursor-y self)
+                     (1- (length (.lines (.pattern self)))))))
             ((or (sdl2:scancode= scancode :scancode-down)
                  (sdl2:scancode= scancode :scancode-j))
-             (setf (.cursor-y self)
-                   (min (1+ (.cursor-y self))
-                        (1- (length (.lines (.pattern self)))))))
+             (when (= (incf (.cursor-y self))
+                      (length (.lines (.pattern self))))
+               (setf (.cursor-y self) 0)))
             #+nil
             ((and (or (sdl2:scancode= scancode :scancode-left)
                       (sdl2:scancode= scancode :scancode-h))
@@ -689,7 +700,7 @@
                       (if (char/= (char string 1) #\#)
                           (format nil "~a-~a" (char string 0) (char string 1))
                           string))))))
-    (setf (.value self) string)))
+    (setf (.value self) (format nil "~2,'0X ~a" *pattern-line-index* string))))
 
 (defparameter *track-height* 40)        ;TODO 固定長で妥協
 
@@ -805,7 +816,8 @@
 
 (defclass pattern-module (pattern module)
   ((pattern-editor :initform (make-instance 'pattern-editor) :accessor .pattern-editor))
-  (:default-initargs :name "pattern"))
+  (:default-initargs :name "pattern"
+                     :height 300))
 
 (defmethod initialize-instance :after ((self pattern-module) &key)
   (let ((pattern-editor (.pattern-editor self)))
