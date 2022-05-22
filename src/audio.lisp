@@ -228,7 +228,8 @@
                 (setf (.current-line self) start-line)))))))
 
 (defclass line ()
-  ((note :initarg :note :initform none :accessor .note)))
+  ((note :initarg :note :initform none :accessor .note)
+   (velocity :initarg :velocity :initform 100 :accessor .velocity)))
 
 (defclass pattern (audio-module)
   ((length :initarg :length :initform #x20 :accessor .length)
@@ -270,7 +271,8 @@
     (loop for current-line from start-line to (min end-line (1- (.length pattern)))
           for current-frame = (floor (- (* (- current-line arg-start-line) frames-per-line)
                                         start-frame))
-          for note = (.note (aref (.lines pattern) current-line))
+          for line = (aref (.lines pattern) current-line)
+          for note = (.note line)
           for last-note = (.last-note pattern)
 
           if (or (and (<= c0 note)
@@ -285,7 +287,7 @@
           if (<= c0 note)
             do (push (make-instance 'midi-event :event +midi-event-on+
                                                 :note note
-                                                :velocity 100
+                                                :velocity (.velocity line)
                                                 :frame current-frame)
                      events)
           if (/= note none)
