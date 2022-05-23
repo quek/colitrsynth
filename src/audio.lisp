@@ -19,7 +19,7 @@
 (defparameter *frames-per-buffer* 1024)
 (defparameter *sample-rate* 48000.0d0)
 (defun sec-per-line ()
-  (/ 60.0d0 (.bpm *audio*) (.lpb *audio*)))
+  (/ 60.0d0 (.bpm (.sequencer *audio*)) (.lpb (.sequencer *audio*))))
 (defun sec-per-frame ()
   (/ 1.0d0 *sample-rate*))
 (defun frames-per-line ()
@@ -73,9 +73,6 @@
     :type fixnum
     :accessor .output-channels)
    (buffer :accessor .buffer)
-   (bpm :initarg :bpm :initform 90.0d0 :accessor .bpm
-        :type double-float)
-   (lpb :initarg :lpb :initform 4 :accessor .lpb)
    (sequencer :initarg :sequencer :accessor .sequencer
               :initform (make-instance 'sequencer-module :x 5 :y 5))
    (master :accessor .master
@@ -194,7 +191,10 @@
     (route track midi-events start-frame)))
 
 (defclass sequencer (audio-module)
-  ((tracks :initarg :tracks :accessor .tracks :initform nil)
+  ((bpm :initarg :bpm :initform 90.0d0 :accessor .bpm
+        :type double-float)
+   (lpb :initarg :lpb :initform 4 :accessor .lpb)
+   (tracks :initarg :tracks :accessor .tracks :initform nil)
    (end :initform 0 :accessor .end)
    (loop :initform t :accessor .loop)
    (current-line :initform 0 :accessor .current-line)))

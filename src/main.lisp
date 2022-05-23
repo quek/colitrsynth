@@ -21,6 +21,7 @@
 (defparameter *transparency* #xc0)
 
 (defconstant +mouse-button-count+ 16)
+(defconstant +column-width+ 7)
 
 (defvar *app*)
 
@@ -617,8 +618,6 @@
              (sdl2:render-copy renderer texture :source-rect src-rect :dest-rect dst-rect)))
       (sdl2:destroy-texture texture))))
 
-(defconstant +column-width+ 7)
-
 (defmethod keydown ((self pattern-editor) value scancode mod-value)
   (let* ((shift-p (not (zerop (logand mod-value sdl2-ffi:+kmod-shift+))))
          (ctrl-p (not (zerop (logand mod-value sdl2-ffi:+kmod-ctrl+))))
@@ -875,8 +874,10 @@
 (defmethod initialize-instance :after ((self sequencer-module) &key)
   (let* ((play-button (make-instance 'button :text "▶" :x 5 :y *layout-space*))
          (add-track-button (make-instance 'button :text "+track" :x 35 :y *layout-space*))
-         (bpm (make-instance 'text :value (lambda () (format nil "BPM ~d" (.bpm *audio*)))
-                                   :x 100 :y *layout-space*)))
+         (bpm (make-instance 'text
+                             :value (lambda ()
+                                      (format nil "BPM ~f" (.bpm (.sequencer *audio*))))
+                             :x 100 :y *layout-space*)))
     (add-child self play-button)
     (add-child self add-track-button)
     (add-child self bpm)
@@ -890,9 +891,9 @@
 
 (defmethod keydown ((self sequencer-module) value scancode mod-value)
   (cond ((sdl2:scancode= scancode :scancode-1)
-         (decf (.bpm *audio*)))
+         (decf (.bpm (.sequencer *audio*))))
         ((sdl2:scancode= scancode :scancode-2)
-         (incf (.bpm *audio*)))
+         (incf (.bpm (.sequencer *audio*))))
         (t (call-next-method))))
 
 (defmethod render :after ((self sequencer-module) renderer)
@@ -1068,6 +1069,9 @@
     (add-child self button)
     (defmethod click ((button (eql button)) btn x y)
       (open-editor self)))
+  (run-plugin-host self))
+
+(defmethod run-plugin-host ((self plugin-module))
   (setf (.host-process self)
         (sb-ext:run-program *plugin-host-exe* (list (.plugin-name self)) :wait nil))
   (let ((pipe (sb-win32::create-named-pipe (format nil "~a~a" *plugin-host-pipe-name*
@@ -1311,6 +1315,18 @@
             plugin-descriptions))
     plugin-descriptions))
 
+(defmethod lepis::emit ((self stream) stream)
+  (print nil stream))
+
+(defmethod lepis::emit ((self sb-impl::process) stream)
+  (print nil stream))
+
+(defmethod lepis::emit ((self sb-thread:mutex) stream)
+    (print nil stream))
+
+(defmethod lepis::emit ((self sdl2-ffi::sdl-texture) stream)
+    (print nil stream))
+
 
 (defun main ()
   (sb-thread:make-thread 'main-loop))
@@ -1335,7 +1351,7 @@
 
       (sdl2:with-window (win :title "CoLiTrSynth" :w (.width *app*) :h (.height *app*)
                              :flags '(:resizable)
-                         :x 1 :y 25)    ;デバッグするのにこの位置が楽
+                             :x 1 :y 25)    ;デバッグするのにこの位置が楽
         (setf (.win *app*) win)
         (sdl2:with-renderer (renderer win :flags '(:accelerated))
           (format t "Setting up window/gl.~%")
@@ -1344,26 +1360,46 @@
           (sdl2:show-window win)
           (format t "Beginning main loop.~%")
           (finish-output)
-          (with-audio
-            ;;(make-default-modules)
-            ;; (make-test-modules)
-            (make-plugin-test-modules)
-            (sdl2:with-event-loop (:method :poll)
-              (:keydown (:keysym keysym)
-                        (handle-sdl2-keydown-event keysym))
-              (:keyup (:keysym keysym)
-                      (handle-sdl2-keyup-event keysym))
-              (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
-                            (handle-sdl2-mousemotion-event x y xrel yrel state))
-              (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
-                                (handle-sdl2-mousebuttondown-event button state clicks x y))
-              (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
-                              (handle-sdl2-mousebuttonup-event button state clicks x y))
-              (:idle ()
-                     (handle-sdl2-idle-event renderer))
-              (:quit ()
-                     (handle-sdl2-quit-event)
-                     t))))))))
+          
+          (lepis:with-db ((format nil "~a\\Documents\\CoLiTrSynth\\"
+                                  (sb-posix:getenv "USERPROFILE")))
+            (with-audio
+              (let ((modules (lepis:@ 'modules)))
+                (if modules
+                    (progn
+                      (setf (.modules *app*) modules)
+                      (setf (.sequencer *audio*)
+                            (loop for module in modules
+                                    thereis (and (typep module 'sequencer-module)
+                                                 module)))
+                      (setf (.master *audio*)
+                            (loop for module in modules
+                                    thereis (and (typep module 'master-module)
+                                                 module)))
+                      (loop for module in modules
+                            if (typep module 'plugin-module)
+                              do (run-plugin-host module)))
+                    (progn
+                      ;; (make-default-modules)
+                      ;; (make-test-modules)
+                      (make-plugin-test-modules)
+                      (lepis:! 'modules (.modules *app*)))))
+              (sdl2:with-event-loop (:method :poll)
+                (:keydown (:keysym keysym)
+                          (handle-sdl2-keydown-event keysym))
+                (:keyup (:keysym keysym)
+                        (handle-sdl2-keyup-event keysym))
+                (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
+                              (handle-sdl2-mousemotion-event x y xrel yrel state))
+                (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
+                                  (handle-sdl2-mousebuttondown-event button state clicks x y))
+                (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
+                                (handle-sdl2-mousebuttonup-event button state clicks x y))
+                (:idle ()
+                       (handle-sdl2-idle-event renderer))
+                (:quit ()
+                       (handle-sdl2-quit-event)
+                       t)))))))))
 
 (defun make-default-modules ()
   (let* ((sequencer (.sequencer *audio*))

@@ -5,6 +5,7 @@
                :ieee-floats
                :cl-ppcre
                :cxml :cxml-stp :xpath
+               :lepis
                :anaphora)
   :pathname "src"
   :serial t
