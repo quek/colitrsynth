@@ -11,6 +11,9 @@
   :serial t
   :components
   ((:file "package")
+   (:file "prelude")
    (:file "midi")
    (:file "audio")
+   (:file "model")
+   (:file "view")
    (:file "main")))
