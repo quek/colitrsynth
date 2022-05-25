@@ -52,7 +52,7 @@
                     (models (lepis:@ 'models)))
                 (if models
                     (let ((modules (loop for model in models
-                                         do (make-module model))))
+                                         collect (make-module model))))
                       (setf (.modules *app*) modules)
                       (setf *sequencer-module*
                             (loop for module in modules

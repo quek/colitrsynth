@@ -877,6 +877,8 @@
     (add-child self play-button)
     (add-child self add-track-button)
     (add-child self bpm)
+    (loop for track in (.tracks (.model self))
+          do (add-new-track-after self track))
     (let ((sequencer self))
       (defmethod click ((self (eql play-button)) (button (eql 1)) x y)
         (if (.playing *audio*)
@@ -904,7 +906,7 @@
 
 (defmethod resize :after ((self sequencer-module) xrel yrel)
   ;; TODO 小さくするとはみ出るし、拡大縮小もした方がいいかもしれない
-  (loop for track in (.tracks self)
+  (loop for track in (.track-views self)
         do (resize track xrel 0)))
 
 (defmethod drag-start ((self sequencer-module) x y (button (eql 3)))
@@ -918,8 +920,11 @@
     (drop it dropped (- x (.x it)) (- y (.y it)) button)))
 
 (defmethod add-new-track ((self sequencer-module))
+  (add-new-track-after self (add-new-track (.model self))))
+
+(defmethod add-new-track-after ((self sequencer-module) (track track))
   (let* ((track (add-new-track (.model self)))
-         (y (+ 13 *font-size* (* (length (.tracks (.model self)))
+         (y (+ 13 *font-size* (* (length (.track-views self))
                                  (1- *track-height*))))
          (track-view (progn
                        (setf (.x track) 5)
