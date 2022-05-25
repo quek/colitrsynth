@@ -14,10 +14,6 @@
 (defmethod lepis::emit ((self sb-thread:mutex) stream)
     (print nil stream))
 
-(defmethod lepis::emit ((self sdl2-ffi::sdl-texture) stream)
-    (print nil stream))
-
-
 (defun main ()
   (sb-thread:make-thread 'main-loop))
 
@@ -53,9 +49,10 @@
             (with-audio
               (let ((*sequencer-module* nil)
                     (*master-module* nil)
-                    (modules (lepis:@ 'modules)))
-                (if modules
-                    (progn
+                    (models (lepis:@ 'models)))
+                (if models
+                    (let ((modules (loop for model in models
+                                         do (make-module model))))
                       (setf (.modules *app*) modules)
                       (setf *sequencer-module*
                             (loop for module in modules
@@ -77,8 +74,10 @@
                       (setf *master-module*
                             (make-instance 'master-module))
                       (setf (.master *audio*) (.model *master-module*))
-                      (setf (.modules *app*) (make-plugin-test-modules))
-                      (lepis:! 'modules (.modules *app*))))
+                      (setf (.modules *app*)
+                            ;; (make-plugin-test-modules)
+                            (make-builtin-test-modules)
+                            )))
                 (setf (.sequencer *audio*) (.model *sequencer-module*))
                 (setf (.master *audio*) (.model *master-module*))
                 (sdl2:with-event-loop (:method :poll)
@@ -125,6 +124,33 @@
     (connect plugin *master-module*)
     (add-pattern track1 pattern1 0 line-length)
     (list *sequencer-module* *master-module* pattern1 plugin)))
+
+(defun make-builtin-test-modules ()
+  (let* ((line-length #x20)
+         (track1 (add-new-track *sequencer-module*))
+         (pattern1 (make-instance
+                    'pattern-module
+                    :model
+                    (make-instance
+                     'pattern
+                     :name "Pattern1"
+                     :x 5 :y 250 :height 200
+                     :length line-length
+                     :lines (list-to-pattern-lines
+                             (list a4 none none none e5 none a5 none
+                                   a4 off e5 a4 off a4 off e5
+                                   a4 none none none e5 none a5 none
+                                   a4 off e5 a4 off a4 off e5)))))
+         (saw (make-module (make-instance 'saw-osc :x 200 :y 250)))
+         (adsr (make-module (make-instance 'adsr :x 300 :y 250)))
+         (amp (make-module (make-instance 'amp :x 400 :y 300))))
+    (connect track1 saw)
+    (connect track1 adsr)
+    (connect saw amp)
+    (connect adsr amp)
+    (connect amp *master-module*)
+    (add-pattern track1 pattern1 0 line-length)
+    (list *sequencer-module* *master-module* pattern1 saw adsr amp)))
 
 (defun handle-sdl2-keydown-event (keysym)
   (let ((value (sdl2:sym-value keysym))
@@ -197,7 +223,8 @@
   (sdl2:delay #.(floor (/ 1000 60.0))))   ;ms
 
 (defun handle-sdl2-quit-event ()
-  (lepis:! 'modules (.modules *app*))
+  (lepis:! 'models (loop for module in (.modules *app*)
+                         collect (.model module)))
   (loop for module in (.modules *app*)
         do (close module))
   (when (.font *app*)

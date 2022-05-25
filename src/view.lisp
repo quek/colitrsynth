@@ -21,6 +21,7 @@
 (defconstant +mouse-button-count+ 16)
 (defconstant +column-width+ 7)
 
+(defgeneric make-module (model))
 
 (defgeneric render (self renderer)
   (:method (self renderer)))
@@ -1004,18 +1005,15 @@
 
 (defclass sin-osc-module (module osc-module-mixin)
   ()
-  (:default-initargs :name "sin"
-                     :model (make-instance 'sin-osc)))
+  (:default-initargs :model (make-instance 'sin-osc)))
 
 (defclass saw-osc-module (module osc-module-mixin)
   ()
-  (:default-initargs :name "saw"
-                     :model (make-instance 'saw-osc)))
+  (:default-initargs :model (make-instance 'saw-osc)))
 
 (defclass adsr-module (module)
   ()
-  (:default-initargs :name "adsr" :height 95
-                     :model (make-instance 'adsr)))
+  (:default-initargs :model (make-instance 'adsr)))
 
 (defmethod initialize-instance :after ((self adsr-module) &key)
   (let ((x *layout-space*)
@@ -1068,13 +1066,11 @@
 
 (defclass amp-module (module)
   ()
-  (:default-initargs :name "amp"
-                     :model (make-instance 'amp)))
+  (:default-initargs :model (make-instance 'amp)))
 
-(defclass master-module (master module)
+(defclass master-module (module)
   ()
-  (:default-initargs 
-                     :model (make-instance 'master)))
+  (:default-initargs :model (make-instance 'master)))
 
 (defclass menu-module (disable-drag-connect-mixin module)
   ((filter :initform "initialize-instance :after で上書く" :accessor .filter)
@@ -1157,12 +1153,10 @@
 (defmethod click ((self menu-plugin-button) (button (eql 1)) x y)
   (let* ((plugin-description (.plugin-description self))
          (class (if (.is-instrument plugin-description)
-                    (list 'instrument-plugin-module 'instrument-plugin-model)
-                    (list 'effect-plugin-module 'effect-plugin-module))))
-    (add-module (make-instance
-                 (car class)
-                 :model
-                 (make-instance (cadr class)
+                    'instrument-plugin-module
+                    'effect-plugin-module)))
+    (add-module (make-module 
+                 (make-instance class
                                 :x (- (.mouse-x *app*) 10)
                                 :y (- (.mouse-y *app*) 10)
                                 :plugin-description plugin-description)))
@@ -1175,3 +1169,29 @@
     (add-module module)
     (setf (.selected-module *app*) module)))
 
+(defmethod make-module ((self sequencer))
+  (make-instance 'sequencer-module :model self))
+
+(defmethod make-module ((self master))
+  (make-instance 'master-module :model self))
+
+(defmethod make-module ((self instrument-plugin-model))
+  (make-instance 'instrument-plugin-module :model self))
+
+(defmethod make-module ((self effect-plugin-model))
+  (make-instance 'effect-plugin-module :model self))
+
+(defmethod make-module ((self pattern))
+  (make-instance 'pattern-module :model self))
+
+(defmethod make-module ((self saw-osc))
+  (make-instance 'saw-osc-module :model self))
+
+(defmethod make-module ((self sin-osc))
+  (make-instance 'sin-osc-module :model self))
+
+(defmethod make-module ((self adsr))
+  (make-instance 'adsr-module :model self))
+
+(defmethod make-module ((self amp))
+  (make-instance 'amp-module :model self))

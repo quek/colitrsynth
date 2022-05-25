@@ -233,14 +233,16 @@
   (route self (.buffer self) (.buffer self)))
 
 (defclass sin-osc (osc)
-  ())
+  ()
+  (:default-initargs :name "sin"))
 
 (defmethod osc-frame-value ((self sin-osc))
   (sin (* (/ (* 2 pi (midino-to-freq (.note self))) *sample-rate*)
           (.phase self))))
 
 (defclass saw-osc (osc)
-  ())
+  ()
+  (:default-initargs :name "saw"))
 
 (defmethod osc-frame-value ((self saw-osc))
   (* 0.3d0        ;TODO 音大きいのでとりあえずつけとく。本来はいらない？
@@ -258,7 +260,8 @@
    (buffer :initform (make-buffer) :accessor .buffer)
    (last-gate :initform nil :accessor .last-gate)
    (frame :initform 0 :accessor .frame)
-   (release-time :initform 0.0d0 :accessor .release-time)))
+   (release-time :initform 0.0d0 :accessor .release-time))
+  (:default-initargs :name "adsr" :height 95))
 
 (defmethod process ((self adsr) midi-events frame)
   (flet ((midi-event (i on-or-off)
@@ -302,7 +305,8 @@
 (defclass amp (model)
   ((left :initform (make-buffer) :accessor .left)
    (right :initform (make-buffer) :accessor .right)
-   (in-count :initform 0 :accessor .in-count)))
+   (in-count :initform 0 :accessor .in-count))
+  (:default-initargs :name "amp"))
 
 (defmethod process ((self amp) left right)
   (loop for i below *frames-per-buffer*
