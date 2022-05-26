@@ -923,8 +923,7 @@
   (add-new-track-after self (add-new-track (.model self))))
 
 (defmethod add-new-track-after ((self sequencer-module) (track track))
-  (let* ((track (add-new-track (.model self)))
-         (y (+ 13 *font-size* (* (length (.track-views self))
+  (let* ((y (+ 13 *font-size* (* (length (.track-views self))
                                  (1- *track-height*))))
          (track-view (progn
                        (setf (.x track) 5)

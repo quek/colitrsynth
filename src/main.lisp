@@ -5,13 +5,13 @@
 (delegate-model module)
 (delegate-model track-view)
 
-(defmethod lepis::emit ((self stream) stream)
+(defmethod lepis::emit ((self stream) stream sharp-dot)
   (print nil stream))
 
-(defmethod lepis::emit ((self sb-impl::process) stream)
+(defmethod lepis::emit ((self sb-impl::process) stream sharp-dot)
   (print nil stream))
 
-(defmethod lepis::emit ((self sb-thread:mutex) stream)
+(defmethod lepis::emit ((self sb-thread:mutex) stream sharp-dot)
     (print nil stream))
 
 (defun main ()
