@@ -813,6 +813,10 @@
           :initform (make-instance 'track
                                    :width 690 :height *track-height*) )))
 
+(defmethod initialize-instance :after ((self track-view) &key)
+  (loop for pattern-position in (.pattern-positions (.model self))
+        do (add-pattern-after self pattern-position)))
+
 (defmethod drop ((self track-view) (dropped drag-connect-mixin) x y (button (eql 3))))
 
 (defun pixcel-to-line (pixcel)
@@ -928,6 +932,8 @@
          (track-view (progn
                        (setf (.x track) 5)
                        (setf (.y track) y)
+                       (setf (.width track) (- (.width self) (* *layout-space* 2)))
+                       (setf (.height track) *track-height*)
                        (make-instance 'track-view :model track))))
     (add-child self track-view)
     (setf (.track-views self) (append (.track-views self) (list track-view)))
@@ -960,14 +966,18 @@
 (defmethod add-pattern ((track-view track-view)
                         (pattern pattern-module)
                         start end)
-  (let* ((pattern-position (add-pattern (.model track-view)
-                                        (.model pattern) start end))
-         (view (make-instance 'pattern-position-view :model pattern-position)))
+  (let ((pattern-position (add-pattern (.model track-view)
+                                       (.model pattern) start end)))
+    (add-pattern-after track-view pattern-position)))
+
+(defmethod add-pattern-after ((track-view track-view)
+                              (pattern-position pattern-position))
+  (let ((view (make-instance 'pattern-position-view :model pattern-position)))
     (add-child track-view view)
     (setf (.x view) (* *pixcel-per-line* (.start pattern-position))
           (.y view) 2
           (.width view) (* *pixcel-per-line* (- (.end pattern-position)
-                                            (.start pattern-position)))
+                                                (.start pattern-position)))
           (.height view) (- (.height track-view) 4))))
 
 (defmethod close ((self pattern-module) &key abort)

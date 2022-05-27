@@ -45,7 +45,9 @@
           (finish-output)
           
           (lepis:with-db ((format nil "~a\\Documents\\CoLiTrSynth\\"
-                                  (sb-posix:getenv "USERPROFILE")))
+                                  (sb-posix:getenv "USERPROFILE"))
+                          :dump-threshold-second nil
+                          :dump-when-close nil)
             (with-audio
               (let ((*sequencer-module* nil)
                     (*master-module* nil)
@@ -141,9 +143,9 @@
                                    a4 off e5 a4 off a4 off e5
                                    a4 none none none e5 none a5 none
                                    a4 off e5 a4 off a4 off e5)))))
-         (saw (make-module (make-instance 'saw-osc :x 200 :y 250)))
+         (saw (make-module (make-instance 'saw-osc :x 150 :y 250)))
          (adsr (make-module (make-instance 'adsr :x 300 :y 250)))
-         (amp (make-module (make-instance 'amp :x 400 :y 300))))
+         (amp (make-module (make-instance 'amp :x 200 :y 400))))
     (connect track1 saw)
     (connect track1 adsr)
     (connect saw amp)
@@ -225,6 +227,7 @@
 (defun handle-sdl2-quit-event ()
   (lepis:! 'models (loop for module in (.modules *app*)
                          collect (.model module)))
+  (lepis:dump-db)
   (loop for module in (.modules *app*)
         do (close module))
   (when (.font *app*)
