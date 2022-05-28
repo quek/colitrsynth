@@ -1102,8 +1102,7 @@
   (let ((button (make-instance 'button :text "Open" :x *layout-space* :y (+ *font-size* *layout-space*))))
     (add-child self button)
     (defmethod click ((button (eql button)) btn x y)
-      (open-editor (.model self))))
-  (run-plugin-host (.model self)))
+      (open-editor (.model self)))))
 
 (defmethod close ((self plugin-module) &key abort)
   (close (.model self) :abort abort)

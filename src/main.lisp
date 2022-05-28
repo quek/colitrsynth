@@ -45,7 +45,9 @@
                     (models (lepis:@ 'models)))
                 (if models
                     (let ((modules (loop for model in models
-                                         collect (make-module model))))
+                                         collect (progn
+                                                   (initialize model)
+                                                   (make-module model)))))
                       (setf (.views *app*) modules)
                       (setf *sequencer-module*
                             (loop for module in modules

@@ -2,6 +2,7 @@
 
 (defparameter *transparency* #xc0)
 
+(defgeneric initialize (x))
 (defgeneric connect (in out))
 (defgeneric disconnect (in out))
 (defgeneric disconnect-all (self))
@@ -22,6 +23,11 @@
 (defclass model (name-mixin renderable)
   ((in :initarg :in :accessor .in :initform nil)
    (out :initarg :out :accessor .out :initform nil)))
+
+(defmethod initialize-instance :after ((self model) &key)
+  (initialize self))
+
+(defmethod initialize ((self model)))
 
 (defmethod connect ((in model) (out model))
   (push out (.out in))
@@ -54,7 +60,14 @@
 
 (defclass track (model)
   ((pattern-positions :initform nil :accessor .pattern-positions)
-   (buffer :initform (make-buffer :initial-element nil :element-type t) :accessor .buffer)))
+   (buffer :accessor .buffer)))
+
+(defmethod initialize ((self track))
+  (setf (.buffer self) (make-buffer :initial-element nil :element-type t)))
+
+(defmethod lepis:emit-slot ((self track) (slot (eql 'buffer)) stream)
+  (format stream " NIL")
+  nil)
 
 (defun play-track (track start-line start-frame end-line end-frame)
   (let* ((frames-per-line (frames-per-line))
@@ -208,10 +221,17 @@
 
 (defclass osc (model)
   ((note :initarg :note :initform off :accessor .note)
-   (buffer :initform (make-buffer) :accessor .buffer)
+   (buffer :accessor .buffer)
    (value :initform 0.0d0 :accessor .value)
    (phase :initform 0.0d0 :accessor .phase
           :type double-float)))
+
+(defmethod initialize ((self osc))
+  (setf (.buffer self) (make-buffer)))
+
+(defmethod lepis:emit-slot ((self osc) (slot (eql 'buffer)) stream)
+  (format stream " NIL")
+  nil)
 
 (defmethod process ((self osc) midi-events frame)
   (flet ((midi-event (i on-or-off)
@@ -263,11 +283,19 @@
    (d :initarg :d :initform 0.05d0 :accessor .d)
    (s :initarg :s :initform 0.3d0 :accessor .s)
    (r :initarg :r :initform 0.1d0 :accessor .r)
-   (buffer :initform (make-buffer) :accessor .buffer)
+   (buffer :accessor .buffer)
    (last-gate :initform nil :accessor .last-gate)
    (frame :initform 0 :accessor .frame)
    (release-time :initform 0.0d0 :accessor .release-time))
   (:default-initargs :name "Adsr" :height 95))
+
+(defmethod initialize ((self adsr))
+  (setf (.buffer self) (make-buffer)))
+
+(defmethod lepis:emit-slot ((self adsr) (slot (eql 'buffer)) stream)
+  (format stream " NIL")
+  nil)
+
 
 (defmethod process ((self adsr) midi-events frame)
   (flet ((midi-event (i on-or-off)
@@ -309,10 +337,22 @@
     (route self buffer buffer)))
 
 (defclass amp (model)
-  ((left :initform (make-buffer) :accessor .left)
-   (right :initform (make-buffer) :accessor .right)
+  ((left :accessor .left)
+   (right :accessor .right)
    (in-count :initform 0 :accessor .in-count))
   (:default-initargs :name "Amp"))
+
+(defmethod initialize ((self amp))
+  (setf (.left self) (make-buffer))
+  (setf (.right self) (make-buffer)))
+
+(defmethod lepis:emit-slot ((self amp) (slot (eql 'left)) stream)
+  (format stream " NIL")
+  nil)
+
+(defmethod lepis:emit-slot ((self amp) (slot (eql 'right)) stream)
+  (format stream " NIL")
+  nil)
 
 (defmethod process ((self amp) left right)
   (loop for i below *frames-per-buffer*
@@ -331,11 +371,23 @@
                    (aref (.right self) i) 1.0d0))))
 
 (defclass master (model)
-  ((left :initform (make-buffer) :accessor .left)
-   (right :initform (make-buffer) :accessor .right)
+  ((left :accessor .left)
+   (right :accessor .right)
    (volume :initform 0.6d0 :accessor .volume))
   (:default-initargs  :name "Master" :x 695 :y 515
                       :color (list #xff #xa5 #x00 *transparency*)))
+
+(defmethod initialize ((self master))
+  (setf (.left self) (make-buffer))
+  (setf (.right self) (make-buffer)))
+
+(defmethod lepis:emit-slot ((self master) (slot (eql 'left)) stream)
+  (format stream " NIL")
+  nil)
+
+(defmethod lepis:emit-slot ((self master) (slot (eql 'right)) stream)
+  (format stream " NIL")
+  nil)
 
 (defmethod process ((self master) left right)
   (loop for i below *frames-per-buffer*
@@ -353,19 +405,21 @@
   ((plugin-description :initarg :plugin-description :accessor .plugin-description)
    (host-process :accessor .host-process)
    (host-io :accessor .host-io)
-   (out-buffer  :accessor .out-buffer
-                :initform (make-array (* *frames-per-buffer* 9) :element-type 'unsigned-byte))
-   (in-buffer  :accessor .in-buffer
-               :initform (make-array (* *frames-per-buffer* 4) :element-type 'unsigned-byte))
-   (left-buffer :initform (make-buffer) :accessor .left-buffer)
-   (right-buffer :initform (make-buffer) :accessor .right-buffer)
+   (out-buffer :accessor .out-buffer)
+   (in-buffer :accessor .in-buffer)
+   (left-buffer :accessor .left-buffer)
+   (right-buffer :accessor .right-buffer)
    (mutex :accessor .mutex)))
 
-(defclass instrument-plugin-model (plugin-model) ())
-(defclass effect-plugin-model (plugin-model) ())
+(defmethod initialize ((self plugin-model))
+  (setf (.out-buffer self) (make-array (* *frames-per-buffer* 9) :element-type 'unsigned-byte))
+  (setf (.in-buffer self) (make-array (* *frames-per-buffer* 4) :element-type 'unsigned-byte))
+  (setf (.left-buffer self) (make-buffer))
+  (setf (.right-buffer self) (make-buffer))
+  (setf (.mutex self) (sb-thread:make-mutex))
+  (run-plugin-host self))
 
 (defmethod run-plugin-host ((self plugin-model))
-  (setf (.mutex self) (sb-thread:make-mutex))
   (setf (.host-process self)
         (sb-ext:run-program *plugin-host-exe*
                             (list (.name (.plugin-description self)))
@@ -385,6 +439,25 @@
       (write-byte +plugin-command-quit+ io)
       (ignore-errors (force-output io))))
   (call-next-method))
+
+(defmethod lepis:emit-slot ((self plugin-model) (slot (eql 'out-buffer)) stream)
+  (format stream " NIL")
+  nil)
+
+(defmethod lepis:emit-slot ((self plugin-model) (slot (eql 'in-buffer)) stream)
+  (format stream " NIL")
+  nil)
+
+(defmethod lepis:emit-slot ((self plugin-model) (slot (eql 'left-buffer)) stream)
+  (format stream " NIL")
+  nil)
+
+(defmethod lepis:emit-slot ((self plugin-model) (slot (eql 'right-buffer)) stream)
+  (format stream " NIL")
+  nil)
+
+(defclass instrument-plugin-model (plugin-model) ())
+(defclass effect-plugin-model (plugin-model) ())
 
 (defmethod process ((self instrument-plugin-model) midi-events frame)
   (let ((i -1)
