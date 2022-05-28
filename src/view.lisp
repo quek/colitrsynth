@@ -136,10 +136,7 @@
   (setf (aref (slot-value *app* 'click-target-module) button) value))
 
 (defun add-view (view)
-  (push view (.views *app*)))
-
-(defun append-view (view)
-  (setf (.views *app*) (append (.views *app*) (list view))))
+  (setf (.views *app*) (append(.views *app*) (list view))))
 
 (defun remove-view (module)
   (setf (.views *app*) (remove module (.views *app*))))
@@ -1233,7 +1230,7 @@
   (let ((module (make-instance 'menu-view
                                :x (- (.mouse-x *app*) 10)
                                :y (- (.mouse-y *app*) 10))))
-    (append-view module)                ;メニューの背景塗りつぶすために
+    (add-view module)
     (setf (.selected-module *app*) module)))
 
 (defmethod make-module :around ((self model))
