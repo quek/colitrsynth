@@ -501,3 +501,28 @@
              :uid (xpath:string-value (xpath:evaluate "@uid" node)))
             plugin-descriptions))
     plugin-descriptions))
+
+
+(defmethod lepis:emit ((self stream) stream sharp-dot)
+  (print nil stream))
+
+(defmethod lepis:emit ((self sb-impl::process) stream sharp-dot)
+  (print nil stream))
+
+(defmethod lepis:emit ((self sb-thread:mutex) stream sharp-dot)
+    (print nil stream))
+
+(defmethod lepis::store-object ((object stream) hash done)
+  (sunless (gethash object done)
+    (setf it t)
+    (setf (gethash object hash) (hash-table-count hash))))
+
+(defmethod lepis::store-object ((object sb-impl::process) hash done)
+  (sunless (gethash object done)
+    (setf it t)
+    (setf (gethash object hash) (hash-table-count hash))))
+
+(defmethod lepis::store-object ((object sb-thread::mutex) hash done)
+  (sunless (gethash object done)
+    (setf it t)
+    (setf (gethash object hash) (hash-table-count hash))))
