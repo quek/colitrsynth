@@ -143,7 +143,7 @@
    (current-line :initform 0 :accessor .current-line)
    (last-notes :accessor .last-notes
                :initform (make-array 16 :initial-element off)))
-  (:default-initargs :name "pattern" :height 300))
+  (:default-initargs :name "Pattern" :height 300))
 
 (defmethod initialize-instance :after ((self pattern) &key)
   (unless (slot-boundp self 'lines)
@@ -237,7 +237,7 @@
 
 (defclass sin-osc (osc)
   ()
-  (:default-initargs :name "sin"))
+  (:default-initargs :name "Sin"))
 
 (defmethod osc-frame-value ((self sin-osc))
   (sin (* (/ (* 2 pi (midino-to-freq (.note self))) *sample-rate*)
@@ -245,7 +245,7 @@
 
 (defclass saw-osc (osc)
   ()
-  (:default-initargs :name "saw"))
+  (:default-initargs :name "Saw"))
 
 (defmethod osc-frame-value ((self saw-osc))
   (* 0.3d0        ;TODO 音大きいのでとりあえずつけとく。本来はいらない？
@@ -264,7 +264,7 @@
    (last-gate :initform nil :accessor .last-gate)
    (frame :initform 0 :accessor .frame)
    (release-time :initform 0.0d0 :accessor .release-time))
-  (:default-initargs :name "adsr" :height 95))
+  (:default-initargs :name "Adsr" :height 95))
 
 (defmethod process ((self adsr) midi-events frame)
   (flet ((midi-event (i on-or-off)
@@ -309,7 +309,7 @@
   ((left :initform (make-buffer) :accessor .left)
    (right :initform (make-buffer) :accessor .right)
    (in-count :initform 0 :accessor .in-count))
-  (:default-initargs :name "amp"))
+  (:default-initargs :name "Amp"))
 
 (defmethod process ((self amp) left right)
   (loop for i below *frames-per-buffer*
@@ -331,7 +331,7 @@
   ((left :initform (make-buffer) :accessor .left)
    (right :initform (make-buffer) :accessor .right)
    (volume :initform 0.6d0 :accessor .volume))
-  (:default-initargs  :name "master" :x 695 :y 515
+  (:default-initargs  :name "Master" :x 695 :y 515
                       :color (list #xff #xa5 #x00 *transparency*)))
 
 (defmethod process ((self master) left right)

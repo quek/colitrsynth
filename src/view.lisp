@@ -23,6 +23,8 @@
 
 (defgeneric make-module (model))
 
+(defgeneric initialize (module))
+
 (defgeneric render (self renderer)
   (:method (self renderer)))
 
@@ -245,6 +247,16 @@
                   drag-connect-mixin
                   view)
   ((model :initarg :model :accessor .model)))
+
+(defmethod initialize-instance :after ((self module) &key)
+  (initialize self))
+
+(defmethod initialize ((self module))
+  (add-child self
+             (make-instance 'text
+                            :value (lambda () (.name (.model self)))
+                            :x *layout-space*
+                            :y *layout-space*)))
 
 (defmethod close ((self module) &key abort)
   (close (.model self) :abort abort))
@@ -839,7 +851,7 @@
      (let ((module (.selected-pattern *app*)))
        (if (typep module 'pattern-module)
            (let* ((start (pixcel-to-line x))
-                  (end (+ start (.length module))))
+                  (end (+ start (.length (.model module)))))
              (when (every (lambda (x)
                             (or (<= end (.start x))
                                 (<= (.end x) start)))
@@ -870,9 +882,10 @@
   (call-next-method))
 
 (defmethod drop ((self track-view) (pattern-position-view pattern-position-view) x y button)
-  (let ((delta (- (pixcel-to-line (.x pattern-position-view)) (.start pattern-position-view))))
-    (incf (.start pattern-position-view) delta)
-    (incf (.end pattern-position-view) delta)
+  (let* ((pattern-position (.model pattern-position-view))
+         (delta (- (pixcel-to-line (.x pattern-position-view)) (.start pattern-position))))
+    (incf (.start pattern-position) delta)
+    (incf (.end pattern-position) delta)
     (update-sequencer-end)))
 
 (defclass sequencer-module (module)
@@ -997,7 +1010,7 @@
                               (.pattern (.model pattern-position-view))))
                    do (remove-pattern track-view pattern-position-view))))
 
-(defmethod mousebuttondown :before ((self pattern) button state clicks x y)
+(defmethod mousebuttondown :before ((self pattern-module) button state clicks x y)
   (setf (.selected-pattern *app*) self))
 
 (defmethod remove-pattern ((track-view track-view)
@@ -1191,6 +1204,11 @@
                                :y (- (.mouse-y *app*) 10))))
     (add-view module)
     (setf (.selected-module *app*) module)))
+
+(defmethod make-module :around ((self model))
+  (let ((module (call-next-method)))
+    (initialize module)
+    module))
 
 (defmethod make-module ((self sequencer))
   (make-instance 'sequencer-module :model self))
