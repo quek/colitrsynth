@@ -55,7 +55,7 @@
                 (if models
                     (let ((modules (loop for model in models
                                          collect (make-module model))))
-                      (setf (.modules *app*) modules)
+                      (setf (.views *app*) modules)
                       (setf *sequencer-module*
                             (loop for module in modules
                                     thereis (and (typep module 'sequencer-module)
@@ -76,7 +76,7 @@
                       (setf *master-module*
                             (make-instance 'master-module))
                       (setf (.master *audio*) (.model *master-module*))
-                      (setf (.modules *app*)
+                      (setf (.views *app*)
                             ;; (make-plugin-test-modules)
                             (make-builtin-test-modules)
                             )))
@@ -179,7 +179,7 @@
   (setf (.mouse-y *app*) y)
   (let ((module (or (.target (.drag-state *app*))
                     (.drag-resize-module *app*)
-                    (module-at-mouse *app*))))
+                    (view-at-mouse *app*))))
     (mousemotion module
                  (- x (.absolute-x module)) (- y (.absolute-y module))
                  xrel yrel state)))
@@ -188,7 +188,7 @@
   #+nil
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (let ((module (module-at-mouse *app*)))
+  (let ((module (view-at-mouse *app*)))
     (mousebuttondown module
                      button state clicks
                      (- x (.absolute-x module)) (- y (.absolute-y module)))))
@@ -203,7 +203,7 @@
                     (.target drag-state)))
              (and (.dragging *app*)
                   (.drag-resize-module *app*))
-             (module-at-mouse *app*))
+             (view-at-mouse *app*))
     (mousebuttonup it button state clicks
                    (- x (.absolute-x it)) (- y (.absolute-y it))))
   (setf (.drag-resize-module *app*) nil)
@@ -216,8 +216,8 @@
   (sdl2:render-clear renderer)
   (sdl2:set-render-draw-color renderer #xcc #xcc #xcc *transparency*)
 
-  (loop for module in (.modules *app*)
-        do (render module renderer))
+  (loop for view in (.views *app*)
+        do (render view renderer))
   
   (sdl2:render-present renderer)
   (when (.request-stop *audio*)

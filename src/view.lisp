@@ -61,9 +61,9 @@
     (cond ((sdl2:scancode= scancode :scancode-scrolllock)
            (setf *pattern-scroll-lock* (not *pattern-scroll-lock*)))
           ((sdl2:scancode= scancode :scancode-space )
-              (if (.playing *audio*)
-                  (stop)
-                  (play)))
+           (if (.playing *audio*)
+               (stop)
+               (play)))
           ((sdl2:scancode= scancode :scancode-f)
            (open-menu)))))
 
@@ -84,7 +84,7 @@
    (width :initarg :width :initform 800 :accessor .width)
    (height :initarg :height :initform 600 :accessor .height)
    (font :initform nil :accessor .font)
-   (modules :initarg :modules :initform '() :accessor .modules)
+   (views :initarg :views :initform '() :accessor .views)
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
    (selected-module :initform nil :accessor .selected-module)
@@ -94,6 +94,11 @@
    (dragging :initform nil :accessor .dragging)
    (drag-state :initform nil :accessor .drag-state)
    (connect-from-module :initform nil :accessor .connect-from-module)))
+
+(defmethod .modules ((self app))
+  (loop for view in (.views self)
+        if (typep view 'module)
+          collect view))
 
 (defclass drag-state ()
   ((target :initarg :target :accessor .target)
@@ -119,29 +124,32 @@
   ((parent :initarg :parent :initform nil :accessor .parent)
    (children :initarg :children :initform nil :accessor .children)))
 
+(defmethod close ((self view) &key abort)
+  (declare (ignore abort)))
+
 (defun click-target-module (button)
   (aref (slot-value *app* 'click-target-module) button))
 
 (defun (setf click-target-module) (value button)
   (setf (aref (slot-value *app* 'click-target-module) button) value))
 
-(defun add-module (module)
-  (push module (.modules *app*)))
+(defun add-view (module)
+  (push module (.views *app*)))
 
-(defun remove-module (module)
-  (setf (.modules *app*) (remove module (.modules *app*))))
+(defun remove-view (module)
+  (setf (.views *app*) (remove module (.views *app*))))
 
-(defun module-at-mouse (app)
-  (loop for module in (.modules app)
-          thereis (and (<= (.absolute-x module) (.mouse-x app) (+ (.absolute-x module) (.width module)))
-                       (<= (.absolute-y module) (.mouse-y app) (+ (.absolute-y module) (.height module)))
-                       module)))
+(defun view-at-mouse (app)
+  (loop for view in (.views app)
+          thereis (and (<= (.absolute-x view) (.mouse-x app) (+ (.absolute-x view) (.width view)))
+                       (<= (.absolute-y view) (.mouse-y app) (+ (.absolute-y view) (.height view)))
+                       view)))
 
-(defun child-module-at (self x y)
-  (loop for module in (.children self)
-          thereis (and (<= (.x module) x (+ (.x module) (.width module)))
-                       (<= (.y module) y (+ (.y module) (.height module)))
-                       module)))
+(defun child-view-at (self x y)
+  (loop for view in (.children self)
+          thereis (and (<= (.x view) x (+ (.x view) (.width view)))
+                       (<= (.y view) y (+ (.y view) (.height view)))
+                       view)))
 
 (defmethod .root-parent ((self view))
   (aif (.parent self)
@@ -150,35 +158,35 @@
 
 (defmethod mousebuttondown ((self view) button state clicks x y)
   (call-next-method)
-  (awhen (child-module-at self x y)
+  (awhen (child-view-at self x y)
     (mousebuttondown it button state clicks
                      (- x (.x it)) (- y (.y it)))))
 
 (defmethod mousebuttonup ((self view) button state clicks x y)
   (call-next-method)
-  (awhen (child-module-at self x y)
+  (awhen (child-view-at self x y)
     (mousebuttonup it button state clicks
                    (- x (.x it)) (- y (.y it)))))
 
 (defmethod click ((self view) button x y)
   (call-next-method)
-  (awhen (child-module-at self x y)
+  (awhen (child-view-at self x y)
     (click it button (- x (.x it)) (- y (.y it)))))
 
 (defmethod drop ((self view) dropped x y button)
   (call-next-method)
-  (awhen (child-module-at self x y)
+  (awhen (child-view-at self x y)
     (drop it dropped (- x (.x it)) (- y (.y it)) button)))
 
 (defmethod mousemotion ((self view) x y xrel yrel state)
   (call-next-method)
-  (awhen (child-module-at self x y)
-   (mousemotion it (- x (.x it)) (- y (.y it))
-                xrel yrel state)))
+  (awhen (child-view-at self x y)
+    (mousemotion it (- x (.x it)) (- y (.y it))
+                 xrel yrel state)))
 
 (defmethod move ((self view) xrel yrel)
-    (incf (.x self) xrel)
-    (incf (.y self) yrel))
+  (incf (.x self) xrel)
+  (incf (.y self) yrel))
 
 (defmethod resize ((self view) xrel yrel)
   (setf (.width self) (max 20 (+ (.width self) xrel)))
@@ -249,7 +257,7 @@
            (not (eq self (.master *audio*))))
       (progn
         (disconnect-all self)
-        (remove-module self)
+        (remove-view self)
         (close self))
       (call-next-method)))
 
@@ -258,10 +266,10 @@
 
 (defmethod mousebuttondown :before ((self module) button state clicks x y)
   (setf (.selected-module *app*) self)
-  (setf (.modules *app*)
-        (stable-sort (.modules *app*) (lambda (x y)
-                                        (declare (ignore y))
-                                        (eql x self)))))
+  (setf (.views *app*)
+        (stable-sort (.views *app*) (lambda (x y)
+                                      (declare (ignore y))
+                                      (eql x self)))))
 
 (defmethod render :after ((self module) renderer)
   (let ((color (cond ((eq self (.selected-pattern *app*))
@@ -304,7 +312,7 @@
           (if (.dragging drag-state)
               (progn
                 (drag-end self x y button)
-                (drop (module-at-mouse *app*) self
+                (drop (view-at-mouse *app*) self
                       (+ (.absolute-x self) x)
                       (+ (.absolute-y self) y)
                       button))
@@ -646,9 +654,9 @@
                  (step-next)))
              (set-velocity-0x (velocity)
                (let ((column (aref (.columns line) (floor (/ cursor-x +column-width+)))))
-                (setf (.velocity column)
-                      (+ (logand (.velocity column) #xf0)
-                         velocity)))
+                 (setf (.velocity column)
+                       (+ (logand (.velocity column) #xf0)
+                          velocity)))
                (step-next)))
       (cond ((or (sdl2:scancode= scancode :scancode-up)
                  (sdl2:scancode= scancode :scancode-k))
@@ -667,10 +675,10 @@
             ((or (sdl2:scancode= scancode :scancode-left)
                  (sdl2:scancode= scancode :scancode-h))
              (let* ((value (- (print cursor-x) (case (mod cursor-x +column-width+)
-                                           (0 2)
-                                           (4 4)
-                                           (5 1)
-                                           (t 0)))))
+                                                 (0 2)
+                                                 (4 4)
+                                                 (5 1)
+                                                 (t 0)))))
                (when (<= 0 value)
                  (setf (.cursor-x self) (print value)))))
             ((and (or (sdl2:scancode= scancode :scancode-right)
@@ -839,7 +847,7 @@
                (add-pattern self module start end)))
            (call-next-method))))
     (3
-     (awhen (child-module-at self x y)
+     (awhen (child-view-at self x y)
        (remove-pattern self it))
      (call-next-method))))
 
@@ -915,12 +923,12 @@
 
 (defmethod drag-start ((self sequencer-module) x y (button (eql 3)))
   "track-view にディスパッチする。"
-  (awhen (child-module-at self x y)
+  (awhen (child-view-at self x y)
     (drag-start it (- x (.x it)) (- y (.y it)) button)))
 
 (defmethod drop ((self sequencer-module) (dropped drag-connect-mixin) x y (button (eql 3)))
   "track-view にディスパッチする。"
-  (awhen (child-module-at self x y)
+  (awhen (child-view-at self x y)
     (drop it dropped (- x (.x it)) (- y (.y it)) button)))
 
 (defmethod add-new-track ((self sequencer-module))
@@ -1086,12 +1094,12 @@
   ()
   (:default-initargs :model (make-instance 'master)))
 
-(defclass menu-module (disable-drag-connect-mixin module)
+(defclass menu-view (view renderable)
   ((filter :initform "initialize-instance :after で上書く" :accessor .filter)
    (buttons :initform nil :accessor .buttons))
-  (:default-initargs :width 300 :height 200 :name "Menu"))
+  (:default-initargs :width 300 :height 200))
 
-(defmethod initialize-instance :after ((self menu-module) &key)
+(defmethod initialize-instance :after ((self menu-view) &key)
   (let ((button (make-instance 'button :text "Manage Plugins")))
     (add-child self button)
     (push button (.buttons self))
@@ -1120,7 +1128,7 @@
                               :key (lambda (x) (string-downcase (.label x)))))
   (setf (.filter self) ""))
 
-(defmethod (setf .filter) :around (value (self menu-module))
+(defmethod (setf .filter) :around (value (self menu-view))
   (when (not (equal (.filter self) value))
     (call-next-method)
     (let ((regex (ppcre:create-scanner
@@ -1135,7 +1143,7 @@
             else
               do (remove-child self button)))))
 
-(defmethod keydown ((self menu-module) value scancode mod-value)
+(defmethod keydown ((self menu-view) value scancode mod-value)
   (cond ((sdl2:scancode= scancode :scancode-escape)
          (close self))
         ((= value #x08)
@@ -1144,20 +1152,20 @@
         ((<= value 127)
          (setf (.filter self) (format nil "~a~a" (.filter self) (code-char value))))))
 
-(defmethod close ((self menu-module) &key abort)
+(defmethod close ((self menu-view) &key abort)
   (declare (ignore abort))
   (when (eq self (.selected-module *app*))
     (setf (.selected-module *app*) nil))
-  (remove-module self)
+  (remove-view self)
   (call-next-method))
 
 (defclass menu-builtin-button (button)
   ((class :initarg :class :accessor .class)))
 
 (defmethod click ((self menu-builtin-button) (button (eql 1)) x y)
-  (add-module (make-instance (.class self) :name (.label self)
-                                           :x (- (.mouse-x *app*) 10)
-                                           :y (- (.mouse-y *app*) 10)))
+  (add-view (make-instance (.class self) :name (.label self)
+                                         :x (- (.mouse-x *app*) 10)
+                                         :y (- (.mouse-y *app*) 10)))
   (close (.root-parent self)))
 
 (defclass menu-plugin-button (button)
@@ -1167,20 +1175,20 @@
 (defmethod click ((self menu-plugin-button) (button (eql 1)) x y)
   (let* ((plugin-description (.plugin-description self))
          (class (if (.is-instrument plugin-description)
-                    'instrument-plugin-module
-                    'effect-plugin-module)))
-    (add-module (make-module 
-                 (make-instance class
-                                :x (- (.mouse-x *app*) 10)
-                                :y (- (.mouse-y *app*) 10)
-                                :plugin-description plugin-description)))
+                    'instrument-plugin-model
+                    'effect-plugin-model)))
+    (add-view (make-module 
+               (make-instance class
+                              :x (- (.mouse-x *app*) 10)
+                              :y (- (.mouse-y *app*) 10)
+                              :plugin-description plugin-description)))
     (close (.root-parent self))))
 
 (defun open-menu ()
-  (let ((module (make-instance 'menu-module
+  (let ((module (make-instance 'menu-view
                                :x (- (.mouse-x *app*) 10)
                                :y (- (.mouse-y *app*) 10))))
-    (add-module module)
+    (add-view module)
     (setf (.selected-module *app*) module)))
 
 (defmethod make-module ((self sequencer))
