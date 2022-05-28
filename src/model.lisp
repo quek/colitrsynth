@@ -8,6 +8,7 @@
 (defgeneric disconnect-all (self))
 (defgeneric process (model left right))
 (defgeneric route (self left right))
+(defgeneric prepare-save (model))
 
 ;; これも保存したいのでここに書く
 (defclass renderable ()
@@ -49,6 +50,8 @@
 
 (defmethod close ((self model) &key abort)
   (declare (ignore abort)))
+
+(defmethod prepare-save ((self model)))
 
 (defclass pattern-position ()
   ((pattern :initarg :pattern :accessor .pattern)
@@ -400,6 +403,8 @@
 (defconstant +plugin-command-manage+ 3)
 (defconstant +plugin-command-edit+ 4)
 (defconstant +plugin-command-quit+ 5)
+(defconstant +plugin-command-get-state+ 6)
+(defconstant +plugin-command-set-state+ 7)
 
 (defclass plugin-model (model)
   ((plugin-description :initarg :plugin-description :accessor .plugin-description)
@@ -409,6 +414,7 @@
    (in-buffer :accessor .in-buffer)
    (left-buffer :accessor .left-buffer)
    (right-buffer :accessor .right-buffer)
+   (plugin-state :accessor .plugin-state)
    (mutex :accessor .mutex)))
 
 (defmethod initialize ((self plugin-model))
@@ -417,7 +423,9 @@
   (setf (.left-buffer self) (make-buffer))
   (setf (.right-buffer self) (make-buffer))
   (setf (.mutex self) (sb-thread:make-mutex))
-  (run-plugin-host self))
+  (run-plugin-host self)
+  (when (slot-boundp self 'plugin-state)
+    (set-plugin-state self)))
 
 (defmethod run-plugin-host ((self plugin-model))
   (setf (.host-process self)
@@ -439,6 +447,36 @@
       (write-byte +plugin-command-quit+ io)
       (ignore-errors (force-output io))))
   (call-next-method))
+
+(defmethod get-plugin-state ((self plugin-model))
+  (let ((io (.host-io self)))
+    (sb-thread:with-mutex ((.mutex self))
+      (write-byte +plugin-command-get-state+ io)
+      (force-output io)
+      (let* ((len (+ (read-byte io) (ash (read-byte io) 8)))
+             (state (make-array (print len) :element-type '(unsigned-byte 8)
+                                            :initial-element 0)))
+        (print 'read-sequence)
+        (print (read-sequence state io))
+        (setf (.plugin-state self) state)))))
+
+(defmethod set-plugin-state ((self plugin-model))
+  (let ((io (.host-io self))
+        (state (.plugin-state self)))
+    (sb-thread:with-mutex ((.mutex self))
+      (write-byte +plugin-command-set-state+ io)
+      (loop repeat 100
+            until (ignore-errors (not (force-output io)))
+            do (sleep 0.1))
+      (print (write-byte (mod (length state) #x100) io))
+      (print (write-byte (ash (length state) -8) io))
+      (print (force-output io))
+      (write-sequence state io)
+      (print 'write-sequence)
+      (print (force-output io)))))
+
+(defmethod prepare-save ((self plugin-model))
+  (get-plugin-state self))
 
 (defmethod lepis:emit-slot ((self plugin-model) (slot (eql 'out-buffer)) stream)
   (format stream " NIL")

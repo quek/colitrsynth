@@ -161,7 +161,9 @@
 
 (defun handle-sdl2-quit-event ()
   (lepis:! 'models (loop for module in (.modules *app*)
-                         collect (.model module)))
+                         collect (let ((model (.model module)))
+                                   (prepare-save model)
+                                   model)))
   (lepis:dump-db)
   (loop for module in (.modules *app*)
         do (close module))
