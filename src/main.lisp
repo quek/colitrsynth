@@ -56,10 +56,7 @@
                             (loop for module in modules
                                     thereis (and (typep module 'master-module)
                                                  module)))
-                      (setf (.master *audio*) (.model *master-module*))
-                      (loop for module in modules
-                            if (typep module 'plugin-module)
-                              do (run-plugin-host (.model module))))
+                      (setf (.master *audio*) (.model *master-module*)))
                     (progn
                       (setf *sequencer-module*
                             (make-instance 'sequencer-module))
