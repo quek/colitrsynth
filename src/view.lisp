@@ -133,8 +133,8 @@
 (defun (setf click-target-module) (value button)
   (setf (aref (slot-value *app* 'click-target-module) button) value))
 
-(defun add-view (module)
-  (push module (.views *app*)))
+(defun add-view (view)
+  (push view (.views *app*)))
 
 (defun remove-view (module)
   (setf (.views *app*) (remove module (.views *app*))))
@@ -392,7 +392,7 @@
 (defmethod drop ((self drag-connect-mixin) (dropped drag-connect-mixin) x y (button (eql 3)))
   (let ((from (.connect-from-module *app*)))
     (when (and from (not (eq from self)))
-      (if (member self (.out from))
+      (if (member (.model self) (.out from))
           (disconnect from self)
           (connect from self)))
     (setf (.connect-from-module *app*) nil))
@@ -1106,11 +1106,11 @@
     (defmethod click ((button (eql button)) btn x y)
       (sb-ext:run-program *plugin-host-exe* nil :wait nil)
       (close self)))
-  (loop for (name class) in `(("Pattern" pattern-module)
-                              ("Sin" sin-osc-module)
-                              ("Saw" saw-osc-module)
-                              ("Adsr" adsr-module)
-                              ("Amp" amp-module))
+  (loop for (name class) in `(("Pattern" pattern)
+                              ("Sin" sin-osc)
+                              ("Saw" saw-osc)
+                              ("Adsr" adsr)
+                              ("Amp" amp))
         do (let ((button (make-instance 'menu-builtin-button
                                         :text name
                                         :class class)))
@@ -1163,9 +1163,10 @@
   ((class :initarg :class :accessor .class)))
 
 (defmethod click ((self menu-builtin-button) (button (eql 1)) x y)
-  (add-view (make-instance (.class self) :name (.label self)
-                                         :x (- (.mouse-x *app*) 10)
-                                         :y (- (.mouse-y *app*) 10)))
+  (add-view (make-module
+             (make-instance (.class self) :name (.label self)
+                                          :x (- (.mouse-x *app*) 10)
+                                          :y (- (.mouse-y *app*) 10))))
   (close (.root-parent self)))
 
 (defclass menu-plugin-button (button)
