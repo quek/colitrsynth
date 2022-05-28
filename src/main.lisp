@@ -68,7 +68,7 @@
                       (setf (.master *audio*) (.model *master-module*))
                       (loop for module in modules
                             if (typep module 'plugin-module)
-                              do (run-plugin-host module)))
+                              do (run-plugin-host (.model module))))
                     (progn
                       (setf *sequencer-module*
                             (make-instance 'sequencer-module))
@@ -77,8 +77,8 @@
                             (make-instance 'master-module))
                       (setf (.master *audio*) (.model *master-module*))
                       (setf (.views *app*)
-                            ;; (make-plugin-test-modules)
-                            (make-builtin-test-modules)
+                            (make-plugin-test-modules)
+                            ;; (make-builtin-test-modules)
                             )))
                 (setf (.sequencer *audio*) (.model *sequencer-module*))
                 (setf (.master *audio*) (.model *master-module*))
@@ -98,61 +98,6 @@
                   (:quit ()
                          (handle-sdl2-quit-event)
                          t))))))))))
-
-(defun make-plugin-test-modules ()
-  (let* ((line-length #x20)
-         (track1 (add-new-track *sequencer-module*))
-         (plugin (make-instance 'instrument-plugin-module
-                                :model (make-instance
-                                        'instrument-plugin-model
-                                        :x 200 :y 250
-                                        :plugin-description
-                                        (make-instance 'plugin-description
-                                                       :name "Zebralette"))))
-         (pattern1 (make-instance
-                    'pattern-module
-                    :model
-                    (make-instance
-                     'pattern
-                     :name "Pattern1"
-                     :x 5 :y 250 :height 200
-                     :length line-length
-                     :lines (list-to-pattern-lines
-                             (list a4 none none none e5 none a5 none
-                                   a4 off e5 a4 off a4 off e5
-                                   a4 none none none e5 none a5 none
-                                   a4 off e5 a4 off a4 off e5))))))
-    (connect track1 plugin)
-    (connect plugin *master-module*)
-    (add-pattern track1 pattern1 0 line-length)
-    (list *sequencer-module* *master-module* pattern1 plugin)))
-
-(defun make-builtin-test-modules ()
-  (let* ((line-length #x20)
-         (track1 (add-new-track *sequencer-module*))
-         (pattern1 (make-instance
-                    'pattern-module
-                    :model
-                    (make-instance
-                     'pattern
-                     :name "Pattern1"
-                     :x 5 :y 250 :height 200
-                     :length line-length
-                     :lines (list-to-pattern-lines
-                             (list a4 none none none e5 none a5 none
-                                   a4 off e5 a4 off a4 off e5
-                                   a4 none none none e5 none a5 none
-                                   a4 off e5 a4 off a4 off e5)))))
-         (saw (make-module (make-instance 'saw-osc :x 150 :y 250)))
-         (adsr (make-module (make-instance 'adsr :x 300 :y 250)))
-         (amp (make-module (make-instance 'amp :x 200 :y 400))))
-    (connect track1 saw)
-    (connect track1 adsr)
-    (connect saw amp)
-    (connect adsr amp)
-    (connect amp *master-module*)
-    (add-pattern track1 pattern1 0 line-length)
-    (list *sequencer-module* *master-module* pattern1 saw adsr amp)))
 
 (defun handle-sdl2-keydown-event (keysym)
   (let ((value (sdl2:sym-value keysym))
@@ -235,3 +180,53 @@
     (setf (.font *app*) nil))
   (when (= 1 (sdl2-ttf:was-init))
     (sdl2-ttf:quit)))
+
+(defun make-plugin-test-modules ()
+  (let* ((line-length #x20)
+         (track1 (add-new-track *sequencer-module*))
+         (plugin (make-module (make-instance
+                               'instrument-plugin-model
+                               :x 200 :y 250
+                               :plugin-description
+                               (make-instance 'plugin-description
+                                              :name "Zebralette"))))
+         (pattern1 (make-module
+                    (make-instance
+                     'pattern
+                     :name "Pattern1"
+                     :x 5 :y 250 :height 200
+                     :length line-length
+                     :lines (list-to-pattern-lines
+                             (list a4 none none none e5 none a5 none
+                                   a4 off e5 a4 off a4 off e5
+                                   a4 none none none e5 none a5 none
+                                   a4 off e5 a4 off a4 off e5))))))
+    (connect track1 plugin)
+    (connect plugin *master-module*)
+    (add-pattern track1 pattern1 0 line-length)
+    (list *sequencer-module* *master-module* pattern1 plugin)))
+
+(defun make-builtin-test-modules ()
+  (let* ((line-length #x20)
+         (track1 (add-new-track *sequencer-module*))
+         (pattern1 (make-module
+                    (make-instance
+                     'pattern
+                     :name "Pattern1"
+                     :x 5 :y 250 :height 200
+                     :length line-length
+                     :lines (list-to-pattern-lines
+                             (list a4 none none none e5 none a5 none
+                                   a4 off e5 a4 off a4 off e5
+                                   a4 none none none e5 none a5 none
+                                   a4 off e5 a4 off a4 off e5)))))
+         (saw (make-module (make-instance 'saw-osc :x 150 :y 250)))
+         (adsr (make-module (make-instance 'adsr :x 300 :y 250)))
+         (amp (make-module (make-instance 'amp :x 200 :y 400))))
+    (connect track1 saw)
+    (connect track1 adsr)
+    (connect saw amp)
+    (connect adsr amp)
+    (connect amp *master-module*)
+    (add-pattern track1 pattern1 0 line-length)
+    (list *sequencer-module* *master-module* pattern1 saw adsr amp)))

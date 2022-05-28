@@ -41,6 +41,9 @@
   (loop for out in (.out self)
         do (process out left right)))
 
+(defmethod close ((self model) &key abort)
+  (declare (ignore abort)))
+
 (defclass pattern-position ()
   ((pattern :initarg :pattern :accessor .pattern)
    (start :initarg :start :accessor .start)
@@ -343,22 +346,23 @@
 (defconstant +plugin-command-edit+ 4)
 (defconstant +plugin-command-quit+ 5)
 
- (defclass plugin-model (model)
+(defclass plugin-model (model)
   ((plugin-description :initarg :plugin-description :accessor .plugin-description)
    (host-process :accessor .host-process)
    (host-io :accessor .host-io)
    (out-buffer  :accessor .out-buffer
                 :initform (make-array (* *frames-per-buffer* 9) :element-type 'unsigned-byte))
    (in-buffer  :accessor .in-buffer
-                :initform (make-array (* *frames-per-buffer* 4) :element-type 'unsigned-byte))
+               :initform (make-array (* *frames-per-buffer* 4) :element-type 'unsigned-byte))
    (left-buffer :initform (make-buffer) :accessor .left-buffer)
    (right-buffer :initform (make-buffer) :accessor .right-buffer)
-   (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
+   (mutex :accessor .mutex)))
 
 (defclass instrument-plugin-model (plugin-model) ())
 (defclass effect-plugin-model (plugin-model) ())
 
 (defmethod run-plugin-host ((self plugin-model))
+  (setf (.mutex self) (sb-thread:make-mutex))
   (setf (.host-process self)
         (sb-ext:run-program *plugin-host-exe*
                             (list (.name (.plugin-description self)))

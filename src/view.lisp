@@ -247,7 +247,7 @@
   ((model :initarg :model :accessor .model)))
 
 (defmethod close ((self module) &key abort)
-  (declare (ignore abort)))
+  (close (.model self) :abort abort))
 
 (defmethod keydown ((self module) value scancode mod-value)
   (if (and (sdl2:scancode= scancode :scancode-delete)
@@ -1082,7 +1082,7 @@
       (open-editor (.model self))))
   (run-plugin-host (.model self)))
 
-(defmethod close ((self plugin-model) &key abort)
+(defmethod close ((self plugin-module) &key abort)
   (close (.model self) :abort abort)
   (call-next-method))
 
