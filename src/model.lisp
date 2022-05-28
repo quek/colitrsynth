@@ -49,6 +49,9 @@
    (start :initarg :start :accessor .start)
    (end :initarg :end :accessor .end)))
 
+(defmethod .name ((self pattern-position))
+  (.name (.pattern self)))
+
 (defclass track (model)
   ((pattern-positions :initform nil :accessor .pattern-positions)
    (buffer :initform (make-buffer :initial-element nil :element-type t) :accessor .buffer)))

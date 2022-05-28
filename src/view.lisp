@@ -138,6 +138,9 @@
 (defun add-view (view)
   (push view (.views *app*)))
 
+(defun append-view (view)
+  (setf (.views *app*) (append (.views *app*) (list view))))
+
 (defun remove-view (module)
   (setf (.views *app*) (remove module (.views *app*))))
 
@@ -513,7 +516,10 @@
   (:default-initargs :width 50 :height 30))
 
 (defmethod initialize-instance :after ((self button) &key text)
-  (add-child self (make-instance 'text :value text :x 5 :y 2)))
+  (let ((text (make-instance 'text :value text :x 5 :y 2)))
+    (add-child self text)
+    (setf (.width self) (+ 10 (.width text))
+          (.height self) (+ 4 (.height text)))))
 
 (defmethod .label ((self button))
   (.value (car (.children self))))
@@ -870,6 +876,13 @@
   ((model :initarg :model :accessor .model)
    (move-delta-x :initform 0 :accessor .move-delta-x)))
 
+(defmethod initialize-instance :after ((self pattern-position-view) &key)
+  (add-child self
+             (make-instance 'text
+                            :value (lambda () (.name (.model self)))
+                            :x *layout-space*
+                            :y *layout-space*)))
+
 (defmethod drag ((self pattern-position-view) xrel yrel button)
   (let* ((pixcel (+ (.x self) (.move-delta-x self) xrel))
          (line (pixcel-to-line pixcel))
@@ -1108,9 +1121,9 @@
   (:default-initargs :model (make-instance 'master)))
 
 (defclass menu-view (view renderable)
-  ((filter :initform "initialize-instance :after で上書く" :accessor .filter)
+  ((filter :initform nil :accessor .filter)
    (buttons :initform nil :accessor .buttons))
-  (:default-initargs :width 300 :height 200))
+  (:default-initargs :width 400 :height 300))
 
 (defmethod initialize-instance :after ((self menu-view) &key)
   (let ((button (make-instance 'button :text "Manage Plugins")))
@@ -1132,14 +1145,23 @@
   (loop for plugin-description in (load-known-plugins)
         do (let ((button (make-instance 'menu-plugin-button
                                         :text (.name plugin-description)
-                                        :plugin-description plugin-description 
-                                        :y (* (+ *font-size* 4)
-                                              (length (.children self))))))
+                                        :plugin-description plugin-description)))
              (add-child self button)
              (push button (.buttons self))))
   (setf (.buttons self) (sort (.buttons self) #'string<
-                              :key (lambda (x) (string-downcase (.label x)))))
-  (setf (.filter self) ""))
+                              :key (lambda (x) (string-downcase (.label x))))))
+
+(defmethod render :before ((self menu-view) renderer)
+  (sdl2:set-render-draw-color renderer 0 0 0 #xff)
+  (sdl2:render-fill-rect renderer (sdl2:make-rect (.absolute-x self)
+                                                  (.absolute-y self)
+                                                  (.width self)
+                                                  (.height self))))
+
+;; text 幅が renderer がないとわからないためのハック
+(defmethod render :after ((self menu-view) renderer)
+  (when (null (.filter self))
+    (setf (.filter self) "")))
 
 (defmethod (setf .filter) :around (value (self menu-view))
   (when (not (equal (.filter self) value))
@@ -1149,10 +1171,18 @@
                   :case-insensitive-mode t)))
       (loop for button in (.buttons self)
             with i = 0
+            with x = *layout-space*
+            with y = *layout-space*
             if (ppcre:scan regex (.label button))
-              do (add-child self button)
-                 (setf (.y button) (* (+ *font-size* 4)
-                                      (incf i)))
+              do (when (< (.width self) (+ x (.width button) *layout-space*))
+                   (setf x *layout-space*)
+                   (incf y (+ (.height button) *layout-space*)))
+                 (setf (.x button) x)
+                 (setf (.y button) y)
+                 (incf x (+ (.width button) *layout-space*))
+                 (if (< (.height self) (+ y (.height button)))
+                     (remove-child self button)    
+                     (add-child self button))
             else
               do (remove-child self button)))))
 
@@ -1193,6 +1223,7 @@
                     'effect-plugin-model)))
     (add-view (make-module 
                (make-instance class
+                              :name (.name plugin-description)
                               :x (- (.mouse-x *app*) 10)
                               :y (- (.mouse-y *app*) 10)
                               :plugin-description plugin-description)))
@@ -1202,7 +1233,7 @@
   (let ((module (make-instance 'menu-view
                                :x (- (.mouse-x *app*) 10)
                                :y (- (.mouse-y *app*) 10))))
-    (add-view module)
+    (append-view module)                ;メニューの背景塗りつぶすために
     (setf (.selected-module *app*) module)))
 
 (defmethod make-module :around ((self model))
