@@ -126,15 +126,15 @@
                                maximize (.end pattern-position))))))
 
 (defun play-sequencer (self start-line start-frame end-line end-frame)
-  (let ((end (.end self)))
+  (let ((end (.end self))
+        (looped nil))
     (if (zerop end)
         (progn
           (write-master-buffer)
           (setf (.current-line self) 0))
         (progn
-          (when (.loop self)
-            (setf start-line (mod start-line end))
-            (setf end-line (mod end-line end)))
+          (if (and (.loop self) (< end end-line))
+              (setf looped t))
           (if (< end start-line)
               (progn
                 ;; TODO reverb とか残す？
@@ -144,7 +144,8 @@
                 (loop for track in (.tracks self)
                       do (play-track track start-line start-frame end-line end-frame))
                 (write-master-buffer)
-                (setf (.current-line self) start-line)))))))
+                (setf (.current-line self) start-line)))))
+    looped))
 
 (defclass column ()
   ((note :initarg :note :initform none :accessor .note)
