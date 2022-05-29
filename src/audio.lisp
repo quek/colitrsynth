@@ -126,7 +126,6 @@
                      (aref (.left master) i) 0.0d0
                      (aref (.right master) i) 0.0d0)))))
 
-;;⇒ WRITE-MASTER-BUFFER
 (cffi:defcallback audio-callback :int ((input-buffer :pointer)
                                        (output-buffer :pointer)
                                        (frame-per-buffer :unsigned-long)
@@ -191,60 +190,6 @@
            (when (.stream *audio*)
              (stop)
              (pa:close-stream (.stream *audio*))))))))
-
-(defun list-to-pattern-lines (list)
-  (make-array (length list)
-              :initial-contents 
-              (loop for x in list
-                    for line = (make-instance 'line)
-                    do (setf (.note (aref (.columns line) 0)) x)
-                    collect line)))
-
-(defun scratch-audio ()
-  ;;(declare (optimize (speed 3) (safety 0)))
-  (with-audio
-    (let* ((line-length 8)
-           (sequencer (.sequencer *audio*))
-           (track1 (car (push (make-instance 'track) (.tracks sequencer))))
-           (track2 (car (push (make-instance 'track) (.tracks sequencer))))
-           (master (.master *audio*))
-           (pattern1 (make-instance
-                      'pattern
-                      :length line-length
-                      :lines (list-to-pattern-lines
-                              (list a4 e4 none g4
-                                    a4 off  g4 c4))))
-           (osc1 (make-instance 'sin-osc))
-           (adsr1 (make-instance 'adsr :d 0.2d0 :s 0d0))
-           (amp1 (make-instance 'amp))
-           (pattern2 (make-instance
-                      'pattern
-                      :length line-length
-                      :lines (list-to-pattern-lines
-                              (list a3 e3 none g3
-                                    a3 off  g3 c3))))
-           (osc2 (make-instance 'saw-osc))
-           (adsr2 (make-instance 'adsr :d 0.7d0 :s 0.8d0))
-           (amp2 (make-instance 'amp)))
-      (connect track1 osc1)
-      (connect track1 adsr1)
-      (connect osc1 amp1)
-      (connect adsr1 amp1)
-      (connect amp1 master)
-      (connect track2 osc2)
-      (connect track2 adsr2)
-      (connect osc2 amp2)
-      (connect adsr2 amp2)
-      (connect amp2 master)
-      (add-pattern track1 pattern1 0 line-length)
-      (add-pattern track1 pattern1 line-length (* 2 line-length))
-      (add-pattern track2 pattern2 line-length (* 2 line-length))
-      (add-pattern track1 pattern1 (* 2 line-length) (* 3 line-length))
-      (add-pattern track2 pattern2 (* 2 line-length) (* 3 line-length))
-      (setf (.loop sequencer) nil)
-      (play)
-      (loop until (.request-stop *audio*) do (pa:pa-sleep 10)))))
-;;(setf (.request-stop *audio*) t)
 
 (defmacro delegate-model (class)
   `(progn
