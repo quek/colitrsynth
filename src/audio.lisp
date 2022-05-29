@@ -49,7 +49,9 @@
     :initarg sample-format
     :initform :float
     :accessor .sample-format)
+   (processing :initform nil :accessor .processing)
    (playing :initform nil :accessor .playing)
+   (played :initform nil :accessor .played)
    (request-stop :initform nil :accessor .request-stop)
    (start-time
     :initform 0.0d0
@@ -74,36 +76,50 @@
    (sequencer :initarg :sequencer :accessor .sequencer)
    (master :accessor .master)))
 
-(defun play ()
-  (unless (.playing *audio*)
-    (setf (.playing *audio*) t)
-    (setf (.start-time *audio*) 0.0d0)
+(defun start-audio ()
+  (unless (.processing *audio*)
+    (setf (.processing *audio*) t)
     (setf (.request-stop *audio*) nil)
-    (setf (.nframes *audio*) 0)
     (pa:start-stream (.stream *audio*))))
 
-(defun stop ()
-  (when (.playing *audio*)
-    (setf (.playing *audio*) nil)
+(defun stop-audio ()
+  (when (.processing *audio*)
+    (setf (.processing *audio*) nil)
     (pa::stop-stream (.stream *audio*))))
+
+(defun play ()
+  (setf (.start-time *audio*) 0.0d0)
+  (setf (.nframes *audio*) 0)
+  (setf (.playing *audio*) t))
+
+(defun stop ()
+  (setf (.playing *audio*) nil))
+
+(defun playing ()
+  (.playing *audio*))
+
+(defun played ()
+  (.played *audio*))
 
 (defun request-stop ()
   (setf (.request-stop *audio*) t))
 
 
 (defun line-and-frame ()
-  (let* ((sec-per-line (sec-per-line))
-         (sec-per-frame (sec-per-frame))
-         (current-sec (* sec-per-frame (.nframes *audio*)))
-         (start-line (floor (/ current-sec sec-per-line)))
-         (start-frame (floor (/ (mod current-sec sec-per-line) sec-per-frame)))
-         (end-line start-line)
-         (end-frame (+ start-frame *frames-per-buffer*)))
-    (when (< sec-per-line (+ (* sec-per-frame start-frame)
-                           (* sec-per-frame *frames-per-buffer*)))
-      (incf end-line)
-      (decf end-frame (floor (/ sec-per-line sec-per-frame))))
-    (values start-line start-frame end-line end-frame)))
+  (if (playing)
+   (let* ((sec-per-line (sec-per-line))
+          (sec-per-frame (sec-per-frame))
+          (current-sec (* sec-per-frame (.nframes *audio*)))
+          (start-line (floor (/ current-sec sec-per-line)))
+          (start-frame (floor (/ (mod current-sec sec-per-line) sec-per-frame)))
+          (end-line start-line)
+          (end-frame (+ start-frame *frames-per-buffer*)))
+     (when (< sec-per-line (+ (* sec-per-frame start-frame)
+                              (* sec-per-frame *frames-per-buffer*)))
+       (incf end-line)
+       (decf end-frame (floor (/ sec-per-line sec-per-frame))))
+     (values start-line start-frame end-line end-frame))
+   (values 0 0 0 0)))
 
 (defun write-master-buffer ()
   (flet ((limit (value)
@@ -145,11 +161,12 @@
     (setf (.buffer *audio*) output-buffer))
 
   (multiple-value-bind (start-line start-frame end-line end-frame) (line-and-frame)
-    (if (play-sequencer (.sequencer *audio*) start-line start-frame end-line end-frame)
+    (if (process-sequencer (.sequencer *audio*) start-line start-frame end-line end-frame)
         (progn
           (setf (.nframes *audio*) 0)
           (setf (.start-time *audio*) 0.0d0))
         (incf (.nframes *audio*) frame-per-buffer)))
+  (setf (.played *audio*) (.playing *audio*))
   0)
 
 (defmacro with-audio (&body body)
@@ -192,7 +209,7 @@
                          :frames-per-buffer (.frames-per-buffer *audio*))))
                 ,@body)
            (when (.stream *audio*)
-             (stop)
+             (stop-audio)
              (pa:close-stream (.stream *audio*))))))))
 
 (defmacro delegate-model (class)

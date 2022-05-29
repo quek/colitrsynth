@@ -72,6 +72,7 @@
                             )))
                 (setf (.sequencer *audio*) (.model *sequencer-module*))
                 (setf (.master *audio*) (.model *master-module*))
+                (start-audio)
                 (sdl2:with-event-loop (:method :poll)
                   (:keydown (:keysym keysym)
                             (handle-sdl2-keydown-event keysym))
@@ -172,6 +173,14 @@
     (setf (.font *app*) nil))
   (when (= 1 (sdl2-ttf:was-init))
     (sdl2-ttf:quit)))
+
+(defun list-to-pattern-lines (list)
+  (make-array (length list)
+              :initial-contents 
+              (loop for x in list
+                    for line = (make-instance 'line)
+                    do (setf (.note (aref (.columns line) 0)) x)
+                    collect line)))
 
 (defun make-plugin-test-modules ()
   (let* ((line-length #x20)

@@ -91,7 +91,8 @@
                                           (< end-line end))
                                      (midi-events-at-line-frame pattern
                                                                 (- end-line start) 0
-                                                                (- end-line start) end-frame))))
+                                                                (- end-line start)
+                                                                end-frame))))
                                ((and (<= start end-line)
                                      (< start-line end))
                                 (midi-events-at-line-frame pattern
@@ -125,7 +126,7 @@
                 maximize (loop for pattern-position in (.pattern-positions track)
                                maximize (.end pattern-position))))))
 
-(defun play-sequencer (self start-line start-frame end-line end-frame)
+(defun process-sequencer (self start-line start-frame end-line end-frame)
   (let ((end (.end self))
         (looped nil))
     (if (zerop end)
@@ -139,7 +140,7 @@
               (progn
                 ;; TODO reverb とか残す？
                 (write-master-buffer)
-                (request-stop))
+                (stop))
               (progn
                 (loop for track in (.tracks self)
                       do (play-track track start-line start-frame end-line end-frame))
@@ -188,40 +189,45 @@
   (update-sequencer-end))
 
 (defun midi-events-at-line-frame (pattern start-line start-frame end-line end-frame)
-  (declare (ignore end-frame))          ;delay 実装していないので end-frame はまだ使わない
-  (setf (.current-line pattern) start-line)
-  (let* ((frames-per-line (frames-per-line))
-         (arg-start-line start-line)
-         (start-line (if (zerop start-frame)
-                         start-line
-                         (1+ start-line)))
-         events)
-    (loop for current-line from start-line to (min end-line (1- (.length pattern)))
-          for current-frame = (floor (- (* (- current-line arg-start-line) frames-per-line)
-                                        start-frame))
-          for line = (aref (.lines pattern) current-line)
-          do (loop for column across (.columns line)
-                   for i below (.length line)
-                   for note = (.note column)
-                   for last-note = (aref (.last-notes pattern) i)
-                   if (or (and (<= c0 note)
-                               (<= c0 last-note)
-                               (/= note last-note))
-                          (and (= note off) (<= c0 last-note)))
-                     do (push (make-instance 'midi-event :event +midi-event-off+
-                                                         :note last-note
-                                                         :velocity 0
-                                                         :frame current-frame)
-                              events)
-                   if (<= c0 note)
-                     do (push (make-instance 'midi-event :event +midi-event-on+
-                                                         :note note
-                                                         :velocity (.velocity column)
-                                                         :frame current-frame)
-                              events)
-                   if (/= note none)
-                     do (setf (aref (.last-notes pattern) i) note)))
-    (nreverse events)))
+  (declare (ignore end-frame))
+  (if (playing)
+      (progn
+        (setf (.current-line pattern) start-line)
+        (let* ((frames-per-line (frames-per-line))
+               (arg-start-line start-line)
+               (start-line (if (zerop start-frame)
+                               start-line
+                               (1+ start-line)))
+               events)
+          (loop for current-line from start-line to (min end-line (1- (.length pattern)))
+                for current-frame = (floor (- (* (- current-line arg-start-line) frames-per-line)
+                                              start-frame))
+                for line = (aref (.lines pattern) current-line)
+                do (loop for column across (.columns line)
+                         for i below (.length line)
+                         for note = (.note column)
+                         for last-note = (aref (.last-notes pattern) i)
+                         if (or (and (<= c0 note)
+                                     (<= c0 last-note)
+                                     (/= note last-note))
+                                (and (= note off) (<= c0 last-note)))
+                           do (push (make-instance 'midi-event :event +midi-event-off+
+                                                               :note last-note
+                                                               :velocity 0
+                                                               :frame current-frame)
+                                    events)
+                         if (<= c0 note)
+                           do (push (make-instance 'midi-event :event +midi-event-on+
+                                                               :note note
+                                                               :velocity (.velocity column)
+                                                               :frame current-frame)
+                                    events)
+                         if (/= note none)
+                           do (setf (aref (.last-notes pattern) i) note)))
+          (nreverse events)))
+      (if (played)
+          (list (midi-event-all-notes-off))
+          nil)))
 
 (defclass osc (model)
   ((note :initarg :note :initform off :accessor .note)
@@ -510,6 +516,7 @@
     (setf (aref out (incf i)) +plugin-command-instrument+)
     (let ((bpm (ieee-floats:encode-float64 (.bpm (.sequencer *audio*))))
           (nframes (.nframes *audio*)))
+      (setf (aref out (incf i)) (if (playing) 1 0))
       (setf (aref out (incf i)) (mod bpm #x100))
       (setf (aref out (incf i)) (mod (ash bpm -8) #x100))
       (setf (aref out (incf i)) (mod (ash bpm -16) #x100))
@@ -569,6 +576,7 @@
       (write-byte +plugin-command-effect+ io)
       (let ((bpm (ieee-floats:encode-float64 (.bpm (.sequencer *audio*))))
             (nframes (.nframes *audio*)))
+        (write-byte (if (playing) 1 0) io)
         (write-byte (mod bpm #x100) io)
         (write-byte (mod (ash bpm -8) #x100) io)
         (write-byte (mod (ash bpm -16) #x100) io)

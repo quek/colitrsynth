@@ -288,6 +288,7 @@
 
 (defconstant +midi-event-on+ #x90)
 (defconstant +midi-event-off+ #x80)
+(defconstant +midi-cc+ #xB0)
 
 (defclass midi-event ()
   ((event :initarg :event :initform +midi-event-on+ :accessor .event
@@ -309,12 +310,18 @@
               (.velocity self)
               (.frame self))))
 
-(defun write-midi-event (midi-event stream)
-  (write-byte (.event midi-event) stream)
-  (write-byte (.channel midi-event) stream)
-  (write-byte (.note midi-event) stream)
-  (write-byte (.velocity midi-event) stream)
-  (write-byte (.frame midi-event) stream))
+(defun midi-event-all-notes-off ()
+  (make-instance 'midi-event
+                 :event +midi-cc+
+                 :note #x7B))
+
+;; TODO delete
+;; (defun write-midi-event (midi-event stream)
+;;   (write-byte (.event midi-event) stream)
+;;   (write-byte (.channel midi-event) stream)
+;;   (write-byte (.note midi-event) stream)
+;;   (write-byte (.velocity midi-event) stream)
+;;   (write-byte (.frame midi-event) stream))
 
 #+nil
 (flex:with-output-to-sequence (out)
