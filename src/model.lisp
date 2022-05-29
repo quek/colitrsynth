@@ -465,6 +465,7 @@
         (state (.plugin-state self)))
     (sb-thread:with-mutex ((.mutex self))
       (write-byte +plugin-command-set-state+ io)
+      (print '+plugin-command-set-state+)
       (loop repeat 100
             until (ignore-errors (not (force-output io)))
             do (sleep 0.1))
@@ -614,7 +615,12 @@
              :num-outputs (xpath:string-value (xpath:evaluate "@numOutputs" node))
              :uid (xpath:string-value (xpath:evaluate "@uid" node)))
             plugin-descriptions))
-    plugin-descriptions))
+    (loop for x in plugin-descriptions
+          unless  (and (equal (.format x) "VST")
+                       (some (lambda (y) (and (equal (.format y) "VST3")
+                                              (equal (.name x) (.name y))))
+                             plugin-descriptions))
+            collect x)))
 
 
 (defmethod lepis:emit ((self stream) stream sharp-dot)
