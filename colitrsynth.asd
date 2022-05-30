@@ -11,6 +11,7 @@
   :serial t
   :components
   ((:file "package")
+   (:file "ffi")
    (:file "prelude")
    (:file "midi")
    (:file "audio")
