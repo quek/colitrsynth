@@ -23,7 +23,7 @@
               sdl2-ffi:+sdl-patchlevel+)
       (finish-output)
 
-      (sdl2:with-window (win :title "CoLiTrSynth" :w (.width *app*) :h (.height *app*)
+      (sdl2:with-window (win :title "----" :w (.width *app*) :h (.height *app*)
                              :flags '(:resizable)
                              :x 1 :y 25)    ;デバッグするのにこの位置が楽
         (setf (.win *app*) win)

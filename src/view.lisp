@@ -121,6 +121,9 @@
         if (typep view 'module)
           collect view))
 
+(defmethod (setf .song-file) :after (value (self app))
+  (sdl2:set-window-title (.win self) (or value "----")))
+
 (defclass drag-state ()
   ((target :initarg :target :accessor .target)
    (button :initarg :button :accessor .button)
