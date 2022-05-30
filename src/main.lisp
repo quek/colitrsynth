@@ -161,6 +161,7 @@
   (sdl2:delay #.(floor (/ 1000 60.0))))   ;ms
 
 (defun handle-sdl2-quit-event ()
+  (stop-audio)
   (lepis:! 'models (loop for module in (.modules *app*)
                          collect (let ((model (.model module)))
                                    (prepare-save model)
