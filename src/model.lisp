@@ -434,6 +434,10 @@
   (when (slot-boundp self 'plugin-state)
     (set-plugin-state self)))
 
+(defmethod process ((self plugin-model) x y)
+  (when (.host-io self)
+    (call-next-method)))
+
 (defmethod run-plugin-host ((self plugin-model))
   (setf (.host-process self)
         (sb-ext:run-program *plugin-host-exe*
@@ -450,9 +454,12 @@
 (defmethod close ((self plugin-model) &key abort)
   (declare (ignore abort))
   (let ((io (.host-io self)))
-    (sb-thread:with-mutex ((.mutex self))
-      (write-byte +plugin-command-quit+ io)
-      (ignore-errors (force-output io))))
+    (when io
+      (sb-thread:with-mutex ((.mutex self))
+        (write-byte +plugin-command-quit+ io)
+        (ignore-errors (force-output io))
+        (ignore-errors (close io))
+        (setf (.host-io self) nil))))
   (call-next-method))
 
 (defmethod get-plugin-state ((self plugin-model))

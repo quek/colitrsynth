@@ -41,37 +41,8 @@
                           :dump-when-close nil)
             (with-audio
               (let ((*sequencer-module* nil)
-                    (*master-module* nil)
-                    (models (lepis:@ 'models)))
-                (if models
-                    (let ((modules (loop for model in models
-                                         collect (progn
-                                                   (initialize model)
-                                                   (make-module model)))))
-                      (setf (.views *app*) modules)
-                      (setf *sequencer-module*
-                            (loop for module in modules
-                                    thereis (and (typep module 'sequencer-module)
-                                                 module)))
-                      (setf (.sequencer *audio*) (.model *sequencer-module*))
-                      (setf *master-module*
-                            (loop for module in modules
-                                    thereis (and (typep module 'master-module)
-                                                 module)))
-                      (setf (.master *audio*) (.model *master-module*)))
-                    (progn
-                      (setf *sequencer-module*
-                            (make-instance 'sequencer-module))
-                      (setf (.sequencer *audio*) (.model *sequencer-module*))
-                      (setf *master-module*
-                            (make-instance 'master-module))
-                      (setf (.master *audio*) (.model *master-module*))
-                      (setf (.views *app*)
-                            ;; (make-plugin-test-modules)
-                            (make-builtin-test-modules)
-                            )))
-                (setf (.sequencer *audio*) (.model *sequencer-module*))
-                (setf (.master *audio*) (.model *master-module*))
+                    (*master-module* nil))
+                (load-modules)
                 (start-audio)
                 (sdl2:with-event-loop (:method :poll)
                   (:keydown (:keysym keysym)
@@ -158,6 +129,8 @@
   (sdl2:render-present renderer)
   (when (.request-stop *audio*)
     (stop))
+  (awhen (sb-concurrency:receive-message-no-hang (.mbox *app*))
+    (funcall it))
   (sdl2:delay #.(floor (/ 1000 60.0))))   ;ms
 
 (defun handle-sdl2-quit-event ()
@@ -174,6 +147,58 @@
     (setf (.font *app*) nil))
   (when (= 1 (sdl2-ttf:was-init))
     (sdl2-ttf:quit)))
+
+(defun save-song (file)
+  (lepis:! 'models (loop for module in (.modules *app*)
+                         collect (let ((model (.model module)))
+                                   (prepare-save model)
+                                   model)))
+  (lepis::dump-db)
+  (alexandria:copy-file (lepis::db-dump-file lepis::*db*) file)
+  (setf (.song-file *app*) file))
+
+(defun open-song (file)
+  (stop)
+  (stop-audio)
+  (alexandria:copy-file file (lepis::db-dump-file lepis::*db*))
+  (loop for module in (.modules *app*)
+        do (close module))
+  (lepis::load-db lepis::*db*)
+  (load-modules)
+  (start-audio)
+  (setf (.song-file *app*) file))
+
+(defun load-modules ()
+  (let ((models (lepis:@ 'models)))
+    (if models
+        (let ((modules (loop for model in models
+                             collect (progn
+                                       (initialize model)
+                                       (make-module model)))))
+          (setf (.views *app*) modules)
+          (setf *sequencer-module*
+                (loop for module in modules
+                        thereis (and (typep module 'sequencer-module)
+                                     module)))
+          (setf (.sequencer *audio*) (.model *sequencer-module*))
+          (setf *master-module*
+                (loop for module in modules
+                        thereis (and (typep module 'master-module)
+                                     module)))
+          (setf (.master *audio*) (.model *master-module*)))
+        (progn
+          (setf *sequencer-module*
+                (make-instance 'sequencer-module))
+          (setf (.sequencer *audio*) (.model *sequencer-module*))
+          (setf *master-module*
+                (make-instance 'master-module))
+          (setf (.master *audio*) (.model *master-module*))
+          (setf (.views *app*)
+                ;; (make-plugin-test-modules)
+                (make-builtin-test-modules)
+                )))
+    (setf (.sequencer *audio*) (.model *sequencer-module*))
+    (setf (.master *audio*) (.model *master-module*))))
 
 (defun list-to-pattern-lines (list)
   (make-array (length list)

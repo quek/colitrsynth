@@ -6,6 +6,7 @@
                :cl-ppcre
                :cxml :cxml-stp :xpath
                :lepis
+               :sb-concurrency
                :anaphora)
   :pathname "src"
   :serial t

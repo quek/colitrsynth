@@ -97,4 +97,3 @@
             nil
             (cffi:foreign-string-to-lisp lpstrFile :encoding :CP932))))))
 ;;(get-save-file-name)
-
