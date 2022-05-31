@@ -238,7 +238,9 @@
                               events)
                    if (/= note none)
                      do (setf (aref (.last-notes pattern-position) i) note)))
-    (nreverse events)))
+    (sort events (lambda (a b) (if (= (.frame a) (.frame b))
+                                   (< (.event a) (.event b))
+                                   (< (.frame a) (.frame b)))))))
 
 (defclass osc (model)
   ((note :initarg :note :initform off :accessor .note)
