@@ -95,6 +95,12 @@
 (defgeneric resize (self xrel yrel)
   (:method (self xrel yrel)))
 
+(defgeneric focused (self)
+  (:method (self)))
+
+(defgeneric lost-focuse (self)
+  (:method (self)))
+
 (defgeneric .target (self)
   (:method ((self null)) nil))
 
@@ -108,6 +114,7 @@
    (mouse-y :initform 0 :accessor .mouse-y)
    (selected-module :initform nil :accessor .selected-module)
    (selected-pattern :initform nil :accessor .selected-pattern)
+   (focused-view :initform nil :accessor .focused-view)
    (click-target-module :initform (make-array +mouse-button-count+))
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (dragging :initform nil :accessor .dragging)
@@ -120,6 +127,10 @@
   (loop for view in (.views self)
         if (typep view 'module)
           collect view))
+
+(defmethod (setf .focused-view) (view (self app))
+  (lost-focuse (.focused-view self))
+  (focused (setf (slot-value self 'focused-view) view)))
 
 (defmethod (setf .song-file) :after (value (self app))
   (sdl2:set-window-title (.win self) (or value "----")))
@@ -276,7 +287,8 @@
 (defmethod initialize ((self module))
   (add-child self
              (make-instance 'text
-                            :value (lambda () (.name (.model self)))
+                            :reader (lambda () (.name (.model self)))
+                            :writer (lambda (value) (setf (.name (.model self)) value))
                             :x *layout-space*
                             :y *layout-space*)))
 
@@ -506,12 +518,12 @@
 
 (defmethod drop ((self disable-drag-connect-mixin) dropped x y (button (eql 3))))
 
-(defclass text (function-value-mixin view renderable)
+(defclass label (function-value-mixin view renderable)
   ((last-value :initform "" :accessor .last-value)
    (texture :initform nil :accessor .texture))
   (:default-initargs :width 0 :height 0 :value "くえっ"))
 
-(defmethod render ((self text) renderer)
+(defmethod render ((self label) renderer)
   (let ((value (.value self)))
     (when (string/= value "")
       (when (string/= value (.last-value self))
@@ -535,7 +547,7 @@
   (:default-initargs :width 50 :height 30))
 
 (defmethod initialize-instance :after ((self button) &key text)
-  (let ((text (make-instance 'text :value text :x 5 :y 2)))
+  (let ((text (make-instance 'label :value text :x 5 :y 2)))
     (add-child self text)
     (setf (.width self) (+ 10 (.width text))
           (.height self) (+ 4 (.height text)))))
@@ -552,13 +564,101 @@
 (defclass onchange-mixin ()
   ((onchange :initarg :onchange :initform (constantly nil) :accessor .onchange)))
 
+(defclass text (view renderable)
+  ((label :accessor .label)
+   (edit-buffer :initform "" :accessor .edit-buffer)
+   (cursor-position :initform 0 :accessor .cursor-position)
+   (focused :initform nil :accessor .focused)
+   (reader :initarg :reader :accessor .reader)
+   (writer :initarg :writer :accessor .writer))
+  (:default-initargs :height (+ *char-height* 4)))
+
+(defmethod .edit-buffer :around ((self text))
+  (if (.focused self)
+      (call-next-method)
+      (setf (.edit-buffer self) (funcall (.reader self)))))
+
+(defmethod initialize-instance :after ((self text) &key)
+  (setf (.label self) (make-instance 'label
+                                     :value (lambda () (.edit-buffer self))
+                                     :x 3 :y 1))
+  (setf (.cursor-position self) (length (.edit-buffer self)))
+  (add-child self (.label self)))
+
+(defmethod render ((self text) renderer)
+  (let ((cursor-x (+ (.absolute-x self)
+                     2
+                     (* *char-width* (.cursor-position self))))
+        (cursor-y (+ (.absolute-y self) 1))
+        (cursor-w *char-width*)
+        (cursor-h *char-height*))
+    (when (.focused self)
+      (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
+      (sdl2:render-fill-rect
+       renderer
+       (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))
+  (call-next-method)
+  ;; TODO なんかちゃんと動いてない
+  (unless (.focused self)
+    (sdl2:set-render-draw-color renderer #x22 #x22 #x22 #xff)
+    (sdl2:render-draw-rect renderer
+                           (sdl2:make-rect (.absolute-x self)
+                                           (.absolute-y self)
+                                           (.width self)
+                                           (.height self)))))
+
+(defmethod click ((self text) button x y)
+  (unless (eq self (.focused-view *app*))
+    (setf (.focused-view *app*) self)))
+
+(defmethod focused ((self text))
+  (setf (.focused self) t))
+
+(defmethod lost-focuse ((self text))
+  (funcall (.writer self) (.edit-buffer self))
+  (setf (.focused self) nil))
+
+(defmethod keydown ((self text) value scancode mod-value)
+  (let* ((shift-p (not (zerop (logand mod-value sdl2-ffi:+kmod-shift+))))
+         (ctrl-p (not (zerop (logand mod-value sdl2-ffi:+kmod-ctrl+))))
+         (cursor-position (.cursor-position self))
+         (edit-buffer (.edit-buffer self)))
+    (cond ((sdl2:scancode= scancode :scancode-left)
+           (when (< 0 cursor-position)
+             (decf (.cursor-position self))))
+          ((sdl2:scancode= scancode :scancode-right)
+           (when (< cursor-position (length edit-buffer))
+             (incf (.cursor-position self))))
+          ((sdl2:scancode= scancode :scancode-backspace)
+           (when (and (< 0 cursor-position)
+                      (<= cursor-position (length edit-buffer)))
+             (setf (.edit-buffer self)
+                   (concatenate 'string
+                                (subseq edit-buffer 0 (1- cursor-position))
+                                (subseq edit-buffer cursor-position)))
+             (decf (.cursor-position self))))
+          ((sdl2:scancode= scancode :scancode-delete)
+           (when (< cursor-position (length edit-buffer))
+             (setf (.edit-buffer self)
+                   (concatenate 'string
+                                (subseq edit-buffer 0 cursor-position)
+                                (subseq edit-buffer (1+ cursor-position))))))
+          ((ignore-errors (graphic-char-p (code-char value)))
+             (setf (.edit-buffer self)
+                   (concatenate 'string
+                                (subseq edit-buffer 0 cursor-position)
+                                (string (code-char value))
+                                (subseq edit-buffer cursor-position)))
+           (incf (.cursor-position self)))
+          (t (call-next-method)))))
+
 (defclass slider (onchange-mixin
                   function-value-mixin drag-mixin view renderable)
   ((min :initarg :min :initform 0.0d0 :accessor .min)
    (max :initarg :max :initform 1.0d0 :accessor .max)))
 
 (defmethod initialize-instance :after ((self slider) &key)
-  (add-child self (make-instance 'text :value (lambda () (format nil "~,5f" (.value self)))
+  (add-child self (make-instance 'label :value (lambda () (format nil "~,5f" (.value self)))
                                        :x *layout-space* :y (round (/ *layout-space*)))))
 
 (defmethod render ((self slider) renderer)
@@ -823,7 +923,7 @@
              (set-note none))
             (t 'call-next-method)))))
 
-(defclass pattern-editor-line (text)
+(defclass pattern-editor-line (label)
   ((line :initarg :line :accessor .line)))
 
 (defmethod render :before ((self pattern-editor-line) renderer)
@@ -897,7 +997,7 @@
 
 (defmethod initialize-instance :after ((self pattern-position-view) &key)
   (add-child self
-             (make-instance 'text
+             (make-instance 'label
                             :value (lambda () (.name (.model self)))
                             :x *layout-space*
                             :y *layout-space*)))
@@ -927,7 +1027,7 @@
 (defmethod initialize-instance :after ((self sequencer-module) &key)
   (let* ((play-button (make-instance 'button :text "▶" :x 5 :y *layout-space*))
          (add-track-button (make-instance 'button :text "+track" :x 35 :y *layout-space*))
-         (bpm (make-instance 'text
+         (bpm (make-instance 'label
                              :value (lambda ()
                                       (format nil "BPM ~f" (.bpm (.model self))))
                              :x 100 :y *layout-space*)))
@@ -999,11 +1099,11 @@
 
 (defmethod initialize-instance :after ((self pattern-module) &key)
   (let* ((pattern-editor (.pattern-editor self))
-         (octave (make-instance 'text :value (lambda ()
+         (octave (make-instance 'label :value (lambda ()
                                                (format nil "~d" (.octave pattern-editor)))
                                       :x (- (.width self) (* *char-width* 4) *layout-space*)
                                       :y *layout-space*))
-         (edit-step (make-instance 'text :value (lambda ()
+         (edit-step (make-instance 'label :value (lambda ()
                                                   (format nil "~2,'0d" (.edit-step pattern-editor)))
                                          :x (- (.width self) (* *char-width* 2) *layout-space*)
                                          :y *layout-space*)))
@@ -1066,7 +1166,7 @@
 
 (defmethod initialize-instance :after ((self osc-module-mixin) &key)
   (let ((value-text (make-instance
-                     'text :x 20 :y 20
+                     'label :x 20 :y 20
                      :value (lambda () (format nil "~,5f" (.value (.model self)))))))
     (add-child self value-text)))
 

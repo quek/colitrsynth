@@ -70,7 +70,9 @@
             (sdl2:sym-value keysym)
             scancode
             mod-value)
-    (keydown (.selected-module *app*) value scancode mod-value)))
+    (keydown (or (.focused-view *app*)
+                 (.selected-module *app*))
+             value scancode mod-value)))
 
 (defun handle-sdl2-keyup-event (keysym)
   (let  ((value (sdl2:sym-value keysym))
