@@ -285,12 +285,13 @@
   (initialize self))
 
 (defmethod initialize ((self module))
-  (add-child self
-             (make-instance 'text
-                            :reader (lambda () (.name (.model self)))
-                            :writer (lambda (value) (setf (.name (.model self)) value))
-                            :x *layout-space*
-                            :y *layout-space*)))
+  (unless (typep self 'sequencer-module) ;きれいじゃない
+    (add-child self
+               (make-instance 'text
+                              :reader (lambda () (.name (.model self)))
+                              :writer (lambda (value) (setf (.name (.model self)) value))
+                              :x *layout-space*
+                              :y *layout-space*))))
 
 (defmethod close ((self module) &key abort)
   (close (.model self) :abort abort))
@@ -612,7 +613,8 @@
     (setf (.focused-view *app*) self)))
 
 (defmethod focused ((self text))
-  (setf (.focused self) t))
+  (setf (.focused self) t)
+  (setf (.cursor-position self) (length (.edit-buffer self))))
 
 (defmethod lost-focuse ((self text))
   (funcall (.writer self) (.edit-buffer self))
@@ -629,6 +631,11 @@
           ((sdl2:scancode= scancode :scancode-right)
            (when (< cursor-position (length edit-buffer))
              (incf (.cursor-position self))))
+          ((and (sdl2:scancode= scancode :scancode-backspace)
+                ctrl-p)
+           (setf (.edit-buffer self)
+                 (concatenate 'string (subseq edit-buffer cursor-position)))
+           (setf (.cursor-position self) 0))
           ((sdl2:scancode= scancode :scancode-backspace)
            (when (and (< 0 cursor-position)
                       (<= cursor-position (length edit-buffer)))
@@ -643,12 +650,18 @@
                    (concatenate 'string
                                 (subseq edit-buffer 0 cursor-position)
                                 (subseq edit-buffer (1+ cursor-position))))))
+          ((sdl2:scancode= scancode :scancode-return)
+           (setf (.focused-view *app*) nil))
+          ((sdl2:scancode= scancode :scancode-escape)
+           (setf (.edit-buffer self) (funcall (.reader self)))
+           (setf (.focused-view *app*) nil))
           ((ignore-errors (graphic-char-p (code-char value)))
-             (setf (.edit-buffer self)
-                   (concatenate 'string
-                                (subseq edit-buffer 0 cursor-position)
-                                (string (code-char value))
-                                (subseq edit-buffer cursor-position)))
+           (setf (.edit-buffer self)
+                 (concatenate 'string
+                              (subseq edit-buffer 0 cursor-position)
+                              (string (funcall (if shift-p #'char-upcase #'identity)
+                                               (code-char value)))
+                              (subseq edit-buffer cursor-position)))
            (incf (.cursor-position self)))
           (t (call-next-method)))))
 
