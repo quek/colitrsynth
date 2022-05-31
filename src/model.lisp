@@ -56,7 +56,9 @@
 (defclass pattern-position ()
   ((pattern :initarg :pattern :accessor .pattern)
    (start :initarg :start :accessor .start)
-   (end :initarg :end :accessor .end)))
+   (end :initarg :end :accessor .end)
+   (last-notes :accessor .last-notes
+               :initform (make-array 16 :initial-element off))))
 
 (defmethod .name ((self pattern-position))
   (.name (.pattern self)))
@@ -76,7 +78,7 @@
   (let* ((frames-per-line (frames-per-line))
          (midi-events
            (loop for pattern-position in (.pattern-positions track)
-                 nconc (with-slots (pattern start end) pattern-position
+                 nconc (with-slots (start end) pattern-position
                          (cond ((and (or (< end-line start-line)
                                          (and (= start-line end-line)
                                               (< end-frame start-frame))))
@@ -84,21 +86,29 @@
                                 (append
                                  (if (and (<= start start-line)
                                           (< start-line end))
-                                     (midi-events-at-line-frame pattern
+                                     (midi-events-at-line-frame pattern-position
                                                                 (- start-line start) start-frame
                                                                 (- start-line start) frames-per-line))
                                  (if (and (<= start end-line)
                                           (< end-line end))
-                                     (midi-events-at-line-frame pattern
+                                      (midi-events-at-line-frame pattern-position
                                                                 (- end-line start) 0
                                                                 (- end-line start)
                                                                 end-frame))))
                                ((and (<= start end-line)
                                      (< start-line end))
-                                (midi-events-at-line-frame pattern
+                                (midi-events-at-line-frame pattern-position
                                                            (- start-line start) start-frame
                                                            (- end-line start) end-frame)))))))
+    (when midi-events
+      (print midi-events))
     (route track midi-events start-frame)))
+
+(defun play-track-all-off (track start-frame)
+  (route track (print (list (midi-event-all-notes-off))) start-frame))
+
+(defun play-track-no-notes (track start-frame)
+  (route track nil start-frame))
 
 (defclass sequencer (model)
   ((bpm :initarg :bpm :initform 90.0d0 :accessor .bpm
@@ -142,8 +152,15 @@
                 (write-master-buffer)
                 (stop))
               (progn
-                (loop for track in (.tracks self)
-                      do (play-track track start-line start-frame end-line end-frame))
+                (cond ((playing)
+                       (loop for track in (.tracks self)
+                             do (play-track track start-line start-frame end-line end-frame)))
+                      ((played)
+                       (loop for track in (.tracks self)
+                             do (play-track-all-off track start-frame)))
+                      (t
+                       (loop for track in (.tracks self)
+                             do (play-track-no-notes track start-frame))))
                 (write-master-buffer)
                 (setf (.current-line self) start-line)))))
     looped))
@@ -161,9 +178,7 @@
 (defclass pattern (model)
   ((length :initarg :length :initform #x20 :accessor .length)
    (lines :initarg :lines :accessor .lines)
-   (current-line :initform 0 :accessor .current-line)
-   (last-notes :accessor .last-notes
-               :initform (make-array 16 :initial-element off)))
+   (current-line :initform 0 :accessor .current-line))
   (:default-initargs :name "Pattern" :height 300))
 
 (defmethod initialize-instance :after ((self pattern) &key)
@@ -188,46 +203,42 @@
         (remove pattern-position (.pattern-positions track)))
   (update-sequencer-end))
 
-(defun midi-events-at-line-frame (pattern start-line start-frame end-line end-frame)
+(defun midi-events-at-line-frame (pattern-position start-line start-frame end-line end-frame)
   (declare (ignore end-frame))
-  (if (playing)
-      (progn
-        (setf (.current-line pattern) start-line)
-        (let* ((frames-per-line (frames-per-line))
-               (arg-start-line start-line)
-               (start-line (if (zerop start-frame)
-                               start-line
-                               (1+ start-line)))
-               events)
-          (loop for current-line from start-line to (min end-line (1- (.length pattern)))
-                for current-frame = (floor (- (* (- current-line arg-start-line) frames-per-line)
-                                              start-frame))
-                for line = (aref (.lines pattern) current-line)
-                do (loop for column across (.columns line)
-                         for i below (.length line)
-                         for note = (.note column)
-                         for last-note = (aref (.last-notes pattern) i)
-                         if (or (and (<= c0 note)
-                                     (<= c0 last-note)
-                                     (/= note last-note))
-                                (and (= note off) (<= c0 last-note)))
-                           do (push (make-instance 'midi-event :event +midi-event-off+
-                                                               :note last-note
-                                                               :velocity 0
-                                                               :frame current-frame)
-                                    events)
-                         if (<= c0 note)
-                           do (push (make-instance 'midi-event :event +midi-event-on+
-                                                               :note note
-                                                               :velocity (.velocity column)
-                                                               :frame current-frame)
-                                    events)
-                         if (/= note none)
-                           do (setf (aref (.last-notes pattern) i) note)))
-          (nreverse events)))
-      (if (played)
-          (list (midi-event-all-notes-off))
-          nil)))
+  (setf (.current-line (.pattern pattern-position)) start-line)
+  (let* ((pattern (.pattern pattern-position))
+         (frames-per-line (frames-per-line))
+         (arg-start-line start-line)
+         (start-line (if (zerop start-frame)
+                         start-line
+                         (1+ start-line)))
+         events)
+    (loop for current-line from start-line to (min end-line (1- (.length pattern)))
+          for current-frame = (floor (- (* (- current-line arg-start-line) frames-per-line)
+                                        start-frame))
+          for line = (aref (.lines pattern) current-line)
+          do (loop for column across (.columns line)
+                   for i below (.length line)
+                   for note = (.note column)
+                   for last-note = (aref (.last-notes pattern-position) i)
+                   if (or (and (<= c0 note)
+                               (<= c0 last-note)
+                               (/= note last-note))
+                          (and (= note off) (<= c0 last-note)))
+                     do (push (make-instance 'midi-event :event +midi-event-off+
+                                                         :note last-note
+                                                         :velocity 0
+                                                         :frame current-frame)
+                              events)
+                   if (<= c0 note)
+                     do (push (make-instance 'midi-event :event +midi-event-on+
+                                                         :note note
+                                                         :velocity (.velocity column)
+                                                         :frame current-frame)
+                              events)
+                   if (/= note none)
+                     do (setf (aref (.last-notes pattern-position) i) note)))
+    (nreverse events)))
 
 (defclass osc (model)
   ((note :initarg :note :initform off :accessor .note)
@@ -295,8 +306,10 @@
    (r :initarg :r :initform 0.1d0 :accessor .r)
    (buffer :accessor .buffer)
    (last-gate :initform nil :accessor .last-gate)
+   (last-value :initform 0.0d0 :accessor .last-value)
    (frame :initform 0 :accessor .frame)
-   (release-time :initform 0.0d0 :accessor .release-time))
+   (release-time :initform 0.0d0 :accessor .release-time)
+   (release-value :initform 0.0d0 :accessor .release-value))
   (:default-initargs :name "Adsr" :height 95))
 
 (defmethod initialize ((self adsr))
@@ -310,7 +323,10 @@
 (defmethod process ((self adsr) midi-events frame)
   (flet ((midi-event (i on-or-off)
            (loop for x in midi-events
-                   thereis (and (= (.event x) on-or-off)
+                   thereis (and (or (= (.event x) on-or-off)
+                                    (and (= on-or-off +midi-event-off+)
+                                         (= (.event x) +midi-cc+)
+                                         (= (.note x) +midi-cc-all-notes-off+)))
                                 (= (.frame x) (mod (+ frame i) *frames-per-buffer*))
                                 x))))
     (loop with sec-per-frame = (/ 1.0d0 *sample-rate*)
@@ -334,15 +350,18 @@
                                       (t (.s self))))
                               (progn
                                 (when (null (.release-time self))
+                                  (setf (.release-value self) (.last-value self))
                                   (setf (.release-time self) current))
                                 (let ((elapsed (- current (.release-time self))))
                                   (if (< elapsed (.r self))
-                                      (- 1.0d0
-                                         (/ elapsed (.r self)))
+                                      (max (* (.release-value self)
+                                              (- 1.0d0 (/ elapsed (.r self))))
+                                           0.0d0)
                                       0.0d0))))))
                (setf (aref (.buffer self) i) value)
                (incf (.frame self))
-               (setf (.last-gate self) gate))))
+               (setf (.last-gate self) gate)
+               (setf (.last-value self) value))))
   (let ((buffer (.buffer self)))
     (route self buffer buffer)))
 

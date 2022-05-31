@@ -289,6 +289,7 @@
 (defconstant +midi-event-on+ #x90)
 (defconstant +midi-event-off+ #x80)
 (defconstant +midi-cc+ #xB0)
+(defconstant +midi-cc-all-notes-off+ #x7B)
 
 (defclass midi-event ()
   ((event :initarg :event :initform +midi-event-on+ :accessor .event
@@ -313,7 +314,7 @@
 (defun midi-event-all-notes-off ()
   (make-instance 'midi-event
                  :event +midi-cc+
-                 :note #x7B))
+                 :note +midi-cc-all-notes-off+))
 
 ;; TODO delete
 ;; (defun write-midi-event (midi-event stream)

@@ -160,13 +160,14 @@
           (the double-float (- current-time (the double-float (.start-time *audio*)))))
     (setf (.buffer *audio*) output-buffer))
 
-  (multiple-value-bind (start-line start-frame end-line end-frame) (line-and-frame)
-    (if (process-sequencer (.sequencer *audio*) start-line start-frame end-line end-frame)
-        (progn
-          (setf (.nframes *audio*) 0)
-          (setf (.start-time *audio*) 0.0d0))
-        (incf (.nframes *audio*) frame-per-buffer)))
-  (setf (.played *audio*) (.playing *audio*))
+  (let ((playing (.playing *audio*)))
+    (multiple-value-bind (start-line start-frame end-line end-frame) (line-and-frame)
+      (if (process-sequencer (.sequencer *audio*) start-line start-frame end-line end-frame)
+          (progn
+            (setf (.nframes *audio*) 0)
+            (setf (.start-time *audio*) 0.0d0))
+          (incf (.nframes *audio*) frame-per-buffer)))
+    (setf (.played *audio*) playing))
   0)
 
 (defmacro with-audio (&body body)

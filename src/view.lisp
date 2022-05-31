@@ -1239,7 +1239,8 @@
   ())
 
 (defmethod initialize-instance :after ((self plugin-module) &key)
-  (let ((button (make-instance 'button :text "Open" :x *layout-space* :y (+ *font-size* *layout-space*))))
+  (let ((button (make-instance 'button :text "Open" :x *layout-space*
+                                       :y (+ *font-size* (* *layout-space* 2)))))
     (add-child self button)
     (defmethod click ((button (eql button)) btn x y)
       (open-editor (.model self)))))
