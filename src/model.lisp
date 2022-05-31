@@ -79,10 +79,7 @@
          (midi-events
            (loop for pattern-position in (.pattern-positions track)
                  nconc (with-slots (start end) pattern-position
-                         (cond ((and (or (< end-line start-line)
-                                         (and (= start-line end-line)
-                                              (< end-frame start-frame))))
-
+                         (cond ((< end-line start-line) ;ループしている場合
                                 (append
                                  (if (and (<= start start-line)
                                           (< start-line end))
@@ -116,7 +113,7 @@
    (lpb :initarg :lpb :initform 4 :accessor .lpb)
    (tracks :initarg :tracks :accessor .tracks :initform nil)
    (end :initform 0 :accessor .end)
-   (loop :initform t :accessor .loop)
+   (looping :initform t :accessor .looping)
    (current-line :initform 0 :accessor .current-line))
   (:default-initargs :color (list #x00 #xff #xff *transparency*)
                      :x 5 :y 5
@@ -137,33 +134,26 @@
                                maximize (.end pattern-position))))))
 
 (defun process-sequencer (self start-line start-frame end-line end-frame)
-  (let ((end (.end self))
-        (looped nil))
-    (if (zerop end)
-        (progn
-          (write-master-buffer)
-          (setf (.current-line self) 0))
-        (progn
-          (if (and (.loop self) (< end end-line))
-              (setf looped t))
-          (if (< end start-line)
-              (progn
-                ;; TODO reverb とか残す？
-                (write-master-buffer)
-                (stop))
-              (progn
-                (cond ((playing)
-                       (loop for track in (.tracks self)
-                             do (play-track track start-line start-frame end-line end-frame)))
-                      ((played)
-                       (loop for track in (.tracks self)
-                             do (play-track-all-off track start-frame)))
-                      (t
-                       (loop for track in (.tracks self)
-                             do (play-track-no-notes track start-frame))))
-                (write-master-buffer)
-                (setf (.current-line self) start-line)))))
-    looped))
+  (let ((end (.end self)))
+    (if (or (zerop end)
+            (< end start-line))
+       (progn
+         (loop for track in (.tracks self)
+               do (play-track-no-notes track start-frame))
+         (write-master-buffer)
+         (setf (.current-line self) end))
+       (progn
+         (cond ((playing)
+                (loop for track in (.tracks self)
+                      do (play-track track start-line start-frame end-line end-frame)))
+               ((played)
+                (loop for track in (.tracks self)
+                      do (play-track-all-off track start-frame)))
+               (t
+                (loop for track in (.tracks self)
+                      do (play-track-no-notes track start-frame))))
+         (write-master-buffer)
+         (setf (.current-line self) start-line)))))
 
 (defclass column ()
   ((note :initarg :note :initform none :accessor .note)

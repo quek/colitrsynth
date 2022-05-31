@@ -53,11 +53,6 @@
    (playing :initform nil :accessor .playing)
    (played :initform nil :accessor .played)
    (request-stop :initform nil :accessor .request-stop)
-   (start-time
-    :initform 0.0d0
-    :accessor .start-time
-    :type double-float)
-   (current-time :initform 0.0d0 :type double-float :accessor .current-time)
    (nframes :initform 0 :type fixnum :accessor .nframes)
    (stream
     :initform nil
@@ -88,7 +83,6 @@
     (pa::stop-stream (.stream *audio*))))
 
 (defun play ()
-  (setf (.start-time *audio*) 0.0d0)
   (setf (.nframes *audio*) 0)
   (setf (.playing *audio*) t))
 
@@ -107,19 +101,19 @@
 
 (defun line-and-frame ()
   (if (playing)
-   (let* ((sec-per-line (sec-per-line))
-          (sec-per-frame (sec-per-frame))
-          (current-sec (* sec-per-frame (.nframes *audio*)))
-          (start-line (floor (/ current-sec sec-per-line)))
-          (start-frame (floor (/ (mod current-sec sec-per-line) sec-per-frame)))
-          (end-line start-line)
-          (end-frame (+ start-frame *frames-per-buffer*)))
-     (when (< sec-per-line (+ (* sec-per-frame start-frame)
-                              (* sec-per-frame *frames-per-buffer*)))
-       (incf end-line)
-       (decf end-frame (floor (/ sec-per-line sec-per-frame))))
-     (values start-line start-frame end-line end-frame))
-   (values 0 0 0 0)))
+      (let* ((sec-per-line (sec-per-line))
+             (sec-per-frame (sec-per-frame))
+             (frames-per-line (/ sec-per-line sec-per-frame))
+             (current-sec (* sec-per-frame (.nframes *audio*)))
+             (start-line (floor (/ current-sec sec-per-line)))
+             (start-frame (floor (/ (mod current-sec sec-per-line) sec-per-frame)))
+             (end-line start-line)
+             (end-frame (+ start-frame *frames-per-buffer*)))
+        (when (<= frames-per-line end-frame)
+          (incf end-line)
+          (setf end-frame (floor (mod end-frame frames-per-line))))
+        (values start-line start-frame end-line end-frame))
+      (values 0 0 0 0)))
 
 (defun write-master-buffer ()
   (flet ((limit (value)
@@ -149,25 +143,21 @@
                                        (status-flags pa-stream-callback-flags)
                                        (user-data :pointer))
   (declare ;; (optimize (speed 3) (safety 0))
-   (ignore input-buffer status-flags user-data))
+   (ignore input-buffer time-info status-flags user-data))
   (assert (= frame-per-buffer *frames-per-buffer*))
-  (let ((current-time (cffi:foreign-slot-value time-info '(:struct pa-stream-callback-time-info)
-                                               'current-time)))
-    (declare (double-float current-time))
-    (when (= (the double-float (.start-time *audio*)) 0.0d0)
-      (setf (.start-time *audio*) current-time))
-    (setf (.current-time *audio*)
-          (the double-float (- current-time (the double-float (.start-time *audio*)))))
-    (setf (.buffer *audio*) output-buffer))
-
-  (let ((playing (.playing *audio*)))
-    (multiple-value-bind (start-line start-frame end-line end-frame) (line-and-frame)
-      (if (process-sequencer (.sequencer *audio*) start-line start-frame end-line end-frame)
-          (progn
-            (setf (.nframes *audio*) 0)
-            (setf (.start-time *audio*) 0.0d0))
-          (incf (.nframes *audio*) frame-per-buffer)))
-    (setf (.played *audio*) playing))
+  (setf (.buffer *audio*) output-buffer)
+  (multiple-value-bind (start-line start-frame end-line end-frame) (line-and-frame)
+    ;;(print (list start-line end-line start-frame end-frame (- end-frame start-frame)))
+    (let* ((sequencer (.sequencer *audio*))
+           (looped (and (.looping sequencer) (<= (.end sequencer) end-line)))
+           (playing (.playing *audio*)))
+      (when looped
+        (setf end-line 0))
+      (process-sequencer sequencer start-line start-frame end-line end-frame)
+      (if looped
+          (setf (.nframes *audio*) end-frame)
+          (incf (.nframes *audio*) frame-per-buffer))
+      (setf (.played *audio*) playing)))
   0)
 
 (defmacro with-audio (&body body)
