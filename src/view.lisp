@@ -30,7 +30,11 @@
 
 (defgeneric mousebuttondown (self button state clicks x y)
   (:method (self button state clicks x y)
-    (setf (click-target-module button) self)))
+    (setf (click-target-module button) self)
+    (swhen (.focused-view *app*)
+      (unless (and (<= (.absolute-x it) (.mouse-x *app*) (+ (.absolute-x it) (.width it)))
+                   (<= (.absolute-y it) (.mouse-y *app*) (+ (.absolute-y it) (.height it))))
+        (setf it nil)))))
 
 (defgeneric mousebuttonup (self button state clicks x y)
   (:method (self button state clicks x y)
@@ -265,12 +269,13 @@
      (.absolute-y (.parent self))))
 
 (defmethod render ((self view) renderer)
-  (apply #'sdl2:set-render-draw-color renderer (.color self))
-  (sdl2:render-draw-rect renderer
-                         (sdl2:make-rect (.absolute-x self)
-                                         (.absolute-y self)
-                                         (.width self)
-                                         (.height self)))
+  (unless (typep self 'text)
+    (apply #'sdl2:set-render-draw-color renderer (.color self))
+    (sdl2:render-draw-rect renderer
+                           (sdl2:make-rect (.absolute-x self)
+                                           (.absolute-y self)
+                                           (.width self)
+                                           (.height self))))
   (loop for child in (.children self)
         do (render child renderer))
   (call-next-method))
@@ -572,7 +577,8 @@
    (focused :initform nil :accessor .focused)
    (reader :initarg :reader :accessor .reader)
    (writer :initarg :writer :accessor .writer))
-  (:default-initargs :height (+ *char-height* 4)))
+  (:default-initargs :height (+ *char-height* 4)
+                     :width (+ (* *char-width* 12) 4)))
 
 (defmethod .edit-buffer :around ((self text))
   (if (.focused self)
@@ -590,23 +596,22 @@
   (let ((cursor-x (+ (.absolute-x self)
                      2
                      (* *char-width* (.cursor-position self))))
-        (cursor-y (+ (.absolute-y self) 1))
+        (cursor-y (+ (.absolute-y self) 2))
         (cursor-w *char-width*)
         (cursor-h *char-height*))
     (when (.focused self)
       (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
       (sdl2:render-fill-rect
        renderer
-       (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))
-  (call-next-method)
-  ;; TODO なんかちゃんと動いてない
-  (unless (.focused self)
-    (sdl2:set-render-draw-color renderer #x22 #x22 #x22 #xff)
-    (sdl2:render-draw-rect renderer
-                           (sdl2:make-rect (.absolute-x self)
-                                           (.absolute-y self)
-                                           (.width self)
-                                           (.height self)))))
+       (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))
+
+      (sdl2:set-render-draw-color renderer #xff #xff #x22 #xff)
+      (sdl2:render-draw-rect renderer
+                             (sdl2:make-rect (.absolute-x self)
+                                             (.absolute-y self)
+                                             (.width self)
+                                             (.height self)))))
+  (call-next-method))
 
 (defmethod click ((self text) button x y)
   (unless (eq self (.focused-view *app*))
