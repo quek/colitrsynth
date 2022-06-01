@@ -15,6 +15,7 @@
    (:file "ffi")
    (:file "prelude")
    (:file "midi")
+   (:file "parameter")
    (:file "audio")
    (:file "model")
    (:file "view")

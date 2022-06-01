@@ -1,16 +1,5 @@
 (in-package :colitrsynth)
 
-(defparameter *font-size* 14)
-(defparameter *char-width* (/ *font-size* 2))
-(defparameter *char-height* *font-size*)
-(defparameter *cursor-color* '(#x00 #x00 #xcc #x80))
-(defparameter *play-position-color* '(#x00 #x80 #x00 #x80))
-(defparameter *connection-line-color* '(#x22 #x8b #x22 #x80))
-(defparameter *connection-point-color* '(#xff #xff #xff #x80))
-(defparameter *selected-module-color* '(#xff #xff #x00 #xff))
-(defparameter *selected-pattern-color* '(#xff #x80 #x80 #xff))
-(defparameter *pixcel-per-line* 2)
-(defparameter *layout-space* 5)
 (defparameter *plugin-host-exe* "C:/Users/ancient/Documents/Visual Studio 2022/PluginHost/Builds/VisualStudio2022/x64/Debug/App/PluginHost.exe")
 (defparameter *plugin-host-pipe-name* "\\\\.\\pipe\\pluin-host")
 
@@ -526,46 +515,54 @@
 
 (defclass label (function-value-mixin view renderable)
   ((last-value :initform "" :accessor .last-value)
+   (last-color :accessor .last-color)
    (texture :initform nil :accessor .texture))
   (:default-initargs :width 0 :height 0 :value "くえっ"))
 
+(defmethod initialize-instance :after ((self label) &key)
+  (setf (.last-color self) (.color self)))
+
 (defmethod render ((self label) renderer)
   (let ((value (.value self)))
-    (when (string/= value "")
-      (when (string/= value (.last-value self))
-        (setf (.last-value self) value)
-        (awhen (.texture self)
-          (sdl2:destroy-texture it))
-        (let ((surface (apply #'sdl2-ttf:render-utf8-solid (.font *app*)
-                              value
-                              (.color self))))
-          (setf (.width self) (sdl2:surface-width surface)
-                (.height self) (sdl2:surface-height surface)
-                (.texture self) (sdl2:create-texture-from-surface renderer surface))))
-      (sdl2:render-copy renderer
-                        (.texture self)
-                        :source-rect nil
-                        :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
-                                                   (.width self) (.height self))))))
+    (when (or (not (.texture self))
+              (not (equal value (.last-value self)))
+              (not (equal (.color self) (.last-color self))))
+      (setf (.last-value self) value)
+      (setf (.last-color self) (.color self))
+      (awhen (.texture self)
+        (sdl2:destroy-texture it))
+      (let ((surface (apply #'sdl2-ttf:render-utf8-solid
+                            (.font *app*)
+                            value
+                            (.color self))))
+        (setf (.width self) (sdl2:surface-width surface)
+              (.height self) (sdl2:surface-height surface)
+              (.texture self) (sdl2:create-texture-from-surface renderer surface))))
+    (sdl2:render-copy renderer
+                      (.texture self)
+                      :source-rect nil
+                      :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
+                                                 (.width self) (.height self)))))
 
 (defclass button (view renderable)
-  ()
+  ((label-view :accessor .label-view))
   (:default-initargs :width 50 :height 30))
 
-(defmethod initialize-instance :after ((self button) &key text)
-  (let ((text (make-instance 'label :value text :x 5 :y 2)))
-    (add-child self text)
-    (setf (.width self) (+ 10 (.width text))
-          (.height self) (+ 4 (.height text)))))
+(defmethod initialize-instance :after ((self button) &key label)
+  (let ((label (make-instance 'label :value label :x 5 :y 2)))
+    (add-child self label)
+    (setf (.label-view self) label)
+    (setf (.width self) (+ 10 (.width label))
+          (.height self) (+ 4 (.height label)))))
 
 (defmethod .label ((self button))
-  (.value (car (.children self))))
+  (.value (.label-view self)))
 
 (defmethod render :after ((self button) renderer)
   ;; after でやるので初回描画時は崩れてるはずだけど妥協
-  (let ((text (car (.children self))))
-    (setf (.width self) (+ 10 (.width text))
-          (.height self) (+ 4 (.height text)))))
+  (let ((label (.label-view self)))
+    (setf (.width self) (+ 10 (.width label))
+          (.height self) (+ 4 (.height label)))))
 
 (defclass onchange-mixin ()
   ((onchange :initarg :onchange :initform (constantly nil) :accessor .onchange)))
@@ -829,13 +826,13 @@
                    do (setf (.length line) length)))
             ((or (sdl2:scancode= scancode :scancode-left)
                  (sdl2:scancode= scancode :scancode-h))
-             (let* ((value (- (print cursor-x) (case (mod cursor-x +column-width+)
-                                                 (0 2)
-                                                 (4 4)
-                                                 (5 1)
-                                                 (t 0)))))
+             (let* ((value (- cursor-x (case (mod cursor-x +column-width+)
+                                         (0 2)
+                                         (4 4)
+                                         (5 1)
+                                         (t 0)))))
                (when (<= 0 value)
-                 (setf (.cursor-x self) (print value)))))
+                 (setf (.cursor-x self) value))))
             ((and (or (sdl2:scancode= scancode :scancode-right)
                       (sdl2:scancode= scancode :scancode-l))
                   ctrl-p shift-p)
@@ -977,8 +974,43 @@
                                    :width 690 :height *track-height*) )))
 
 (defmethod initialize-instance :after ((self track-view) &key)
+  (let ((mute-button (make-instance 'button :label "M")))
+    (add-child self mute-button)
+    (setf (.color (.label-view mute-button))
+          (if (.mute (.model self))
+              *mute-color*
+              *default-color*))
+    (defmethod click ((mute-button (eql mute-button))
+                      (button (eql sdl2-ffi:+sdl-button-left+)) x y)
+      (setf (.mute (.model self)) (not (.mute (.model self)))))
+    
+    (defmethod click ((mute-button (eql mute-button))
+                      (button (eql sdl2-ffi:+sdl-button-right+)) x y)
+      (if (loop for track in (.tracks (.model *sequencer-module*))
+                always (or (.mute track)
+                           (eq (.model self) track)))
+          (loop for track in (.tracks (.model *sequencer-module*))
+                do (setf (.mute track) nil))
+          (loop for track in (.tracks (.model  *sequencer-module*))
+                do (setf (.mute track) (not (eq (.model self) track))))))
+
+    (defmethod click :after ((mute-button (eql mute-button))
+                             button x y)
+      (setf (.color (.label-view mute-button))
+            (if (.mute (.model self))
+                *mute-color*
+                *default-color*))))
+
   (loop for pattern-position in (.pattern-positions (.model self))
         do (add-pattern-after self pattern-position)))
+
+(defmethod render ((self track-view) renderer)
+  (let* ((x1 (+ (.absolute-x self) 16))
+         (y1 (.absolute-y self))
+         (x2 x1)
+         (y2 (+ y1 (.height self))))
+    (sdl2:render-draw-line renderer x1 y1 x2 y2))
+  (call-next-method))
 
 (defmethod drop ((self track-view) (dropped drag-connect-mixin) x y (button (eql 3))))
 
@@ -1043,8 +1075,8 @@
   (:default-initargs :model (make-instance 'sequencer)))
 
 (defmethod initialize-instance :after ((self sequencer-module) &key)
-  (let* ((play-button (make-instance 'button :text "▶" :x 5 :y *layout-space*))
-         (add-track-button (make-instance 'button :text "+track" :x 35 :y *layout-space*))
+  (let* ((play-button (make-instance 'button :label "▶" :x 5 :y *layout-space*))
+         (add-track-button (make-instance 'button :label "+track" :x 35 :y *layout-space*))
          (bpm (make-instance 'label
                              :value (lambda ()
                                       (format nil "BPM ~f" (.bpm (.model self))))
@@ -1239,7 +1271,7 @@
   ())
 
 (defmethod initialize-instance :after ((self plugin-module) &key)
-  (let ((button (make-instance 'button :text "Open" :x *layout-space*
+  (let ((button (make-instance 'button :label "Open" :x *layout-space*
                                        :y (+ *font-size* (* *layout-space* 2)))))
     (add-child self button)
     (defmethod click ((button (eql button)) btn x y)
@@ -1263,7 +1295,7 @@
   (:default-initargs :width 400 :height 300))
 
 (defmethod initialize-instance :after ((self menu-view) &key)
-  (let ((button (make-instance 'button :text "Manage Plugins")))
+  (let ((button (make-instance 'button :label "Manage Plugins")))
     (add-child self button)
     (push button (.buttons self))
     (defmethod click ((button (eql button)) btn x y)
@@ -1275,13 +1307,13 @@
                               ("Adsr" adsr)
                               ("Amp" amp))
         do (let ((button (make-instance 'menu-builtin-button
-                                        :text name
+                                        :label name
                                         :class class)))
              (add-child self button)
              (push button (.buttons self))))
   (loop for plugin-description in (load-known-plugins)
         do (let ((button (make-instance 'menu-plugin-button
-                                        :text (.name plugin-description)
+                                        :label (.name plugin-description)
                                         :plugin-description plugin-description)))
              (add-child self button)
              (push button (.buttons self))))

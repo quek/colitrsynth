@@ -1,7 +1,5 @@
 (in-package :colitrsynth)
 
-(defparameter *transparency* #xc0)
-
 (defgeneric initialize (x))
 (defgeneric connect (in out))
 (defgeneric disconnect (in out))
@@ -12,7 +10,7 @@
 
 ;; これも保存したいのでここに書く
 (defclass renderable ()
-  ((color :initarg :color :initform (list #xdd #xdd #xdd *transparency*) :accessor .color)
+  ((color :initarg :color :initform *default-color* :accessor .color)
    (x :initarg :x :initform 0 :accessor .x)
    (y :initarg :y :initform 0 :accessor .y)
    (width :initarg :width :initform 100 :accessor .width)
@@ -65,7 +63,8 @@
 
 (defclass track (model)
   ((pattern-positions :initform nil :accessor .pattern-positions)
-   (buffer :accessor .buffer)))
+   (buffer :accessor .buffer)
+   (mute :initform nil :accessor .mute)))
 
 (defmethod initialize ((self track))
   (setf (.buffer self) (make-buffer :initial-element nil :element-type t)))
@@ -75,31 +74,33 @@
   nil)
 
 (defun play-track (track start-line start-frame end-line end-frame)
-  (let* ((frames-per-line (frames-per-line))
-         (midi-events
-           (loop for pattern-position in (.pattern-positions track)
-                 nconc (with-slots (start end) pattern-position
-                         (cond ((< end-line start-line) ;ループしている場合
-                                (append
-                                 (if (and (<= start start-line)
-                                          (< start-line end))
-                                     (midi-events-at-line-frame pattern-position
-                                                                (- start-line start) start-frame
-                                                                (- start-line start) frames-per-line))
-                                 (if (and (<= start end-line)
-                                          (< end-line end))
-                                      (midi-events-at-line-frame pattern-position
-                                                                (- end-line start) 0
-                                                                (- end-line start)
-                                                                end-frame))))
-                               ((and (<= start end-line)
-                                     (< start-line end))
-                                (midi-events-at-line-frame pattern-position
-                                                           (- start-line start) start-frame
-                                                           (- end-line start) end-frame)))))))
-    (when midi-events
-      (print midi-events))
-    (route track midi-events start-frame)))
+  (if (.mute track)
+      (route track nil start-frame)
+      (let* ((frames-per-line (frames-per-line))
+             (midi-events
+               (loop for pattern-position in (.pattern-positions track)
+                     nconc (with-slots (start end) pattern-position
+                             (cond ((< end-line start-line) ;ループしている場合
+                                    (append
+                                     (if (and (<= start start-line)
+                                              (< start-line end))
+                                         (midi-events-at-line-frame pattern-position
+                                                                    (- start-line start) start-frame
+                                                                    (- start-line start) frames-per-line))
+                                     (if (and (<= start end-line)
+                                              (< end-line end))
+                                         (midi-events-at-line-frame pattern-position
+                                                                    (- end-line start) 0
+                                                                    (- end-line start)
+                                                                    end-frame))))
+                                   ((and (<= start end-line)
+                                         (< start-line end))
+                                    (midi-events-at-line-frame pattern-position
+                                                               (- start-line start) start-frame
+                                                               (- end-line start) end-frame)))))))
+        (when midi-events
+          (print midi-events))
+        (route track midi-events start-frame))))
 
 (defun play-track-all-off (track start-frame)
   (route track (print (list (midi-event-all-notes-off))) start-frame))
