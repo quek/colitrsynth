@@ -9,7 +9,7 @@
 (defparameter *connection-point-color* '(#xff #xff #xff #x80))
 (defparameter *selected-module-color* '(#xff #xff #x00 #xff))
 (defparameter *selected-pattern-color* '(#xff #x80 #x80 #xff))
-(defparameter *pixcel-per-line* 5)
+(defparameter *pixcel-per-line* 2)
 (defparameter *layout-space* 5)
 (defparameter *plugin-host-exe* "C:/Users/ancient/Documents/Visual Studio 2022/PluginHost/Builds/VisualStudio2022/x64/Debug/App/PluginHost.exe")
 (defparameter *plugin-host-pipe-name* "\\\\.\\pipe\\pluin-host")
