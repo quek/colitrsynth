@@ -15,5 +15,5 @@
 (defparameter *font-size* 14)
 (defparameter *char-width* (/ *font-size* 2))
 (defparameter *char-height* *font-size*)
-(defparameter *pixcel-per-line* 2)
+(defparameter *pixcel-per-line* 1)
 (defparameter *layout-space* 5)

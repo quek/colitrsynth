@@ -6,7 +6,7 @@
 ;;;; 処理の都合上必要なこ
 (defvar *pattern-scroll-lock* nil)
 (defvar *pattern-line-index*)
-(defparameter *track-height* 40)        ;TODO 固定長で妥協
+(defparameter *track-height* 30)        ;TODO 固定長で妥協
 
 (defconstant +mouse-button-count+ 16)
 (defconstant +column-width+ 7)
@@ -551,25 +551,26 @@
 
 (defmethod render ((self label) renderer)
   (let ((value (.value self)))
-    (when (or (not (.texture self))
-              (not (equal value (.last-value self)))
-              (not (equal (.color self) (.last-color self))))
-      (setf (.last-value self) value)
-      (setf (.last-color self) (.color self))
-      (awhen (.texture self)
-        (sdl2:destroy-texture it))
-      (let ((surface (apply #'sdl2-ttf:render-utf8-solid
-                            (.font *app*)
-                            value
-                            (.color self))))
-        (setf (.width self) (sdl2:surface-width surface)
-              (.height self) (sdl2:surface-height surface)
-              (.texture self) (sdl2:create-texture-from-surface renderer surface))))
-    (sdl2:render-copy renderer
-                      (.texture self)
-                      :source-rect nil
-                      :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
-                                                 (.width self) (.height self)))))
+    (when (not (zerop (length value)))
+      (when (or (not (.texture self))
+                (not (equal value (.last-value self)))
+                (not (equal (.color self) (.last-color self))))
+        (setf (.last-value self) value)
+        (setf (.last-color self) (.color self))
+        (awhen (.texture self)
+          (sdl2:destroy-texture it))
+        (let ((surface (apply #'sdl2-ttf:render-utf8-solid
+                              (.font *app*)
+                              value
+                              (.color self))))
+          (setf (.width self) (sdl2:surface-width surface)
+                (.height self) (sdl2:surface-height surface)
+                (.texture self) (sdl2:create-texture-from-surface renderer surface))))
+      (sdl2:render-copy renderer
+                        (.texture self)
+                        :source-rect nil
+                        :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
+                                                   (.width self) (.height self))))))
 
 (defclass button (view renderable)
   ((label-view :accessor .label-view))
