@@ -971,35 +971,28 @@
                       view)
   ((model :initarg :model :accessor .model
           :initform (make-instance 'track
-                                   :width 690 :height *track-height*) )))
+                                   :width 690 :height *track-height*))
+   (mute-button :accessor .mute-button)))
 
 (defmethod initialize-instance :after ((self track-view) &key)
   (let ((mute-button (make-instance 'button :label "M")))
+    (setf (.mute-button self) mute-button)
     (add-child self mute-button)
-    (setf (.color (.label-view mute-button))
-          (if (.mute (.model self))
-              *mute-color*
-              *default-color*))
+    (setf (.mute self) (.mute (.model self))) ;色のため
+
     (defmethod click ((mute-button (eql mute-button))
                       (button (eql sdl2-ffi:+sdl-button-left+)) x y)
-      (setf (.mute (.model self)) (not (.mute (.model self)))))
+      (setf (.mute self) (not (.mute self))))
     
     (defmethod click ((mute-button (eql mute-button))
                       (button (eql sdl2-ffi:+sdl-button-right+)) x y)
-      (if (loop for track in (.tracks (.model *sequencer-module*))
-                always (or (.mute track)
-                           (eq (.model self) track)))
-          (loop for track in (.tracks (.model *sequencer-module*))
-                do (setf (.mute track) nil))
-          (loop for track in (.tracks (.model  *sequencer-module*))
-                do (setf (.mute track) (not (eq (.model self) track))))))
-
-    (defmethod click :after ((mute-button (eql mute-button))
-                             button x y)
-      (setf (.color (.label-view mute-button))
-            (if (.mute (.model self))
-                *mute-color*
-                *default-color*))))
+      (if (loop for track-view in (.track-views *sequencer-module*)
+                always (or (.mute track-view)
+                           (eq self track-view)))
+          (loop for track-view in (.track-views *sequencer-module*)
+                do (setf (.mute track-view) nil))
+          (loop for track-view in (.track-views *sequencer-module*)
+                do (setf (.mute track-view) (not (eq track-view self)))))))
 
   (loop for pattern-position in (.pattern-positions (.model self))
         do (add-pattern-after self pattern-position)))
@@ -1012,6 +1005,16 @@
     (sdl2:render-draw-line renderer x1 y1 x2 y2))
   (call-next-method))
 
+(defmethod .mute ((self track-view))
+  (.mute (.model self)))
+
+(defmethod (setf .mute) (value (self track-view))
+  (setf (.mute (.model self)) value)
+  (setf (.color (.label-view (.mute-button self)))
+        (if value
+            *mute-color*
+            *default-color*)))
+
 (defmethod drop ((self track-view) (dropped drag-connect-mixin) x y (button (eql 3))))
 
 (defun pixcel-to-line (pixcel)
@@ -1020,23 +1023,19 @@
 (defun line-to-pixcel (line)
   (* *pixcel-per-line* line))
 
-(defmethod click ((self track-view) button x y)
-  (case button
-    (1
-     (let ((module (.selected-pattern *app*)))
-       (if (typep module 'pattern-module)
-           (let* ((start (pixcel-to-line x))
-                  (end (+ start (.length (.model module)))))
-             (when (every (lambda (x)
-                            (or (<= end (.start x))
-                                (<= (.end x) start)))
-                          (.pattern-positions (.model self)))
-               (add-pattern self module start end)))
-           (call-next-method))))
-    (3
-     (awhen (child-view-at self x y)
-       (remove-pattern self it))
-     (call-next-method))))
+(defmethod click ((self track-view)
+                  (button (eql sdl2-ffi:+sdl-button-left+))
+                  x y)
+  (let ((module (.selected-pattern *app*)))
+    (if (typep module 'pattern-module)
+        (let* ((start (pixcel-to-line x))
+               (end (+ start (.length (.model module)))))
+          (when (every (lambda (x)
+                         (or (<= end (.start x))
+                             (<= (.end x) start)))
+                       (.pattern-positions (.model self)))
+            (add-pattern self module start end)))
+        (call-next-method))))
 
 (defclass pattern-position-view (drag-mixin
                                  name-mixin
@@ -1051,6 +1050,12 @@
                             :value (lambda () (.name (.model self)))
                             :x *layout-space*
                             :y *layout-space*)))
+
+(defmethod click ((self pattern-position-view)
+                  (button (eql sdl2-ffi:+sdl-button-right+))
+                  x y)
+  (remove-pattern (.parent self) self)
+  (call-next-method))
 
 (defmethod drag ((self pattern-position-view) xrel yrel button)
   (let* ((pixcel (+ (.x self) (.move-delta-x self) xrel))
