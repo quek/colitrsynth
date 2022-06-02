@@ -1330,9 +1330,8 @@
   (close (.model self) :abort abort)
   (call-next-method))
 
-(defclass amp-module (module)
-  ()
-  (:default-initargs :model (make-instance 'amp)))
+(defclass operand-module (module)
+  ())
 
 (defclass master-module (module)
   ()
@@ -1350,14 +1349,17 @@
     (defmethod click ((button (eql button)) btn x y)
       (sb-ext:run-program *plugin-host-exe* nil :wait nil)
       (close self)))
-  (loop for (name class) in `(("Pattern" pattern)
-                              ("Sin" sin-osc)
-                              ("Saw" saw-osc)
-                              ("Adsr" adsr)
-                              ("Amp" amp))
+  (loop for (name class . initargs)
+          in `(("Pattern" pattern)
+               ("Sin" sin-osc)
+               ("Saw" saw-osc)
+               ("Adsr" adsr)
+               ("Op Add" operand :operator ,#'+)
+               ("Op Multi" operand :operator ,#'*))
         do (let ((button (make-instance 'menu-builtin-button
                                         :label name
-                                        :class class)))
+                                        :class class
+                                        :initargs initargs)))
              (add-child self button)
              (push button (.buttons self))))
   (loop for plugin-description in (load-known-plugins)
@@ -1421,13 +1423,16 @@
   (call-next-method))
 
 (defclass menu-builtin-button (button)
-  ((class :initarg :class :accessor .class)))
+  ((class :initarg :class :accessor .class)
+   (initargs :initarg :initargs :initform nil :accessor .initargs)))
 
 (defmethod click ((self menu-builtin-button) (button (eql 1)) x y)
   (add-view (make-module
-             (make-instance (.class self) :name (.label self)
-                                          :x (- (.mouse-x *app*) 10)
-                                          :y (- (.mouse-y *app*) 10))))
+             (apply #'make-instance (.class self)
+                    :name (.label self)
+                    :x (- (.mouse-x *app*) 10)
+                    :y (- (.mouse-y *app*) 10)
+                    (.initargs self))))
   (close (.root-parent self)))
 
 (defclass menu-plugin-button (button)
@@ -1483,5 +1488,5 @@
 (defmethod make-module ((self adsr))
   (make-instance 'adsr-module :model self))
 
-(defmethod make-module ((self amp))
-  (make-instance 'amp-module :model self))
+(defmethod make-module ((self operand))
+  (make-instance 'operand-module :model self))

@@ -358,32 +358,35 @@
   (let ((buffer (.buffer self)))
     (route self buffer buffer)))
 
-(defclass amp (model)
-  ((left :accessor .left)
+(defclass operand (model)
+  ((operator :initarg :operator :accessor .operator)
+   (left :accessor .left)
    (right :accessor .right)
-   (in-count :initform 0 :accessor .in-count))
-  (:default-initargs :name "Amp"))
+   (in-count :initform 0 :accessor .in-count)))
 
-(defmethod initialize ((self amp))
+(defmethod initialize ((self operand))
   (setf (.left self) (make-buffer))
   (setf (.right self) (make-buffer)))
 
-(defmethod lepis:emit-slot ((self amp) (slot (eql 'left)) stream)
+(defmethod lepis:emit-slot ((self operand) (slot (eql 'left)) stream)
   (format stream " NIL")
   nil)
 
-(defmethod lepis:emit-slot ((self amp) (slot (eql 'right)) stream)
+(defmethod lepis:emit-slot ((self operand) (slot (eql 'right)) stream)
   (format stream " NIL")
   nil)
 
-(defmethod process ((self amp) left right)
+(defmethod process ((self operand) left right)
   (loop for i below *frames-per-buffer*
+        with operator = (.operator self)
         do (setf (aref (.left self) i)
-                 (* (aref (.left self) i)
-                    (aref left i))
-                 (aref (.right self) i)
-                 (* (aref (.right self) i)
-                    (aref right i))))
+                 (funcall operator
+                          (aref (.left self) i)
+                          (aref left i)))
+           (setf (aref (.right self) i)
+                 (funcall operator
+                          (aref (.right self) i)
+                          (aref right i))))
   (when (<= (length (.in self))
             (incf (.in-count self)))
     (route self (.left self) (.right self))

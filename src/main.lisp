@@ -251,11 +251,14 @@
                                    a4 off e5 a4 off a4 off e5)))))
          (saw (make-module (make-instance 'saw-osc :x 150 :y 250)))
          (adsr (make-module (make-instance 'adsr :x 300 :y 250)))
-         (amp (make-module (make-instance 'amp :x 200 :y 400))))
+         (op-multi (make-module (make-instance 'operand
+                                               :operator #'*
+                                               :name "Op Multi"
+                                               :x 200 :y 400))))
     (connect track1 saw)
     (connect track1 adsr)
-    (connect saw amp)
-    (connect adsr amp)
-    (connect amp *master-module*)
+    (connect saw op-multi)
+    (connect adsr op-multi)
+    (connect op-multi *master-module*)
     (add-pattern track1 pattern1 0 line-length)
-    (list *sequencer-module* *master-module* pattern1 saw adsr amp)))
+    (list *sequencer-module* *master-module* pattern1 saw adsr op-multi)))
