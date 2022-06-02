@@ -92,9 +92,14 @@
                                                                 end-frame))))
                                ((and (<= start end-line)
                                      (< start-line end))
-                                (midi-events-at-line-frame pattern-position
-                                                           (- start-line start) start-frame
-                                                           (- end-line start) end-frame)))))))
+                                (let ((start-line (- start-line start))
+                                      (start-frame start-frame))
+                                  (when (minusp start-line)
+                                    (setf start-line 0)
+                                    (setf start-frame 0))
+                                  (midi-events-at-line-frame pattern-position
+                                                             start-line start-frame
+                                                             (- end-line start) end-frame))))))))
     (when midi-events
       (print midi-events))
     (route track midi-events start-frame)))
@@ -300,7 +305,7 @@
    (frame :accessor .frame)
    (release-time :initform 0.0d0 :accessor .release-time)
    (release-value :initform 0.0d0 :accessor .release-value))
-  (:default-initargs :name "Adsr" :height 95))
+  (:default-initargs :name "Adsr" :height 100))
 
 (defmethod initialize ((self adsr))
   (setf (.buffer self) (make-buffer))
