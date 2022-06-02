@@ -236,19 +236,23 @@
     (list *sequencer-module* *master-module* pattern1 plugin)))
 
 (defun make-builtin-test-modules ()
-  (let* ((line-length #x20)
+  (let* ((line-length #x40)
          (track1 (add-new-track *sequencer-module*))
          (pattern1 (make-module
                     (make-instance
                      'pattern
-                     :name "Pattern1"
+                     :name "Lead"
                      :x 5 :y 250 :height 200
                      :length line-length
                      :lines (list-to-pattern-lines
                              (list a4 none none none e5 none a5 none
                                    a4 off e5 a4 off a4 off e5
                                    a4 none none none e5 none a5 none
-                                   a4 off e5 a4 off a4 off e5)))))
+                                   a4 off e5 a4 off a4 off e5
+                                   a4 none none none e5 none a5 none
+                                   a4 off e5 a4 off a4 off e5
+                                   a4 none none none e5 none a5 none
+                                   a4 off e5 a4 off a4 g4 c5)))))
          (saw (make-module (make-instance 'saw-osc :x 150 :y 250)))
          (adsr (make-module (make-instance 'adsr :x 300 :y 250)))
          (op-multi (make-module (make-instance 'op-multi

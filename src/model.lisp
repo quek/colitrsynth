@@ -106,7 +106,7 @@
   (route track nil start-frame))
 
 (defclass sequencer (model)
-  ((bpm :initarg :bpm :initform 90.0d0 :accessor .bpm
+  ((bpm :initarg :bpm :initform 140.0d0 :accessor .bpm
         :type double-float)
    (lpb :initarg :lpb :initform 4 :accessor .lpb)
    (tracks :initarg :tracks :accessor .tracks :initform nil)
@@ -164,7 +164,7 @@
    (length :initarg :lenght :initform 1 :accessor .length)))
 
 (defclass pattern (model)
-  ((length :initarg :length :initform #x20 :accessor .length)
+  ((length :initarg :length :initform #x40 :accessor .length)
    (lines :initarg :lines :accessor .lines)
    (current-line :initform 0 :accessor .current-line))
   (:default-initargs :name "Pattern" :height 300))
@@ -295,15 +295,18 @@
    (s :initarg :s :initform 0.3d0 :accessor .s)
    (r :initarg :r :initform 0.1d0 :accessor .r)
    (buffer :accessor .buffer)
-   (last-gate :initform nil :accessor .last-gate)
-   (last-value :initform 0.0d0 :accessor .last-value)
-   (frame :initform 0 :accessor .frame)
+   (last-gate :accessor .last-gate)
+   (last-value :accessor .last-value)
+   (frame :accessor .frame)
    (release-time :initform 0.0d0 :accessor .release-time)
    (release-value :initform 0.0d0 :accessor .release-value))
   (:default-initargs :name "Adsr" :height 95))
 
 (defmethod initialize ((self adsr))
-  (setf (.buffer self) (make-buffer)))
+  (setf (.buffer self) (make-buffer))
+  (setf (.last-gate self) nil)
+  (setf (.last-value self) 0.0d0)
+  (setf (.frame self) 0))
 
 (defmethod lepis:emit-slot ((self adsr) (slot (eql 'buffer)) stream)
   (format stream " NIL")

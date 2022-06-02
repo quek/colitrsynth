@@ -7,6 +7,7 @@
                :cxml :cxml-stp :xpath
                :lepis
                :sb-concurrency
+               :alexandria
                :anaphora)
   :pathname "src"
   :serial t

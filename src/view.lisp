@@ -75,13 +75,17 @@
                                   :arguments (list *app*)))
           ((and (sdl2:scancode= scancode :scancode-s)
                 (not (zerop (logand mod-value sdl2-ffi:+kmod-ctrl+))))
-           (sb-thread:make-thread (lambda (*app*)
-                                    (awhen (or (.song-file *app*)
-                                               (get-save-file-name))
-                                      (sb-concurrency:send-message
-                                       (.mbox *app*)
-                                       (lambda () (save-song it)))))
-                                  :arguments (list *app*))))))
+           (sb-thread:make-thread
+            (lambda (*app*)
+              (let ((file (or (.song-file *app*)
+                              (get-save-file-name))))
+                (when file
+                  (unless (alexandria:ends-with ".lisp" file)
+                    (setf file (format nil "~a.lisp" file)))
+                  (sb-concurrency:send-message
+                   (.mbox *app*)
+                   (lambda () (save-song file))))))
+            :arguments (list *app*))))))
 
 (defgeneric keyup (self value scancode mod-value)
   (:method (self value scancode mod-value)))
@@ -752,8 +756,8 @@
                    (multiple-value-call
                        ;; window からはみ出ると表示がひずむので
                        (lambda (w h) (values (+ w (.width self))
-                                             ;; 最後の方にスクロールしたとき表示がひずむので
-                                             (+ h (.height self) (.height self))))
+                                             ;; 最後の方にスクロールしたとき表示がひずむので適当に大きく
+                                             (* h 3)))
                      (sdl2:get-window-size (.win *app*))))))
     (unwind-protect
          (let ((play-x (.absolute-x self))
@@ -1009,16 +1013,6 @@
   (let ((parent (.parent self)))
     (setf (.width self) (- (.width parent) (* *layout-space* 2))))
   (call-next-method))
-
-(defmethod .mute ((self track-view))
-  (.mute (.model self)))
-
-(defmethod (setf .mute) (value (self track-view))
-  (setf (.mute (.model self)) value)
-  (setf (.color (.label-view (.mute-button self)))
-        (if value
-            *mute-color*
-            *default-color*)))
 
 (defmethod drop ((self track-view) (dropped drag-connect-mixin) x y (button (eql 3))))
 
@@ -1294,10 +1288,10 @@
 (defclass operand-module (module)
   ())
 
-(defclass gain-module (module)
+(defclass volume-controller-mixin ()
   ((volume-slider :initarg :volume-slide :accessor .volume-slider)))
 
-(defmethod initialize-instance :after ((self gain-module) &key)
+(defmethod initialize-instance :after ((self volume-controller-mixin) &key)
   (add-child self
              (setf (.volume-slider self)
                    (make-instance 'slider
@@ -1305,7 +1299,7 @@
                                   :onchange (lambda (x) (setf (.volume (.model self)) x)))))
   (resized self))
 
-(defmethod resized ((self gain-module))
+(defmethod resized ((self volume-controller-mixin))
   (let ((slider (.volume-slider self))
         (x *layout-space*)
         (y (+ *font-size* (* *layout-space* 2)))
@@ -1315,9 +1309,12 @@
     (setf (.y slider) y)
     (setf (.width slider) width)
     (setf (.height slider) height)
-    (call-next-method))  )
+    (call-next-method)))
 
-(defclass master-module (module)
+(defclass gain-module (volume-controller-mixin module)
+  ())
+
+(defclass master-module (volume-controller-mixin module)
   ()
   (:default-initargs :model (make-instance 'master)))
 
