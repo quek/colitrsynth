@@ -17,6 +17,9 @@
 (defgeneric render (self renderer)
   (:method (self renderer)))
 
+(defgeneric resized (self)
+  (:method (self)))
+
 (defgeneric mousebuttondown (self button state clicks x y)
   (:method (self button state clicks x y)
     (setf (click-target-module button) self)
@@ -184,6 +187,15 @@
        (.root-parent it)
        self))
 
+(defmethod .parent-by-class ((self view) class)
+  (let ((parent (.parent self)))
+    (cond ((null parent)
+           nil)
+          ((typep parent class)
+           parent)
+          (t
+           (.parent-by-class parent class)))))
+
 (defmethod mousebuttondown ((self view) button state clicks x y)
   (call-next-method)
   (awhen (child-view-at self x y)
@@ -267,6 +279,14 @@
                                            (.height self))))
   (loop for child in (.children self)
         do (render child renderer))
+  (call-next-method))
+
+(defmethod resize :after ((self view) xrel yrel)
+  (resized self))
+
+(defmethod resized ((self view))
+  (loop for child in (.children self)
+        do (resized child))
   (call-next-method))
 
 (defclass module (drag-resize-mixin
@@ -972,12 +992,16 @@
   ((model :initarg :model :accessor .model
           :initform (make-instance 'track
                                    :width 690 :height *track-height*))
-   (mute-button :accessor .mute-button)))
+   (mute-button :accessor .mute-button)
+   (track-line-view :accessor .track-line-view)))
 
 (defmethod initialize-instance :after ((self track-view) &key)
-  (let ((mute-button (make-instance 'button :label "M")))
+  (let ((mute-button (make-instance 'button :label "M"))
+        (track-line-view (make-instance 'track-line-view)))
     (setf (.mute-button self) mute-button)
+    (setf (.track-line-view self) track-line-view)
     (add-child self mute-button)
+    (add-child self track-line-view)
     (setf (.mute self) (.mute (.model self))) ;色のため
 
     (defmethod click ((mute-button (eql mute-button))
@@ -994,6 +1018,7 @@
           (loop for track-view in (.track-views *sequencer-module*)
                 do (setf (.mute track-view) (not (eq track-view self)))))))
 
+  
   (loop for pattern-position in (.pattern-positions (.model self))
         do (add-pattern-after self pattern-position)))
 
@@ -1003,6 +1028,11 @@
          (x2 x1)
          (y2 (+ y1 (.height self))))
     (sdl2:render-draw-line renderer x1 y1 x2 y2))
+  (call-next-method))
+
+(defmethod resized ((self track-view))
+  (let ((parent (.parent self)))
+    (setf (.width self) (- (.width parent) (* *layout-space* 2))))
   (call-next-method))
 
 (defmethod .mute ((self track-view))
@@ -1036,6 +1066,15 @@
                        (.pattern-positions (.model self)))
             (add-pattern self module start end)))
         (call-next-method))))
+
+(defclass track-line-view (view renderable)
+  ())
+
+(defmethod resized ((self track-line-view))
+  (let ((parent (.parent self)))
+    (setf (.x self) 16)
+    (setf (.width self) (- (.width parent) (.x self))))
+  (call-next-method))
 
 (defclass pattern-position-view (drag-mixin
                                  name-mixin
@@ -1116,11 +1155,6 @@
     (sdl2:render-draw-line renderer x (.absolute-y first) x
                            (+ (.absolute-y last) (.height last)))))
 
-(defmethod resize :after ((self sequencer-module) xrel yrel)
-  ;; TODO 小さくするとはみ出るし、拡大縮小もした方がいいかもしれない
-  (loop for track in (.track-views self)
-        do (resize track xrel 0)))
-
 (defmethod drag-start ((self sequencer-module) x y (button (eql 3)))
   "track-view にディスパッチする。"
   (awhen (child-view-at self x y)
@@ -1140,10 +1174,10 @@
          (track-view (progn
                        (setf (.x track) 5)
                        (setf (.y track) y)
-                       (setf (.width track) (- (.width self) (* *layout-space* 2)))
                        (setf (.height track) *track-height*)
                        (make-instance 'track-view :model track))))
     (add-child self track-view)
+    (resized track-view)
     (setf (.track-views self) (append (.track-views self) (list track-view)))
     track-view))
 
@@ -1181,7 +1215,7 @@
 (defmethod add-pattern-after ((track-view track-view)
                               (pattern-position pattern-position))
   (let ((view (make-instance 'pattern-position-view :model pattern-position)))
-    (add-child track-view view)
+    (add-child (.track-line-view track-view) view)
     (setf (.x view) (* *pixcel-per-line* (.start pattern-position))
           (.y view) 2
           (.width view) (* *pixcel-per-line* (- (.end pattern-position)
