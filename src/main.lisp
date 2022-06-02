@@ -251,8 +251,7 @@
                                    a4 off e5 a4 off a4 off e5)))))
          (saw (make-module (make-instance 'saw-osc :x 150 :y 250)))
          (adsr (make-module (make-instance 'adsr :x 300 :y 250)))
-         (op-multi (make-module (make-instance 'operand
-                                               :operator #'*
+         (op-multi (make-module (make-instance 'op-multi
                                                :name "Op Multi"
                                                :x 200 :y 400))))
     (connect track1 saw)

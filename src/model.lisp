@@ -63,8 +63,7 @@
 
 (defclass track (model)
   ((pattern-positions :initform nil :accessor .pattern-positions)
-   (buffer :accessor .buffer)
-   (mute :initform nil :accessor .mute)))
+   (buffer :accessor .buffer)))
 
 (defmethod initialize ((self track))
   (setf (.buffer self) (make-buffer :initial-element nil :element-type t)))
@@ -74,33 +73,31 @@
   nil)
 
 (defun play-track (track start-line start-frame end-line end-frame)
-  (if (.mute track)
-      (route track nil start-frame)
-      (let* ((frames-per-line (frames-per-line))
-             (midi-events
-               (loop for pattern-position in (.pattern-positions track)
-                     nconc (with-slots (start end) pattern-position
-                             (cond ((< end-line start-line) ;ループしている場合
-                                    (append
-                                     (if (and (<= start start-line)
-                                              (< start-line end))
-                                         (midi-events-at-line-frame pattern-position
-                                                                    (- start-line start) start-frame
-                                                                    (- start-line start) frames-per-line))
-                                     (if (and (<= start end-line)
-                                              (< end-line end))
-                                         (midi-events-at-line-frame pattern-position
-                                                                    (- end-line start) 0
-                                                                    (- end-line start)
-                                                                    end-frame))))
-                                   ((and (<= start end-line)
-                                         (< start-line end))
-                                    (midi-events-at-line-frame pattern-position
-                                                               (- start-line start) start-frame
-                                                               (- end-line start) end-frame)))))))
-        (when midi-events
-          (print midi-events))
-        (route track midi-events start-frame))))
+  (let* ((frames-per-line (frames-per-line))
+         (midi-events
+           (loop for pattern-position in (.pattern-positions track)
+                 nconc (with-slots (start end) pattern-position
+                         (cond ((< end-line start-line) ;ループしている場合
+                                (append
+                                 (if (and (<= start start-line)
+                                          (< start-line end))
+                                     (midi-events-at-line-frame pattern-position
+                                                                (- start-line start) start-frame
+                                                                (- start-line start) frames-per-line))
+                                 (if (and (<= start end-line)
+                                          (< end-line end))
+                                     (midi-events-at-line-frame pattern-position
+                                                                (- end-line start) 0
+                                                                (- end-line start)
+                                                                end-frame))))
+                               ((and (<= start end-line)
+                                     (< start-line end))
+                                (midi-events-at-line-frame pattern-position
+                                                           (- start-line start) start-frame
+                                                           (- end-line start) end-frame)))))))
+    (when midi-events
+      (print midi-events))
+    (route track midi-events start-frame)))
 
 (defun play-track-all-off (track start-frame)
   (route track (print (list (midi-event-all-notes-off))) start-frame))
@@ -359,14 +356,14 @@
     (route self buffer buffer)))
 
 (defclass operand (model)
-  ((operator :initarg :operator :accessor .operator)
-   (left :accessor .left)
+  ((left :accessor .left)
    (right :accessor .right)
    (in-count :initform 0 :accessor .in-count)))
 
 (defmethod initialize ((self operand))
-  (setf (.left self) (make-buffer))
-  (setf (.right self) (make-buffer)))
+  (let ((value (initial-value self)))
+    (setf (.left self) (make-buffer :initial-element value))
+    (setf (.right self) (make-buffer :initial-element value))))
 
 (defmethod lepis:emit-slot ((self operand) (slot (eql 'left)) stream)
   (format stream " NIL")
@@ -378,13 +375,12 @@
 
 (defmethod process ((self operand) left right)
   (loop for i below *frames-per-buffer*
-        with operator = (.operator self)
         do (setf (aref (.left self) i)
-                 (funcall operator
+                 (operate self
                           (aref (.left self) i)
                           (aref left i)))
            (setf (aref (.right self) i)
-                 (funcall operator
+                 (operate self
                           (aref (.right self) i)
                           (aref right i))))
   (when (<= (length (.in self))
@@ -392,27 +388,63 @@
     (route self (.left self) (.right self))
     (setf (.in-count self) 0)
     (loop for i below *frames-per-buffer*
-          do (setf (aref (.left self) i) 1.0d0
-                   (aref (.right self) i) 1.0d0))))
+          with value = (initial-value self)
+          do (setf (aref (.left self) i) value
+                   (aref (.right self) i) value))))
 
-(defclass master (model)
+(defclass op-add (operand)
+  ())
+
+(defmethod initial-value ((self op-add))
+  0.0d0)
+
+(defmethod operate ((self op-add) x y)
+  (+ x y))
+
+(defclass op-multi (operand)
+  ())
+
+(defmethod initial-value ((self op-multi))
+  1.0d0)
+
+(defmethod operate ((self op-multi) x y)
+  (* x y))
+
+(defclass left-right-buffer-mixin ()
   ((left :accessor .left)
-   (right :accessor .right)
-   (volume :initform 0.6d0 :accessor .volume))
-  (:default-initargs  :name "Master" :x 695 :y 515
-                      :color (list #xff #xa5 #x00 *transparency*)))
+   (right :accessor .right)))
 
-(defmethod initialize ((self master))
+(defmethod initialize ((self left-right-buffer-mixin))
   (setf (.left self) (make-buffer))
   (setf (.right self) (make-buffer)))
 
-(defmethod lepis:emit-slot ((self master) (slot (eql 'left)) stream)
+(defmethod lepis:emit-slot ((self left-right-buffer-mixin)
+                            (slot (eql 'left)) stream)
   (format stream " NIL")
   nil)
 
-(defmethod lepis:emit-slot ((self master) (slot (eql 'right)) stream)
+(defmethod lepis:emit-slot ((self left-right-buffer-mixin)
+                            (slot (eql 'right)) stream)
   (format stream " NIL")
   nil)
+
+(defclass gain (left-right-buffer-mixin model)
+  ((volume :initarg :volume :initform 1.0d0 :accessor .volume)))
+
+(defmethod process ((self gain) left right)
+  (loop for i below *frames-per-buffer*
+        with volume = (.volume self)
+        do (setf (aref (.left self) i) (* (aref left i) volume))
+           (setf (aref (.right self) i) (* (aref right i) volume)))
+  (route self (.left self) (.right self))
+  (loop for i below *frames-per-buffer*
+        do (setf (aref (.left self) i) 0.0d0
+                 (aref (.right self) i) 0.0d0)))
+
+(defclass master (left-right-buffer-mixin model)
+  ((volume :initform 0.6d0 :accessor .volume))
+  (:default-initargs  :name "Master" :x 695 :y 515
+                      :color (list #xff #xa5 #x00 *transparency*)))
 
 (defmethod process ((self master) left right)
   (loop for i below *frames-per-buffer*

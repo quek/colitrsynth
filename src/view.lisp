@@ -992,34 +992,9 @@
                       view)
   ((model :initarg :model :accessor .model
           :initform (make-instance 'track
-                                   :width 690 :height *track-height*))
-   (mute-button :accessor .mute-button)
-   (track-line-view :accessor .track-line-view)))
+                                   :width 690 :height *track-height*))))
 
 (defmethod initialize-instance :after ((self track-view) &key)
-  (let ((mute-button (make-instance 'button :label "M"))
-        (track-line-view (make-instance 'track-line-view)))
-    (setf (.mute-button self) mute-button)
-    (setf (.track-line-view self) track-line-view)
-    (add-child self mute-button)
-    (add-child self track-line-view)
-    (setf (.mute self) (.mute (.model self))) ;色のため
-
-    (defmethod click ((mute-button (eql mute-button))
-                      (button (eql sdl2-ffi:+sdl-button-left+)) x y)
-      (setf (.mute self) (not (.mute self))))
-    
-    (defmethod click ((mute-button (eql mute-button))
-                      (button (eql sdl2-ffi:+sdl-button-right+)) x y)
-      (if (loop for track-view in (.track-views *sequencer-module*)
-                always (or (.mute track-view)
-                           (eq self track-view)))
-          (loop for track-view in (.track-views *sequencer-module*)
-                do (setf (.mute track-view) nil))
-          (loop for track-view in (.track-views *sequencer-module*)
-                do (setf (.mute track-view) (not (eq track-view self)))))))
-
-  
   (loop for pattern-position in (.pattern-positions (.model self))
         do (add-pattern-after self pattern-position)))
 
@@ -1029,14 +1004,6 @@
   (setf (.drag-state *app*)
         (make-instance 'drag-state :target self :button button
                                    :x x :y y :state state)))
-
-(defmethod render ((self track-view) renderer)
-  (let* ((x1 (+ (.absolute-x self) 16))
-         (y1 (.absolute-y self))
-         (x2 x1)
-         (y2 (+ y1 (.height self))))
-    (sdl2:render-draw-line renderer x1 y1 x2 y2))
-  (call-next-method))
 
 (defmethod resized ((self track-view))
   (let ((parent (.parent self)))
@@ -1075,15 +1042,6 @@
             (add-pattern self module start end)))
         (call-next-method))))
 
-(defclass track-line-view (view renderable)
-  ())
-
-(defmethod resized ((self track-line-view))
-  (let ((parent (.parent self)))
-    (setf (.x self) 16)
-    (setf (.width self) (- (.width parent) (.x self))))
-  (call-next-method))
-
 (defclass pattern-position-view (drag-mixin
                                  name-mixin
                                  view
@@ -1101,7 +1059,7 @@
 (defmethod click ((self pattern-position-view)
                   (button (eql sdl2-ffi:+sdl-button-right+))
                   x y)
-  (remove-pattern (.parent self) self)
+  (remove-pattern (.parent-by-class self 'track-view) self)
   (call-next-method))
 
 (defmethod drag ((self pattern-position-view) xrel yrel
@@ -1198,14 +1156,16 @@
 
 (defmethod initialize-instance :after ((self pattern-module) &key)
   (let* ((pattern-editor (.pattern-editor self))
-         (octave (make-instance 'label :value (lambda ()
-                                               (format nil "~d" (.octave pattern-editor)))
-                                      :x (- (.width self) (* *char-width* 4) *layout-space*)
-                                      :y *layout-space*))
-         (edit-step (make-instance 'label :value (lambda ()
-                                                  (format nil "~2,'0d" (.edit-step pattern-editor)))
-                                         :x (- (.width self) (* *char-width* 2) *layout-space*)
-                                         :y *layout-space*)))
+         (octave (make-instance 'label
+                                :value (lambda ()
+                                         (format nil "~d" (.octave pattern-editor)))
+                                :x (- (.width self) (* *char-width* 4) *layout-space*)
+                                :y *layout-space*))
+         (edit-step (make-instance 'label
+                                   :value (lambda ()
+                                            (format nil "~2,'0d" (.edit-step pattern-editor)))
+                                   :x (- (.width self) (* *char-width* 2) *layout-space*)
+                                   :y *layout-space*)))
     (add-child self pattern-editor)
     (add-child self octave)
     (add-child self edit-step)
@@ -1216,16 +1176,17 @@
           (.height pattern-editor) (- (.height self) (+ 10 *font-size*)))))
 
 (defmethod add-pattern ((track-view track-view)
-                        (pattern pattern-module)
+                        (pattern-module pattern-module)
                         start end)
-  (let ((pattern-position (add-pattern (.model track-view)
-                                       (.model pattern) start end)))
+  (let ((pattern-position
+          (add-pattern (.model track-view)
+                       (.model pattern-module) start end)))
     (add-pattern-after track-view pattern-position)))
 
 (defmethod add-pattern-after ((track-view track-view)
                               (pattern-position pattern-position))
   (let ((view (make-instance 'pattern-position-view :model pattern-position)))
-    (add-child (.track-line-view track-view) view)
+    (add-child track-view view)
     (setf (.x view) (* *pixcel-per-line* (.start pattern-position))
           (.y view) 2
           (.width view) (* *pixcel-per-line* (- (.end pattern-position)
@@ -1333,6 +1294,29 @@
 (defclass operand-module (module)
   ())
 
+(defclass gain-module (module)
+  ((volume-slider :initarg :volume-slide :accessor .volume-slider)))
+
+(defmethod initialize-instance :after ((self gain-module) &key)
+  (add-child self
+             (setf (.volume-slider self)
+                   (make-instance 'slider
+                                  :value (lambda () (.volume (.model self)))
+                                  :onchange (lambda (x) (setf (.volume (.model self)) x)))))
+  (resized self))
+
+(defmethod resized ((self gain-module))
+  (let ((slider (.volume-slider self))
+        (x *layout-space*)
+        (y (+ *font-size* (* *layout-space* 2)))
+        (width (- (.width self) (* 2 *layout-space*)))
+        (height (+ *font-size* (round (/ *layout-space* 2)))))
+    (setf (.x slider) x)
+    (setf (.y slider) y)
+    (setf (.width slider) width)
+    (setf (.height slider) height)
+    (call-next-method))  )
+
 (defclass master-module (module)
   ()
   (:default-initargs :model (make-instance 'master)))
@@ -1354,8 +1338,9 @@
                ("Sin" sin-osc)
                ("Saw" saw-osc)
                ("Adsr" adsr)
-               ("Op Add" operand :operator ,#'+)
-               ("Op Multi" operand :operator ,#'*))
+               ("Op Add" op-add)
+               ("Op Multi" op-multi)
+               ("Gain" gain))
         do (let ((button (make-instance 'menu-builtin-button
                                         :label name
                                         :class class
@@ -1490,3 +1475,6 @@
 
 (defmethod make-module ((self operand))
   (make-instance 'operand-module :model self))
+
+(defmethod make-module ((self gain))
+  (make-instance 'gain-module :model self))
