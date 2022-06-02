@@ -6,6 +6,7 @@
 ;;;; 処理の都合上必要なこ
 (defvar *pattern-scroll-lock* nil)
 (defvar *pattern-line-index*)
+(defparameter *track-height* 40)        ;TODO 固定長で妥協
 
 (defconstant +mouse-button-count+ 16)
 (defconstant +column-width+ 7)
@@ -446,11 +447,13 @@
                            (.mouse-x *app*)
                            (.mouse-y *app*))))
 
-(defmethod drag-start ((self drag-connect-mixin) x y (button (eql 3)))
+(defmethod drag-start ((self drag-connect-mixin) x y
+                       (button (eql sdl2-ffi:+sdl-button-right+)))
   (setf (.connect-from-module *app*) self)
   (call-next-method))
 
-(defmethod drop ((self drag-connect-mixin) (dropped drag-connect-mixin) x y (button (eql 3)))
+(defmethod drop ((self drag-connect-mixin) (dropped drag-connect-mixin) x y
+                 (button (eql sdl2-ffi:+sdl-button-right+)))
   (let ((from (.connect-from-module *app*)))
     (when (and from (not (eq from self)))
       (if (member (.model self) (.out from))
@@ -983,8 +986,6 @@
                             (format out " ~c~c~c ~2,'0X"
                                     c s o (.velocity column)))))))))
 
-(defparameter *track-height* 40)        ;TODO 固定長で妥協
-
 (defclass track-view (drag-mixin
                       drag-connect-mixin
                       drop-mixin
@@ -1021,6 +1022,13 @@
   
   (loop for pattern-position in (.pattern-positions (.model self))
         do (add-pattern-after self pattern-position)))
+
+(defmethod mousebuttondown ((self track-view)
+                            (button (eql sdl2-ffi:+sdl-button-right+))
+                            state clicks x y)
+  (setf (.drag-state *app*)
+        (make-instance 'drag-state :target self :button button
+                                   :x x :y y :state state)))
 
 (defmethod render ((self track-view) renderer)
   (let* ((x1 (+ (.absolute-x self) 16))
@@ -1096,14 +1104,16 @@
   (remove-pattern (.parent self) self)
   (call-next-method))
 
-(defmethod drag ((self pattern-position-view) xrel yrel button)
+(defmethod drag ((self pattern-position-view) xrel yrel
+                 (button (eql sdl2-ffi:+sdl-button-left+)))
   (let* ((pixcel (+ (.x self) (.move-delta-x self) xrel))
          (line (pixcel-to-line pixcel))
          (rounded-pixcel (line-to-pixcel line)))
     (setf (.x self) rounded-pixcel
           (.move-delta-x self) (- pixcel rounded-pixcel))))
 
-(defmethod drag-end ((self pattern-position) x y button)
+(defmethod drag-end ((self pattern-position) x y
+                     (button (eql sdl2-ffi:+sdl-button-left+)))
   (setf (.move-delta-x self) 0)
   (call-next-method))
 
