@@ -72,6 +72,9 @@
             (sdl2:sym-value keysym)
             scancode
             mod-value)
+    (when (or (sdl2:scancode= scancode :scancode-lshift)
+              (sdl2:scancode= scancode :scancode-rshift))
+      (setf (.shift-key-p *app*) t))
     (keydown (or (.focused-view *app*)
                  (.selected-module *app*))
              value scancode mod-value)))
@@ -80,6 +83,9 @@
   (let  ((value (sdl2:sym-value keysym))
          (scancode (sdl2:scancode-value keysym))
          (mod-value (sdl2:mod-value keysym)))
+    (when (or (sdl2:scancode= scancode :scancode-lshift)
+              (sdl2:scancode= scancode :scancode-rshift))
+      (setf (.shift-key-p *app*) nil))
     (keyup (.selected-module *app*) value scancode mod-value)))
 
 (defun handle-sdl2-mousemotion-event (x y xrel yrel state)

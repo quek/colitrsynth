@@ -125,6 +125,7 @@
    (drag-state :initform nil :accessor .drag-state)
    (connect-from-module :initform nil :accessor .connect-from-module)
    (song-file :initform nil :accessor .song-file)
+   (shift-key-p :initform nil :accessor .shift-key-p)
    (mbox :initform (sb-concurrency:make-mailbox) :accessor .mbox)))
 
 (defmethod .modules ((self app))
@@ -791,11 +792,16 @@
 
 (defmethod wheel ((self partial-view) delta)
   (multiple-value-bind (x1 y1 x2 y2) (.children-bounds self)
-    (declare (ignore x1 y1 x2))
-    (setf (.offset-y self)
-          (max 0 (min
-                  (- (.offset-y self) (* 5 delta))
-                  (- y2 (+ (.absolute-y self) (.height self))))))))
+    (declare (ignore x1 y1))
+    (if (.shift-key-p *app*)
+        (setf (.offset-x self)
+              (max 0 (min
+                      (- (.offset-x self) (* 5 delta))
+                      (- x2 (+ (.absolute-x self) (.width self))))))        
+        (setf (.offset-y self)
+              (max 0 (min
+                      (- (.offset-y self) (* 5 delta))
+                      (- y2 (+ (.absolute-y self) (.height self)))))))))
 
 (defclass pattern-editor (view renderable)
   ((pattern :accessor .pattern)
@@ -1094,7 +1100,7 @@
     (setf (.x self) 0)
     (setf (.y self) (* *track-height* index))
     (setf (.height self) *track-height*)
-    (setf (.width self) (max (.width parent) (* (+ 4 (.end (.model sequencer-module)))
+    (setf (.width self) (max (.width parent) (* (+ 16 (.end (.model sequencer-module)))
                                                 *pixcel-per-line*))))
   (call-next-method))
 
