@@ -228,28 +228,37 @@
   (call-next-method)
   (awhen (child-view-at self x y)
     (mousebuttondown it button state clicks
-                     (- x (.x it)) (- y (.y it)))))
+                     (translate-child-x self it x)
+                     (translate-child-y self it y))))
 
 (defmethod mousebuttonup ((self view) button state clicks x y)
   (call-next-method)
   (awhen (child-view-at self x y)
     (mousebuttonup it button state clicks
-                   (- x (.x it)) (- y (.y it)))))
+                   (translate-child-x self it x)
+                   (translate-child-y self it y))))
 
 (defmethod click ((self view) button x y)
   (call-next-method)
   (awhen (child-view-at self x y)
-    (click it button (- x (.x it)) (- y (.y it)))))
+    (click it button
+           (translate-child-x self it x)
+           (translate-child-y self it y))))
 
 (defmethod drop ((self view) dropped x y button)
   (call-next-method)
   (awhen (child-view-at self x y)
-    (drop it dropped (- x (.x it)) (- y (.y it)) button)))
+    (drop it dropped
+          (translate-child-x self it x)
+          (translate-child-y self it y)
+          button)))
 
 (defmethod mousemotion ((self view) x y xrel yrel state)
   (call-next-method)
   (awhen (child-view-at self x y)
-    (mousemotion it (- x (.x it)) (- y (.y it))
+    (mousemotion it
+                 (translate-child-x self it x)
+                 (translate-child-y self it y)
                  xrel yrel state)))
 
 (defmethod move ((self view) xrel yrel)
@@ -296,6 +305,12 @@
 (defmethod .absolute-y ((self view))
   (+ (.y self)
      (.absolute-y (.parent self))))
+
+(defmethod translate-child-x ((self view) (child view) x)
+  (- x (.x child)))
+
+(defmethod translate-child-y ((self view) (child view) y)
+  (- y (.y child)))
 
 (defmethod render ((self view) renderer)
   (unless (typep self 'text)
@@ -802,6 +817,12 @@
               (max 0 (min
                       (- (.offset-y self) (* 5 delta))
                       (- y2 (+ (.absolute-y self) (.height self)))))))))
+
+(defmethod translate-child-x ((self partial-view) (child view) x)
+  (+ (call-next-method) (.offset-x self)))
+
+(defmethod translate-child-y ((self partial-view) (child view) y)
+  (+ (call-next-method) (.offset-y self)))
 
 (defclass pattern-editor (view renderable)
   ((pattern :accessor .pattern)
