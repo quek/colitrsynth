@@ -185,7 +185,7 @@
                        (<= (.absolute-y view) (.mouse-y app) (+ (.absolute-y view) (.height view)))
                        view)))
 
-(defun child-view-at (self x y)
+(defmethod child-view-at ((self view) x y)
   (loop for view in (.children self)
           thereis (and (<= (.x view) x (+ (.x view) (.width view)))
                        (<= (.y view) y (+ (.y view) (.height view)))
@@ -770,6 +770,13 @@
    (offset-x :initarg :offset-x :initform 0 :accessor .offset-x)
    (offset-y :initarg :offset-y :initform 0 :accessor .offset-y))
   (:default-initargs :color (list #xff #x00 #x00 #x80)))
+
+(defmethod child-view-at ((self partial-view) x y)
+  (loop for view in (.children self)
+        ;; なんで x の方はずらさなくていいの？
+          thereis (and (<= (.x view) x (+ (.x view) (.width view)))
+                       (<= (.y view) (+ y (.offset-y self)) (+ (.y view) (.height view)))
+                       view)))
 
 (defmethod render ((self partial-view) renderer)
   ;; texture を width x height にして .absolute-x/y を変え他方が効率よさそう
