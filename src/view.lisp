@@ -727,17 +727,23 @@
   (:default-initargs :color (list #xff #x00 #x00 #x80)))
 
 (defmethod render ((self partial-view) renderer)
-  (let* ((texture-width (loop for child in (.children self)
-                              maximize (+ (.x child) (.width child))))
-         (texture-height (loop for child in (.children self)
-                              maximize (+ (.x child) (.height child))))
+  (let* ((texture-width
+           (.width self)
+           #+nil
+           (loop for child in (.children self)
+                              maximize (+ (.absolute-x child) (.width child))))
+         (texture-height
+           (.height self)
+           #+nil
+           (loop for child in (.children self)
+                               maximize (+ (.absolute-y child) (.height child))))
          (texture (sdl2:create-texture renderer :rgba8888 :target
                                        texture-width texture-height)))
     (unwind-protect
          (let ()
            (sdl2:set-render-target renderer texture)
            (sdl2:set-texture-blend-mode texture :blend)
-           (sdl2:set-render-draw-color renderer #x00 #x33 #x33 #xff)
+           (sdl2:set-render-draw-color renderer #x00 #x33 #x33 #x80)
            (sdl2:render-clear renderer)
 
            (call-next-method)
@@ -1047,8 +1053,14 @@
                                    :x x :y y :state state)))
 
 (defmethod resized ((self track-view))
-  (let ((parent (.parent self)))
-    (setf (.width self) (- (.width parent) (* *layout-space* 2))))
+  (let* ((parent (.parent self))
+         (sequencer-module (.parent-by-class self 'sequencer-module))
+        (index (position self (.track-views sequencer-module))))
+    (setf (.x self) 0)
+    (setf (.y self) (* *track-height* index))
+    (setf (.height self) *track-height*)
+    (setf (.width self) (max (.width parent) (* (+ 4 (.end (.model sequencer-module)))
+                                                *pixcel-per-line*))))
   (call-next-method))
 
 (defmethod drop ((self track-view) (dropped drag-connect-mixin) x y (button (eql 3))))
@@ -1123,7 +1135,8 @@
     (setf (.width self) (- (.width sequencer-module) (* *layout-space* 2)))
     (setf (.height self) (- (.height sequencer-module)
                             (.y self)
-                            *layout-space*))))
+                            *layout-space*)))
+  (call-next-method))
 
 (defclass sequencer-module (module)
   ((track-views :initform nil :accessor .track-views)
@@ -1151,7 +1164,8 @@
             (stop)
             (play)))
       (defmethod click ((self (eql add-track-button)) (button (eql 1)) x y)
-        (add-new-track sequencer)))))
+        (add-new-track sequencer)))
+    (resized self)))
 
 (defmethod keydown ((self sequencer-module) value scancode mod-value)
   (cond ((sdl2:scancode= scancode :scancode-1)
@@ -1184,16 +1198,10 @@
   (add-new-track-after self (add-new-track (.model self))))
 
 (defmethod add-new-track-after ((self sequencer-module) (track track))
-  (let* ((y (+ 13 *font-size* (* (length (.track-views self))
-                                 (1- *track-height*))))
-         (track-view (progn
-                       (setf (.x track) 5)
-                       (setf (.y track) y)
-                       (setf (.height track) *track-height*)
-                       (make-instance 'track-view :model track))))
+  (let ((track-view (make-instance 'track-view :model track)))
     (add-child (.partial-view self) track-view)
-    (resized track-view)
     (setf (.track-views self) (append (.track-views self) (list track-view)))
+    (resized track-view)
     track-view))
 
 (defclass pattern-module (module)
