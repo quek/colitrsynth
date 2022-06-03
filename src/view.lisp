@@ -727,23 +727,18 @@
   (:default-initargs :color (list #xff #x00 #x00 #x80)))
 
 (defmethod render ((self partial-view) renderer)
+  ;; texture を width x height にして .absolute-x/y を変え他方が効率よさそう
   (let* ((texture-width
-           (.width self)
-           #+nil
-           (loop for child in (.children self)
-                              maximize (+ (.absolute-x child) (.width child))))
+           (+ (.absolute-x self) (.width self)))
          (texture-height
-           (.height self)
-           #+nil
-           (loop for child in (.children self)
-                               maximize (+ (.absolute-y child) (.height child))))
+           (+ (.absolute-y self) (.height self)))
          (texture (sdl2:create-texture renderer :rgba8888 :target
                                        texture-width texture-height)))
     (unwind-protect
          (let ()
            (sdl2:set-render-target renderer texture)
            (sdl2:set-texture-blend-mode texture :blend)
-           (sdl2:set-render-draw-color renderer #x00 #x33 #x33 #x80)
+           (sdl2:set-render-draw-color renderer #x00 #xc0 #xf0 #x80)
            (sdl2:render-clear renderer)
 
            (call-next-method)
@@ -753,8 +748,8 @@
                   (dst-y (.absolute-y self))
                   (dst-w (.width self))
                   (dst-h (.height self))
-                  (src-x (+ dst-x (.offset-x self)))
-                  (src-y (+ dst-y (.offset-y self)))
+                  (src-x (+ (.absolute-x self) (.offset-x self)))
+                  (src-y (+ (.absolute-y self) (.offset-y self)))
                   (src-w texture-width)
                   (src-h texture-height)
                   (dst-rect (sdl2:make-rect dst-x dst-y dst-w dst-h))
