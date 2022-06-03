@@ -55,6 +55,8 @@
                                     (handle-sdl2-mousebuttondown-event button state clicks x y))
                   (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
                                   (handle-sdl2-mousebuttonup-event button state clicks x y))
+                  (:mousewheel (:y delta)
+                               (handle-sdl2-mousewheel-event delta))
                   (:idle ()
                          (handle-sdl2-idle-event renderer))
                   (:quit ()
@@ -119,6 +121,9 @@
   (setf (.dragging *app*) nil)
   (setf (click-target-module button) nil)
   (setf (.connect-from-module *app*) nil))
+
+(defun handle-sdl2-mousewheel-event (delta)
+  (wheel (view-at-mouse *app*) delta))
 
 (defun handle-sdl2-idle-event (renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)

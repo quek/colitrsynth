@@ -102,6 +102,9 @@
 (defgeneric lost-focuse (self)
   (:method (self)))
 
+(defgeneric wheel (self delta)
+  (:method (self delta)))
+
 (defgeneric .target (self)
   (:method ((self null)) nil))
 
@@ -201,6 +204,25 @@
           (t
            (.parent-by-class parent class)))))
 
+(defmethod .max-child-width ((self view))
+  (loop for child in (.children self)
+        maximize (.width child)))
+
+(defmethod .max-child-height ((self view))
+  (loop for child in (.children self)
+        maximize (.height child)))
+
+(defmethod .children-bounds ((self view))
+  (values
+   (loop for child in (.children self)
+         minimize (.absolute-x child))
+   (loop for child in (.children self)
+         minimize (.absolute-y child))
+   (loop for child in (.children self)
+         maximize (+ (.absolute-x child) (.width child)))
+   (loop for child in (.children self)
+         maximize (+ (.absolute-y child) (.height child)))))
+
 (defmethod mousebuttondown ((self view) button state clicks x y)
   (call-next-method)
   (awhen (child-view-at self x y)
@@ -293,6 +315,13 @@
   (loop for child in (.children self)
         do (resized child))
   (call-next-method))
+
+(defmethod wheel ((self view) delta)
+  (call-next-method)
+  (awhen (child-view-at self
+                        (- (.mouse-x *app*) (.absolute-x self))
+                        (- (.mouse-y *app*) (.absolute-y self)))
+    (wheel it delta)))
 
 (defclass module (drag-resize-mixin
                   drag-move-mixin
@@ -753,12 +782,20 @@
                   (dst-h (.height self))
                   (src-x (+ (.absolute-x self) (.offset-x self)))
                   (src-y (+ (.absolute-y self) (.offset-y self)))
-                  (src-w texture-width)
-                  (src-h texture-height)
+                  (src-w dst-w)
+                  (src-h dst-h)
                   (dst-rect (sdl2:make-rect dst-x dst-y dst-w dst-h))
                   (src-rect (sdl2:make-rect src-x src-y src-w src-h)))
              (sdl2:render-copy renderer texture :source-rect src-rect :dest-rect dst-rect)))
       (sdl2:destroy-texture texture))))
+
+(defmethod wheel ((self partial-view) delta)
+  (multiple-value-bind (x1 y1 x2 y2) (.children-bounds self)
+    (declare (ignore x1 y1 x2))
+    (setf (.offset-y self)
+          (max 0 (min
+                  (- (.offset-y self) (* 5 delta))
+                  (- y2 (+ (.absolute-y self) (.height self))))))))
 
 (defclass pattern-editor (view renderable)
   ((pattern :accessor .pattern)
