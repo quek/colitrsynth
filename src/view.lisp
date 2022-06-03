@@ -729,9 +729,12 @@
 (defmethod render ((self partial-view) renderer)
   ;; texture を width x height にして .absolute-x/y を変え他方が効率よさそう
   (let* ((texture-width
-           (+ (.absolute-x self) (.width self)))
+           (loop for child in (.children self)
+                 maximize (+ (.absolute-x child) (.width child))))
          (texture-height
-           (+ (.absolute-y self) (.height self)))
+           (max (loop for child in (.children self)
+                      maximize (+ (.absolute-y child) (.height child)))
+                (+ (.absolute-y self) (.height self))))
          (texture (sdl2:create-texture renderer :rgba8888 :target
                                        texture-width texture-height)))
     (unwind-protect
