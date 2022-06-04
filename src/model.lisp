@@ -498,6 +498,7 @@
         (sb-ext:run-program *plugin-host-exe*
                             (list (.name (.plugin-description self)))
                             :wait nil))
+  (push (.host-process self) *plugin-processes*)
   (let ((pipe (sb-win32::create-named-pipe (format nil "~a~a" *plugin-host-pipe-name*
                                                    (sb-ext:process-pid (.host-process self)))
                                            sb-win32::pipe-access-duplex

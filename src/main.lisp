@@ -6,62 +6,76 @@
 (delegate-model track-view)
 
 (defun main ()
-  (sb-thread:make-thread 'main-loop))
+  (sb-thread:make-thread 'main-loop :name "CoLiTrSynth main-loop"))
 
 (defun main-loop ()
-  (let ((*app* (setf *app* (make-instance 'app :width 800 :height 600))))
-    (sdl2:with-init (:everything)
-      (sdl2-ttf:init)
-      (let ((font "c:/Windows/Fonts/msgothic.ttc"))
-        (format t "Load font ~a~%" font)
-        (setf (.font *app*)
-              (sdl2-ttf:open-font font *font-size*)))
+  (setf *plugin-processes* nil)
+  (unwind-protect
+       (let ((*app* (setf *app* (make-instance 'app :width 800 :height 600))))
+         (sdl2:with-init (:everything)
+           (sdl2-ttf:init)
+           (let ((font "c:/Windows/Fonts/msgothic.ttc"))
+             (format t "Load font ~a~%" font)
+             (setf (.font *app*)
+                   (sdl2-ttf:open-font font *font-size*)))
 
-      (format t "Using SDL Library Version: ~D.~D.~D~%"
-              sdl2-ffi:+sdl-major-version+
-              sdl2-ffi:+sdl-minor-version+
-              sdl2-ffi:+sdl-patchlevel+)
-      (finish-output)
+           (format t "Using SDL Library Version: ~D.~D.~D~%"
+                   sdl2-ffi:+sdl-major-version+
+                   sdl2-ffi:+sdl-minor-version+
+                   sdl2-ffi:+sdl-patchlevel+)
+           (finish-output)
 
-      (sdl2:with-window (win :title "----" :w (.width *app*) :h (.height *app*)
-                             :flags '(:resizable)
-                             :x 1 :y 25)    ;デバッグするのにこの位置が楽
-        (setf (.win *app*) win)
-        (sdl2:with-renderer (renderer win :flags '(:accelerated))
-          (format t "Setting up window/gl.~%")
-          (finish-output)
-          (sdl2:hide-window win)
-          (sdl2:show-window win)
-          (format t "Beginning main loop.~%")
-          (finish-output)
-          
-          (lepis:with-db ((format nil "~a\\Documents\\CoLiTrSynth\\"
-                                  (sb-posix:getenv "USERPROFILE"))
-                          :dump-threshold-second nil
-                          :dump-when-close nil)
-            (with-audio
-              (let ((*sequencer-module* nil)
-                    (*master-module* nil))
-                (load-modules)
-                (start-audio)
-                (sdl2:with-event-loop (:method :poll)
-                  (:keydown (:keysym keysym)
-                            (handle-sdl2-keydown-event keysym))
-                  (:keyup (:keysym keysym)
-                          (handle-sdl2-keyup-event keysym))
-                  (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
-                                (handle-sdl2-mousemotion-event x y xrel yrel state))
-                  (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
-                                    (handle-sdl2-mousebuttondown-event button state clicks x y))
-                  (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
-                                  (handle-sdl2-mousebuttonup-event button state clicks x y))
-                  (:mousewheel (:y delta)
-                               (handle-sdl2-mousewheel-event delta))
-                  (:idle ()
-                         (handle-sdl2-idle-event renderer))
-                  (:quit ()
-                         (handle-sdl2-quit-event)
-                         t))))))))))
+           (sdl2:with-window (win :title "----" :w (.width *app*) :h (.height *app*)
+                                  :flags '(:resizable)
+                                  :x 1 :y 25)    ;デバッグするのにこの位置が楽
+             (setf (.win *app*) win)
+             (sdl2:with-renderer (renderer win :flags '(:accelerated))
+               (format t "Setting up window/gl.~%")
+               (finish-output)
+               (sdl2:hide-window win)
+               (sdl2:show-window win)
+               (format t "Beginning main loop.~%")
+               (finish-output)
+               
+               (lepis:with-db ((format nil "~a\\Documents\\CoLiTrSynth\\"
+                                       (sb-posix:getenv "USERPROFILE"))
+                               :dump-threshold-second nil
+                               :dump-when-close nil)
+                 (with-audio
+                   (let ((*sequencer-module* nil)
+                         (*master-module* nil))
+                     (load-modules)
+                     (start-audio)
+                     (sdl2:with-event-loop (:method :poll)
+                       (:keydown (:keysym keysym)
+                                 (handle-sdl2-keydown-event keysym))
+                       (:keyup (:keysym keysym)
+                               (handle-sdl2-keyup-event keysym))
+                       (:mousemotion (:x x :y y :xrel xrel :yrel yrel :state state)
+                                     (handle-sdl2-mousemotion-event x y xrel yrel state))
+                       (:mousebuttondown (:button button :state state :clicks clicks :x x :y y)
+                                         (handle-sdl2-mousebuttondown-event button state clicks x y))
+                       (:mousebuttonup (:button button :state state :clicks clicks :x x :y y)
+                                       (handle-sdl2-mousebuttonup-event button state clicks x y))
+                       (:mousewheel (:y delta)
+                                    (handle-sdl2-mousewheel-event delta))
+                       (:idle ()
+                              (handle-sdl2-idle-event renderer))
+                       (:quit ()
+                              (handle-sdl2-quit-event)
+                              t)))))))))
+    (progn
+      (loop repeat 3
+            do (loop for x in *plugin-processes*
+                     if (sb-ext:process-alive-p x)
+                       do (print "wait process stop.")
+                          (sleep 1)
+                          (loop-finish)))
+      (loop for x in *plugin-processes*
+            if (sb-ext:process-alive-p x)
+              do (print "kill process!!!!!!")
+                 (print x)
+                 (sb-ext:process-kill x 1)))))
 
 (defun handle-sdl2-keydown-event (keysym)
   (let ((value (sdl2:sym-value keysym))
