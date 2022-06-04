@@ -1,5 +1,6 @@
 # TODO
 
+- lepis は使わない方がいいかな
 - Op Multi -> Amp, Gain -> Merge かな
 - シーケンサーのズーム
 - パターン編集でのコピペ

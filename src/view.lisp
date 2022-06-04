@@ -83,7 +83,7 @@
               (let ((file (or (.song-file *app*)
                               (get-save-file-name))))
                 (when file
-                  (unless (alexandria:ends-with ".lisp" file)
+                  (unless (alexandria:ends-with-subseq ".lisp" file)
                     (setf file (format nil "~a.lisp" file)))
                   (sb-concurrency:send-message
                    (.mbox *app*)
@@ -1177,7 +1177,8 @@
 (defmethod drop ((self track-view) (dropped drag-connect-mixin) x y (button (eql 3))))
 
 (defun pixcel-to-line (pixcel)
-  (* (round (/ pixcel *pixcel-per-line*) 4) 4))
+  ;; 16 ラインにグリッド
+  (* (round (/ pixcel *pixcel-per-line*) 16) 16))
 
 (defun line-to-pixcel (line)
   (* *pixcel-per-line* line))
