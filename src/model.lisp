@@ -693,7 +693,7 @@
   ((name :initarg :name :accessor .name)
    (format :initarg :format :accessor .format)
    (category :initarg :category :accessor .category)
-   (manufacturer :initarg :manufacturer :accessor .manufacturer)
+   (omanufacturer :initarg :manufacturer :accessor .manufacturer)
    (version :initarg :version :accessor .version)
    (file :initarg :file :accessor .file)
    (unique-id :initarg :unique-id :accessor .unique-id)

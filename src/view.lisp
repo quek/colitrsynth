@@ -62,7 +62,7 @@
   (:method (self value scancode mod-value)
     (cond ((sdl2:scancode= scancode :scancode-scrolllock)
            (setf *pattern-scroll-lock* (not *pattern-scroll-lock*)))
-          ((sdl2:scancode= scancode :scancode-space )
+          ((sdl2:scancode= scancode :scancode-space)
            (if (.playing *audio*)
                (stop)
                (play)))
@@ -88,7 +88,21 @@
                   (sb-concurrency:send-message
                    (.mbox *app*)
                    (lambda () (save-song file))))))
-            :arguments (list *app*))))))
+            :arguments (list *app*)))
+          ((and (sdl2:scancode= scancode :scancode-c)
+                (.ctrl-key-p *app*))
+           (awhen (.selected-module *app*)
+             (sdl2-ffi.functions:sdl-set-clipboard-text
+              (with-output-to-string (out)
+                (serialize it out)))))
+          ((and (sdl2:scancode= scancode :scancode-v)
+                (.ctrl-key-p *app*))
+           (awhen (with-input-from-string (in (sdl2-ffi.functions:sdl-get-clipboard-text))
+                    (deserialize in))
+             (multiple-value-bind (x y) (sdl2:mouse-state)
+               (setf (.x it) x)
+               (setf (.y it) y))
+             (add-view it))))))
 
 (defgeneric keyup (self value scancode mod-value)
   (:method (self value scancode mod-value)))
@@ -111,6 +125,23 @@
 (defgeneric .target (self)
   (:method ((self null)) nil))
 
+(defgeneric serialize (self stream)
+  (:method :around (self stream)
+    (with-standard-io-syntax (call-next-method)))
+  (:method (self stream)
+    (format stream " ~a" self))
+  (:method ((self cons) stream)
+    (format stream "(list")
+    (loop for x in self
+          do (serialize x stream))
+    (format stream ")")))
+
+(defun deserialize (stream)
+  (ignore-errors
+   (with-standard-io-syntax
+     (let ((*package* (find-package :colitrsynth)))
+       (eval (read stream))))))
+
 (defclass app ()
   ((win :initarg :win :accessor .win)
    (width :initarg :width :initform 800 :accessor .width)
@@ -129,6 +160,7 @@
    (connect-from-module :initform nil :accessor .connect-from-module)
    (song-file :initform nil :accessor .song-file)
    (shift-key-p :initform nil :accessor .shift-key-p)
+   (ctrl-key-p :initform nil :accessor .ctrl-key-p)
    (mbox :initform (sb-concurrency:make-mailbox) :accessor .mbox)))
 
 (defmethod .modules ((self app))
@@ -409,6 +441,20 @@
                        (+ (.width self) 4)
                        (+ (.height self) 4))) )))
 
+(defmethod serialize :around ((self module) stream)
+  (format stream "(let ((x (sb-mop:allocate-instance (find-class '~a))))"
+          (class-name (class-of (.model self))))
+  (format stream "(setf (.name x) ~s)" (.name self))
+  (format stream "(setf (.x x) ~a)" (.x self))
+  (format stream "(setf (.y x) ~a)" (.y self))
+  (format stream "(setf (.width x) ~a)" (.width self))
+  (format stream "(setf (.height x) ~a)" (.height self))
+  (format stream "(setf (.color x)")
+  (serialize (.color self) stream)
+  (format stream ")")
+  (format stream "(setf (.in x) nil (.out x) nil)")
+  (call-next-method)
+  (format stream "(initialize x)(make-module x))"))
 
 (defclass drag-mixin ()
   ())
@@ -1456,8 +1502,43 @@
                                       :width width :height height
                                       :onchange (lambda (x) (setf (.r adsr) x))))))
 
+(defmethod serialize ((self adsr-module) stream)
+  (format stream "(setf (.a x) ~a)" (.a (.model self)))
+  (format stream "(setf (.d x) ~a)" (.d (.model self)))
+  (format stream "(setf (.s x) ~a)" (.s (.model self)))
+  (format stream "(setf (.r x) ~a)" (.r (.model self))))
+
 (defclass plugin-module (module)
   ())
+
+(defmethod serialize ((self plugin-module) stream)
+  (let* ((model (.model self))
+         (pd (.plugin-description model)))
+    (format stream "(setf (.plugin-description x)
+(make-instance 'plugin-description
+:name ~s
+:format ~s
+:category ~s
+:manufacturer ~s
+:version ~s
+:file ~s
+:unique-id ~s
+:is-instrument ~s
+:num-inputs ~s
+:num-outputs ~s
+:uid ~s
+))"
+            (.name pd)
+            (.format pd)
+            (.category pd)
+            (.manufacturer pd)
+            (.version pd)
+            (.file pd)
+            (.unique-id pd)
+            (.is-instrument pd)
+            (.num-inputs pd)
+            (.num-outputs pd)
+            (.uid pd))))
 
 (defclass instrument-plugin-module (plugin-module)
   ())
