@@ -1193,8 +1193,8 @@
                          (or (<= end (.start x))
                              (<= (.end x) start)))
                        (.pattern-positions (.model self)))
-            (add-pattern self module start end)))
-        (call-next-method))))
+            (add-pattern self module start end)))))
+  (call-next-method))
 
 (defclass pattern-position-view (drag-mixin
                                  name-mixin
@@ -1210,6 +1210,16 @@
                             :value (lambda () (.name (.model self)))
                             :x *layout-space*
                             :y *layout-space*)))
+
+(defmethod click ((self pattern-position-view)
+                  (button (eql sdl2-ffi:+sdl-button-left+))
+                  x y)
+  (loop for module in (.modules *app*)
+        with pattern = (.pattern (.model self))
+        if (and (typep module 'pattern-module)
+                (eq (.model module) pattern))
+          do (setf (.selected-pattern *app*) module)
+             (loop-finish)))
 
 (defmethod click ((self pattern-position-view)
                   (button (eql sdl2-ffi:+sdl-button-right+))
