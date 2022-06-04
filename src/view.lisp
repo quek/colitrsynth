@@ -316,13 +316,6 @@
   (- y (.y child)))
 
 (defmethod render ((self view) renderer)
-  (unless (typep self 'text)
-    (apply #'sdl2:set-render-draw-color renderer (.color self))
-    (sdl2:render-draw-rect renderer
-                           (sdl2:make-rect (.absolute-x self)
-                                           (.absolute-y self)
-                                           (.width self)
-                                           (.height self))))
   (loop for child in (.children self)
         do (render child renderer))
   (call-next-method))
@@ -347,9 +340,21 @@
                         (- (.mouse-y *app*) (.absolute-y self)))
     (wheel it delta)))
 
+(defclass render-border-mixin () ())
+
+(defmethod render ((self render-border-mixin) renderer)
+  (apply #'sdl2:set-render-draw-color renderer (.color self))
+  (sdl2:render-draw-rect renderer
+                         (sdl2:make-rect (.absolute-x self)
+                                         (.absolute-y self)
+                                         (.width self)
+                                         (.height self)))
+  (call-next-method))
+
 (defclass module (drag-resize-mixin
                   drag-move-mixin
                   drag-connect-mixin
+                  render-border-mixin
                   view)
   ((model :initarg :model :accessor .model)))
 
@@ -653,7 +658,7 @@
                         :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
                                                    (.width self) (.height self))))))
 
-(defclass button (view renderable)
+(defclass button (render-border-mixin view renderable)
   ((label-view :accessor .label-view))
   (:default-initargs :width 50 :height 30))
 
@@ -676,7 +681,7 @@
 (defclass onchange-mixin ()
   ((onchange :initarg :onchange :initform (constantly nil) :accessor .onchange)))
 
-(defclass text (view renderable)
+(defclass text (render-border-mixin view renderable)
   ((label :accessor .label)
    (edit-buffer :initform "" :accessor .edit-buffer)
    (cursor-position :initform 0 :accessor .cursor-position)
@@ -777,7 +782,8 @@
           (t (call-next-method)))))
 
 (defclass slider (onchange-mixin
-                  function-value-mixin drag-mixin view renderable)
+                  function-value-mixin drag-mixin
+                  render-border-mixin view renderable)
   ((min :initarg :min :initform 0.0d0 :accessor .min)
    (max :initarg :max :initform 1.0d0 :accessor .max)))
 
@@ -804,8 +810,7 @@
 (defclass partial-view (view renderable)
   ((zoom :initarg :zoom :initform 100 :accessor .zoom)
    (offset-x :initarg :offset-x :initform 0 :accessor .offset-x)
-   (offset-y :initarg :offset-y :initform 0 :accessor .offset-y))
-  (:default-initargs :color (list #xff #x00 #x00 #x80)))
+   (offset-y :initarg :offset-y :initform 0 :accessor .offset-y)))
 
 (defmethod child-view-at ((self partial-view) x y)
   (loop for view in (.children self)
@@ -1141,6 +1146,7 @@
 (defclass track-view (drag-mixin
                       drag-connect-mixin
                       drop-mixin
+                      render-border-mixin
                       view)
   ((model :initarg :model :accessor .model
           :initform (make-instance 'track
@@ -1192,6 +1198,7 @@
 
 (defclass pattern-position-view (drag-mixin
                                  name-mixin
+                                 render-border-mixin
                                  view
                                  renderable)
   ((model :initarg :model :accessor .model)
@@ -1232,6 +1239,20 @@
 
 (defclass sequencer-partial-view (partial-view)
   ())
+
+(defmethod render :after ((self sequencer-partial-view) renderer)
+  (let* ((sequencer (.model (.root-parent self)))
+         (x (max (.absolute-x self)
+                 (min
+                  (+ (.absolute-x self)
+                     (.width self))
+                  (+ (.absolute-x self)
+                     (* (.current-line sequencer)
+                        *pixcel-per-line*)
+                     (- (.offset-x self))))))
+         (y (.absolute-y self)))
+    (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
+    (sdl2:render-draw-line renderer x y x (+ y (.height self)))))
 
 (defmethod resized ((self sequencer-partial-view))
   (let ((sequencer-module (.root-parent self)))
@@ -1278,16 +1299,6 @@
         ((sdl2:scancode= scancode :scancode-2)
          (incf (.bpm (.model self))))
         (t (call-next-method))))
-
-(defmethod render :after ((self sequencer-module) renderer)
-  (let* ((first (car (.track-views self)))
-         (last (car (last (.track-views self))))
-         (x (+ (.absolute-x first)
-               (* (.current-line (.model self))
-                  *pixcel-per-line*))))
-    (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
-    (sdl2:render-draw-line renderer x (.absolute-y first) x
-                           (+ (.absolute-y last) (.height last)))))
 
 (defmethod drag-start ((self sequencer-module) x y (button (eql 3)))
   "track-view にディスパッチする。"
@@ -1484,7 +1495,7 @@
   ()
   (:default-initargs :model (make-instance 'master)))
 
-(defclass menu-view (view renderable)
+(defclass menu-view (render-border-mixin view renderable)
   ((filter :initform nil :accessor .filter)
    (buttons :initform nil :accessor .buttons))
   (:default-initargs :width 400 :height 300))
