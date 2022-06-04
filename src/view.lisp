@@ -1247,6 +1247,9 @@
     (incf (.end pattern-position) delta)
     (update-sequencer-end)))
 
+(defmethod resized ((self pattern-position-view))
+  (setf (.height self) (.height (.parent self))))
+
 (defclass sequencer-partial-view (partial-view)
   ())
 
