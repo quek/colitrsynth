@@ -1538,7 +1538,12 @@
             (.is-instrument pd)
             (.num-inputs pd)
             (.num-outputs pd)
-            (.uid pd))))
+            (.uid pd))
+    (get-plugin-state model)
+    (format stream "(setf (.plugin-state x) (coerce ")
+    (serialize (.plugin-state model) stream)
+    (format stream " '(simple-array (unsigned-byte 8) (~d))))"
+            (length (.plugin-state model)))))
 
 (defclass instrument-plugin-module (plugin-module)
   ())
