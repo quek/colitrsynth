@@ -681,7 +681,7 @@
 (defclass onchange-mixin ()
   ((onchange :initarg :onchange :initform (constantly nil) :accessor .onchange)))
 
-(defclass text (render-border-mixin view renderable)
+(defclass text (view renderable)
   ((label :accessor .label)
    (edit-buffer :initform "" :accessor .edit-buffer)
    (cursor-position :initform 0 :accessor .cursor-position)
