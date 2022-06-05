@@ -737,14 +737,29 @@
     (setf (.width self) (+ 10 (.width label))
           (.height self) (+ 4 (.height label)))))
 
+(defclass focus-mixin ()
+  ((focused :initform nil :accessor .focused)))
+
+(defmethod click ((self focus-mixin) button x y)
+  (unless (eq self (.focused-view *app*))
+    (setf (.focused-view *app*) self))
+  (call-next-method))
+
+(defmethod focused ((self focus-mixin))
+  (setf (.focused self) t)
+  (call-next-method))
+
+(defmethod lost-focuse ((self focus-mixin))
+  (setf (.focused self) nil)
+  (call-next-method))
+
 (defclass onchange-mixin ()
   ((onchange :initarg :onchange :initform (constantly nil) :accessor .onchange)))
 
-(defclass text (view renderable)
+(defclass text (focus-mixin view renderable)
   ((label :accessor .label)
    (edit-buffer :initform "" :accessor .edit-buffer)
    (cursor-position :initform 0 :accessor .cursor-position)
-   (focused :initform nil :accessor .focused)
    (reader :initarg :reader :accessor .reader)
    (writer :initarg :writer :accessor .writer))
   (:default-initargs :height (+ *char-height* 4)
@@ -783,17 +798,14 @@
                                              (.height self)))))
   (call-next-method))
 
-(defmethod click ((self text) button x y)
-  (unless (eq self (.focused-view *app*))
-    (setf (.focused-view *app*) self)))
-
 (defmethod focused ((self text))
-  (setf (.focused self) t)
-  (setf (.cursor-position self) (length (.edit-buffer self))))
+  (setf (.cursor-position self) (length (.edit-buffer self)))
+  (call-next-method))
 
 (defmethod lost-focuse ((self text))
   (funcall (.writer self) (.edit-buffer self))
-  (setf (.focused self) nil))
+  (setf (.focused self) nil)
+  (call-next-method))
 
 (defmethod keydown ((self text) value scancode mod-value)
   (let* ((shift-p (not (zerop (logand mod-value sdl2-ffi:+kmod-shift+))))
@@ -931,7 +943,7 @@
 (defmethod translate-child-y ((self partial-view) (child view) y)
   (+ (call-next-method) (.offset-y self)))
 
-(defclass pattern-editor (view renderable)
+(defclass pattern-editor (focus-mixin view renderable)
   ((pattern :accessor .pattern)
    (lines :initform nil :accessor .lines)
    (cursor-x :initform 0 :accessor .cursor-x)
@@ -939,6 +951,7 @@
    (octave :initform 4 :accessor .octave)
    (edit-step :initform 0 :accessor .edit-step)))
 
+;; TODO もしかすると resized に移すべき？
 (defmethod render :before ((self pattern-editor) renderer)
   (when (and (.playing *audio*)
              (not *pattern-scroll-lock*))
@@ -992,7 +1005,7 @@
             renderer
             (sdl2:make-rect play-x play-y play-w play-h))
            ;; cursor position
-           (when (eq (.parent self) (.selected-module *app*))
+           (when (.focused self)
              (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
              (sdl2:render-fill-rect
               renderer
@@ -1017,6 +1030,8 @@
       (sdl2:destroy-texture texture))))
 
 (defmethod keydown ((self pattern-editor) value scancode mod-value)
+  (unless (.focused self)
+    (return-from keydown 'call-next-method))
   (let* ((shift-p (not (zerop (logand mod-value sdl2-ffi:+kmod-shift+))))
          (ctrl-p (not (zerop (logand mod-value sdl2-ffi:+kmod-ctrl+))))
          (max-cursor-y (1- (length (.lines (.pattern self)))))
