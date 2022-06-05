@@ -1653,6 +1653,10 @@
 (defclass gain-module (volume-controller-mixin module)
   ())
 
+(defmethod serialize ((self gain-module))
+  (let ((model (.model self)))
+    `(setf (.volume x) ,(.volume model))))
+
 (defclass master-module (volume-controller-mixin module)
   ()
   (:default-initargs :model (make-instance 'master)))

@@ -368,12 +368,13 @@
 (defclass operand (model)
   ((left :accessor .left)
    (right :accessor .right)
-   (in-count :initform 0 :accessor .in-count)))
+   (in-count :accessor .in-count :type fixnum)))
 
 (defmethod initialize ((self operand))
   (let ((value (initial-value self)))
     (setf (.left self) (make-buffer :initial-element value))
-    (setf (.right self) (make-buffer :initial-element value))))
+    (setf (.right self) (make-buffer :initial-element value))
+    (setf (.in-count self) 0)))
 
 (defmethod lepis:emit-slot ((self operand) (slot (eql 'left)) stream)
   (format stream " NIL")
