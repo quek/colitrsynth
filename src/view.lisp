@@ -5,7 +5,6 @@
 
 ;;;; 処理の都合上必要なこ
 (defvar *pattern-scroll-lock* nil)
-(defvar *pattern-line-index*)
 (defparameter *track-height* 30)        ;TODO 固定長で妥協
 
 (defconstant +mouse-button-count+ 16)
@@ -1031,10 +1030,9 @@
              (sdl2:render-fill-rect
               renderer
               (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h)))
-           (loop for child in (.children self)
-                 for i from 0
-                 do (let ((*pattern-line-index* i))
-                      (render child renderer)))
+           
+           (call-next-method)
+
            (sdl2:set-render-target renderer nil)
            (let* ((dst-x (.absolute-x self))
                   (dst-y (.absolute-y self))
@@ -1219,7 +1217,7 @@
 (defmethod render :before ((self pattern-editor-line) renderer)
   (setf (.value self)
         (with-output-to-string (out)
-          (format out "~2,'0X" *pattern-line-index*)
+          (format out "~2,'0X" (position self (.lines (.parent self))))
           (loop with line = (.line self)
                 repeat (.length line)
                 for column across (.columns line)
