@@ -1,6 +1,7 @@
 # TODO
 
 - lepis は使わない方がいいかな
+    - view と model をサイド統合
 - pattern editor 上の方に配置するとゆがむ
 - Op Multi -> Amp, Gain -> Merge かな
 - シーケンサーのズーム

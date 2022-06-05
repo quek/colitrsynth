@@ -10,6 +10,7 @@
 (defparameter *connection-point-color* (list #xff #xff #xff *transparency*))
 (defparameter *selected-module-color* (list #xff #xff #x00 *transparency*))
 (defparameter *selected-pattern-color* (list #xff #x80 #x80 *transparency*))
+(defparameter *focused-color* (list #xff #xff #x22 *transparency*))
 (defparameter *mute-color* (list #xff 0 0 *transparency*))
 
 (defparameter *font-size* 14)

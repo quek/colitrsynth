@@ -480,6 +480,8 @@
      (initialize x)
      (make-module x)))
 
+(defmethod serialize ((self module)))
+
 (defclass drag-mixin ()
   ())
 
@@ -806,11 +808,10 @@
         (cursor-h *char-height*))
     (when (.focused self)
       (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
-      (sdl2:render-fill-rect
-       renderer
-       (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))
-
-      (sdl2:set-render-draw-color renderer #xff #xff #x22 #xff)
+      (sdl2:render-fill-rect renderer
+                             (sdl2:make-rect cursor-x cursor-y
+                                             cursor-w cursor-h))
+      (apply #'sdl2:set-render-draw-color renderer *focused-color*)
       (sdl2:render-draw-rect renderer
                              (sdl2:make-rect (.absolute-x self)
                                              (.absolute-y self)
@@ -1046,7 +1047,14 @@
                   (dst-rect (sdl2:make-rect dst-x dst-y dst-w dst-h))
                   (src-rect (sdl2:make-rect src-x src-y src-w src-h)))
              (sdl2:render-copy renderer texture :source-rect src-rect :dest-rect dst-rect)))
-      (sdl2:destroy-texture texture))))
+      (sdl2:destroy-texture texture)))
+  (when (.focused self)
+    (apply #'sdl2:set-render-draw-color renderer *focused-color*)
+    (sdl2:render-draw-rect renderer
+                           (sdl2:make-rect (.absolute-x self)
+                                           (.absolute-y self)
+                                           (.width self)
+                                           (.height self)))))
 
 (defmethod keydown ((self pattern-editor) value scancode mod-value)
   (unless (.focused self)
@@ -1209,7 +1217,10 @@
             ((and (sdl2:scancode= scancode :scancode-delete)
                   (or (not shift-p) (not ctrl-p)))
              (set-note none))
-            (t 'call-next-method)))))
+            (t
+             (call-next-method)
+             ;; TODO ちょっとわけわからんことになっているので何とかしたいです
+             'call-next-method)))))
 
 (defclass pattern-editor-line (label)
   ((line :initarg :line :accessor .line)))
@@ -1448,8 +1459,8 @@
     (add-child self octave)
     (add-child self edit-step)
     (setf (.pattern pattern-editor) (.model self)
-          (.x pattern-editor) 5
-          (.y pattern-editor) (+ 5 *font-size*)
+          (.x pattern-editor) *layout-space*
+          (.y pattern-editor) (+ *font-size* (* *layout-space* 2))
           (.width pattern-editor) (- (.width self) 10)
           (.height pattern-editor) (- (.height self) (+ 10 *font-size*)))))
 

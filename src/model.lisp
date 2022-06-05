@@ -236,14 +236,16 @@
                                    (< (.frame a) (.frame b)))))))
 
 (defclass osc (model)
-  ((note :initarg :note :initform off :accessor .note)
+  ((note :initarg :note :accessor .note)
    (buffer :accessor .buffer)
-   (value :initform 0.0d0 :accessor .value)
-   (phase :initform 0.0d0 :accessor .phase
-          :type double-float)))
+   (value :accessor .value :type double-float)
+   (phase :accessor .phase :type double-float)))
 
 (defmethod initialize ((self osc))
-  (setf (.buffer self) (make-buffer)))
+  (setf (.note self) off)
+  (setf (.buffer self) (make-buffer))
+  (setf (.value self) 0.0d0)
+  (setf (.phase self) 0.0d0))
 
 (defmethod lepis:emit-slot ((self osc) (slot (eql 'buffer)) stream)
   (format stream " NIL")
