@@ -104,12 +104,6 @@
                      :width 700
                      :height 200))
 
-(defmethod add-new-track ((self sequencer))
-  (let ((track (make-instance 'track)))
-    (setf (.tracks self)
-          (append (.tracks self) (list track)))
-    track))
-
 (defun update-sequencer-end ()
   (let ((sequencer (.sequencer *audio*)))
     (setf (.end sequencer)
@@ -338,7 +332,7 @@
 (defclass op-add (operand)
   ()
   (:default-initargs :left (make-buffer :initial-element 0.0d0)
-                     :rigth (make-buffer :initial-element 0.0d0)
+                     :right (make-buffer :initial-element 0.0d0)
                      :initial-value 0.0d0))
 
 (defmethod operate ((self op-add) x y)
@@ -347,7 +341,7 @@
 (defclass op-multi (operand)
   ()
   (:default-initargs :left (make-buffer :initial-element 1.0d0)
-                     :rigth (make-buffer :initial-element 1.0d0)
+                     :right (make-buffer :initial-element 1.0d0)
                      :initial-value 1.0d0))
 
 (defmethod operate ((self op-multi) x y)

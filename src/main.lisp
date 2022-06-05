@@ -230,18 +230,20 @@
                 (loop for module in modules
                         thereis (and (typep module 'master-module)
                                      module)))
-          (setf (.master *audio*) (.model *master-module*)))
+          (setf (.master *audio*) (.model *master-module*))
+          (setf (.sequencer *audio*) *squencer-module*)
+          (setf (.master *audio*) *master-module*))
         (progn
           (setf *sequencer-module*
                 (make-instance 'sequencer-module))
           (setf *master-module*
                 (make-instance 'master-module))
+          (setf (.sequencer *audio*) *sequencer-module*)
+          (setf (.master *audio*) *master-module*)
           (setf (.views *app*)
                 ;; (make-plugin-test-modules)
                 (make-builtin-test-modules)
-                )))
-    (setf (.sequencer *audio*) *sequencer-module*)
-    (setf (.master *audio*) *master-module*)))
+                )))))
 
 (defun list-to-pattern-lines (list)
   (make-array (length list)

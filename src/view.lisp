@@ -133,9 +133,11 @@
 (defvar *serialize-refs* nil)
 
 (defun ref-id (object)
-  (sif (gethash object *serialize-table*)
-       it
-       (setf it (hash-table-count *serialize-table*))))
+  (if *serialize-refs*
+      (sif (gethash object *serialize-table*)
+           it
+           (setf it (hash-table-count *serialize-table*)))
+      nil))
 
 (defun r (key)
   (gethash key *serialize-table*))
@@ -165,6 +167,9 @@
     (ref-id self)))
 
 (defgeneric serialize-ref (self))
+
+(defmethod serialize-ref ((self null))
+  nil)
 
 (defmethod serialize-ref :around (self)
   (if *serialize-refs*
@@ -436,14 +441,15 @@
 
 (defmethod serialize :around ((self view))
   `(let ((x (make-instance ',(class-name (class-of self)))))
-     (setf (.x x) ,(.x self)
-           (.y x) ,(.y self)
-           (.width x) ,(.width self)
-           (.height x) ,(.height self)
-           (.color x) ,(serialize (.color self)))
-     ,(call-next-method)
-     (initialize x)
-     (make-module x)))
+     ,@(call-next-method)
+     x))
+
+(defmethod serialize ((self view))
+  `((setf (.x x) ,(.x self)
+          (.y x) ,(.y self)
+          (.width x) ,(.width self)
+          (.height x) ,(.height self)
+          (.color x) ,(serialize (.color self)))))
 
 (defclass render-border-mixin () ())
 
@@ -514,14 +520,12 @@
                        (+ (.width self) 4)
                        (+ (.height self) 4))) )))
 
-(defmethod serialize :around ((self module))
-  `(progn
-     (setf (.name x) ,(.name self)
+(defmethod serialize ((self module))
+  `((setf (.name x) ,(.name self)
            (.in x) ,(serialize-ref (.in self))
            (.out x) ,(serialize-ref (.out self)))
-     ,(call-next-method)))
 
-(defmethod serialize ((self module)))
+    ,@(call-next-method)))
 
 (defclass drag-mixin ()
   ())
@@ -604,9 +608,6 @@
 (defclass drag-connect-mixin ()
   ((connecting :initform nil :accessor .connecting)))
 
-(defmethod connect ((in drag-connect-mixin) (out drag-connect-mixin))
-  (connect in out))
-
 (defmethod disconnect ((in drag-connect-mixin) (out drag-connect-mixin))
   (disconnect in out))
 
@@ -620,12 +621,11 @@
 
 (defmethod drop ((self drag-connect-mixin) (dropped drag-connect-mixin) x y
                  (button (eql sdl2-ffi:+sdl-button-right+)))
-  (let ((from (.connect-from-module *app*)))
-    (when (and from (not (eq from self)))
-      (if (member self from)
-          (disconnect from self)
-          (connect from self)))
-    (setf (.connect-from-module *app*) nil))
+  (when (not (eq dropped self))
+    (if (member self (.out dropped))
+        (disconnect dropped self)
+        (connect dropped self)))
+  (setf (.connect-from-module *app*) nil) ;TODO .connect-from-module って必要？
   (call-next-method))
 
 (defun compute-connection-points (from to)
@@ -1307,7 +1307,7 @@
 (defmethod resized ((self track-view))
   (let* ((parent (.parent self))
          (sequencer-module (.parent-by-class self 'sequencer-module))
-        (index (position self (.track-views sequencer-module))))
+        (index (position self (.tracks sequencer-module))))
     (setf (.x self) 0)
     (setf (.y self) (* *track-height* index))
     (setf (.height self) *track-height*)
@@ -1339,7 +1339,8 @@
   (call-next-method))
 
 (defmethod serialize ((self track-view))
-  `(setf (.pattern-positions x) ,(serialize (.pattern-positions self))))
+  `((setf (.pattern-positions x) ,(serialize (.pattern-positions self)))
+    ,@(call-next-method)))
 
 (defclass pattern-position-view (pattern-position
                                  drag-mixin
@@ -1395,9 +1396,10 @@
   (setf (.height self) (.height (.parent self))))
 
 (defmethod serialize ((self pattern-position-view))
-  `(setf (.start x) ,(.start self)
-         (.end x) ,(.end self)
-         (.pattern x) ,(serialize-ref (.pattern self))))
+  `((setf (.start x) ,(.start self)
+          (.end x) ,(.end self)
+          (.pattern x) ,(serialize-ref (.pattern self)))
+    ,@(call-next-method)))
 
 (defclass sequencer-partial-view (partial-view)
   ())
@@ -1427,8 +1429,7 @@
   (call-next-method))
 
 (defclass sequencer-module (sequencer module)
-  ((track-views :initform nil :accessor .track-views)
-   (partial-view :accessor .partial-view)))
+  ((partial-view :accessor .partial-view)))
 
 (defmethod initialize-instance :after ((self sequencer-module) &key)
   (let* ((play-button (make-instance 'button :label "▶" :x 5 :y *layout-space*))
@@ -1472,18 +1473,19 @@
     (drop it dropped (- x (.x it)) (- y (.y it)) button)))
 
 (defmethod add-new-track ((self sequencer-module))
-  (add-new-track-after self (add-new-track self)))
+  (let ((track (make-instance 'track-view)))
+    (setf (.tracks self)
+          (append (.tracks self) (list track)))
+    (add-new-track-after self track)))
 
-(defmethod add-new-track-after ((self sequencer-module) (track track))
-  (let ((track-view (make-instance 'track-view)))
-    (add-child (.partial-view self) track-view)
-    (setf (.track-views self) (append (.track-views self) (list track-view)))
-    (resized track-view)
-    track-view))
+(defmethod add-new-track-after ((self sequencer-module) (track-view track-view))
+  (add-child (.partial-view self) track-view)
+  track-view)
 
 (defmethod serialize ((self sequencer-module))
-  `(setf (.track-views x) ,(serialize (.track-views self))
-         (.partial-view x) ,(serialize (.partial-view self))))
+  `((setf (.tracks x) ,(serialize (.tracks self))
+          (.partial-view x) ,(serialize (.partial-view self)))
+    ,@(call-next-method)))
 
 (defclass pattern-module (pattern module)
   ((pattern-editor :accessor .pattern-editor
@@ -1527,7 +1529,7 @@
 
 (defmethod close ((self pattern-module) &key abort)
   (declare (ignore abort))
-  (loop for track-view in (.track-views *sequencer-module*)
+  (loop for track-view in (.tracks *sequencer-module*)
         do (loop for pattern-position-view in (.children track-view)
                  if (and (typep pattern-position-view 'pattern-position-view)
                          (eql self
@@ -1557,9 +1559,10 @@
   (setf (.height (.pattern-editor self)) (- (.height self) (+ 10 *font-size*))))
 
 (defmethod serialize ((self pattern-module))
-  `(setf (.length x) ,(.length self)
-         (.lines x) ,(serialize (.lines self))
-         (.current-line x) 0))
+  `((setf (.length x) ,(.length self)
+          (.lines x) ,(serialize (.lines self))
+          (.current-line x) 0)
+    ,@(call-next-method)))
 
 (defmethod serialize ((self line))
   `(make-instance 'line
@@ -1572,23 +1575,26 @@
                   :velocity ,(.velocity self)))
 
 (defclass osc-module-mixin ()
-  ())
+  ()
+  (:default-initargs :height 50))
 
 (defmethod initialize-instance :after ((self osc-module-mixin) &key)
   (let ((value-text (make-instance 'label
-                                   :x 20 :y 20
+                                   :x 25 :y 25
                                    :value (lambda () (format nil "~,5f" (.value self))))))
     (add-child self value-text)))
 
 (defclass sin-osc-module (sin-osc module osc-module-mixin)
-  ())
+  ()
+  (:default-initargs :name "Sin"))
 
 (defclass saw-osc-module (saw-osc module osc-module-mixin)
   ()
-  (:default-initargs :name "Adsr" :height 100))
+  (:default-initargs :name "Saw"))
 
 (defclass adsr-module (adsr module)
-  ())
+  ()
+  (:default-initargs :name "Adsr" :height 100))
 
 (defmethod initialize-instance :after ((self adsr-module) &key)
   (let ((x *layout-space*)
@@ -1619,10 +1625,11 @@
                                       :onchange (lambda (x) (setf (.r self) x))))))
 
 (defmethod serialize ((self adsr-module))
-  `(setf (.a x) ,(.a self)
-         (.d x) ,(.d self)
-         (.s x) ,(.s self)
-         (.r x) ,(.r self)))
+  `((setf (.a x) ,(.a self)
+          (.d x) ,(.d self)
+          (.s x) ,(.s self)
+          (.r x) ,(.r self))
+    ,@(call-next-method)))
 
 (defclass plugin-module (module)
   ())
@@ -1630,20 +1637,21 @@
 (defmethod serialize ((self plugin-module))
   (let ((pd (.plugin-description self)))
     (get-plugin-state self)
-    `(setf (.plugin-description x)
-           (make-instance 'plugin-description
-                          :name ,(.name pd)
-                          :format ,(.format pd)
-                          :category ,(.category pd)
-                          :manufacturer ,(.manufacturer pd)
-                          :version ,(.version pd)
-                          :file ,(.file pd)
-                          :unique-id ,(.unique-id pd)
-                          :is-instrument ,(.is-instrument pd)
-                          :num-inputs ,(.num-inputs pd)
-                          :num-outputs ,(.num-outputs pd)
-                          :uid ,(.uid pd))
-           (.plugin-state x) ,(serialize (.plugin-state self)))))
+    `((setf (.plugin-description x)
+            (make-instance 'plugin-description
+                           :name ,(.name pd)
+                           :format ,(.format pd)
+                           :category ,(.category pd)
+                           :manufacturer ,(.manufacturer pd)
+                           :version ,(.version pd)
+                           :file ,(.file pd)
+                           :unique-id ,(.unique-id pd)
+                           :is-instrument ,(.is-instrument pd)
+                           :num-inputs ,(.num-inputs pd)
+                           :num-outputs ,(.num-outputs pd)
+                           :uid ,(.uid pd))
+            (.plugin-state x) ,(serialize (.plugin-state self)))
+      ,@(call-next-method))))
 
 (defclass instrument-plugin-module (instrument-plugin-model plugin-module)
   ())
@@ -1691,7 +1699,8 @@
   ())
 
 (defmethod serialize ((self gain-module))
-  `(setf (.volume x) ,(.volume self)))
+  `((setf (.volume x) ,(.volume self))
+    ,@(call-next-method)))
 
 (defclass master-module (master volume-controller-mixin module)
   ()
@@ -1699,7 +1708,8 @@
                         :color (list #xff #xa5 #x00 *transparency*)))
 
 (defmethod serialize ((self master-module))
-  `(setf (.volume x) ,(.volume self)))
+  `((setf (.volume x) ,(.volume self))
+    ,@(call-next-method)))
 
 (defclass menu-view (render-border-mixin view)
   ((filter :initform nil :accessor .filter)

@@ -1,4 +1,4 @@
 (in-package :colitrsynth)
 
-(serialize (make-module (make-instance 'pattern))) 
+(serialize (make-instance 'pattern-module)) 
 
