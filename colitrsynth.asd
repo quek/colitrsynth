@@ -5,7 +5,6 @@
                :ieee-floats
                :cl-ppcre
                :cxml :cxml-stp :xpath
-               :lepis
                :sb-concurrency
                :alexandria
                :anaphora)
