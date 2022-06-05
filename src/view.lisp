@@ -1493,6 +1493,10 @@
           (.looping x) ,(.looping self))
     ,@(call-next-method)))
 
+(defmethod (setf .tracks) :after (tracks (self sequencer-module))
+  (loop for track in tracks
+        do (add-new-track-after self track)))
+
 (defclass pattern-module (pattern module)
   ((pattern-editor :accessor .pattern-editor
                    :initform (make-instance 'pattern-editor))))
