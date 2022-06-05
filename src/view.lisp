@@ -133,7 +133,7 @@
 (defvar *serialize-refs* nil)
 
 (defun ref-id (object)
-  (if *serialize-refs*
+  (if *serialize-table*
       (sif (gethash object *serialize-table*)
            it
            (setf it (hash-table-count *serialize-table*)))
@@ -172,7 +172,7 @@
   nil)
 
 (defmethod serialize-ref :around (self)
-  (if *serialize-refs*
+  (if *serialize-table*
       (call-next-method)
       nil))
 
@@ -180,11 +180,11 @@
   `(let ((y (make-list ,(length self))))
      ,@(loop for module in self
              for i from 0
-             collect `(s (setf (nth i y) (r ,(ref-id module)))))
+             collect `(s (setf (nth ,i y) (r ,(ref-id module)))))
      y))
 
 (defmethod serialize-ref ((self standard-object))
-  `(s (setf (nth i y) (r ,(ref-id self)))))
+  `(s (r ,(ref-id self))))
 
 
 (defgeneric deserialize (in)
@@ -524,7 +524,6 @@
   `((setf (.name x) ,(.name self)
            (.in x) ,(serialize-ref (.in self))
            (.out x) ,(serialize-ref (.out self)))
-
     ,@(call-next-method)))
 
 (defclass drag-mixin ()
@@ -955,8 +954,9 @@
 (defmethod render ((self partial-view) renderer)
   ;; texture を width x height にして .absolute-x/y を変え他方が効率よさそう
   (let* ((texture-width
-           (loop for child in (.children self)
-                 maximize (+ (.absolute-x child) (.width child))))
+           (max (loop for child in (.children self)
+                      maximize (+ (.absolute-x child) (.width child)))
+                (+ (.absolute-x self) (.width self))))
          (texture-height
            (max (loop for child in (.children self)
                       maximize (+ (.absolute-y child) (.height child)))

@@ -176,8 +176,6 @@
   (when (= 1 (sdl2-ttf:was-init))
     (sdl2-ttf:quit)))
 
-(defconstant +song-file-mark+ '+song-file-mark+)
-
 (defun save-song (file)
   (loop for module in (.modules *app*)
         do (prepare-save module))
@@ -188,62 +186,59 @@
       (loop for module in (.modules *app*)
             do (with-standard-io-syntax
                  (let ((*package* (find-package :colitrsynth)))
-                   (write (serialize module) :stream out))))
-      (terpri out)
-      (write +song-file-mark+ :stream out)
-      (terpri out)
-      (loop for (ref . value) in *serialize-refs*
-            do (with-standard-io-syntax
-                 (let ((*package* (find-package :colitrsynth)))
-                   (write `(ref ,ref ,(gethash value *serialize-table*))
-                          :stream out)))))
-    (alexandria:copy-file tmp-file file))
+                   (write (serialize module) :stream out)
+                   (terpri out)
+                   (write (ref-id module) :stream out)
+                   (terpri out)))))
+    (alexandria:copy-file tmp-file file)
+    (delete-file tmp-file))
   (setf (.song-file *app*) file))
 
 (defun open-song (file)
   (stop)
   (stop-audio)
-  ;; TODO (alexandria:copy-file file (lepis::db-dump-file lepis::*db*))
   (loop for module in (.modules *app*)
         do (close module))
-  ;; TODO (lepis::load-db lepis::*db*)
-  (load-modules)
+  (load-modules file)
   (start-audio)
   (setf (.song-file *app*) file))
 
-(defun load-modules ()
-  (let ((models nil))
-    (if models
-        nil
-        #+nil
-        (let ((modules (loop for model in models
-                             collect (progn
-                                       (initialize model)
-                                       (make-module model)))))
-          (setf (.views *app*) modules)
-          (setf *sequencer-module*
-                (loop for module in modules
-                        thereis (and (typep module 'sequencer-module)
-                                     module)))
-          (setf (.sequencer *audio*) (.model *sequencer-module*))
-          (setf *master-module*
-                (loop for module in modules
-                        thereis (and (typep module 'master-module)
-                                     module)))
-          (setf (.master *audio*) (.model *master-module*))
-          (setf (.sequencer *audio*) *squencer-module*)
-          (setf (.master *audio*) *master-module*))
-        (progn
-          (setf *sequencer-module*
-                (make-instance 'sequencer-module))
-          (setf *master-module*
-                (make-instance 'master-module))
-          (setf (.sequencer *audio*) *sequencer-module*)
-          (setf (.master *audio*) *master-module*)
-          (setf (.views *app*)
-                ;; (make-plugin-test-modules)
-                (make-builtin-test-modules)
-                )))))
+(defun load-modules (&optional file)
+  (if file
+      (let* ((*serialize-table* (make-hash-table))
+             (*serialize-refs* nil)
+             (modules (with-open-file (in file)
+                        (with-standard-io-syntax
+                          (let ((*package* (find-package :colitrsynth)))
+                            (loop for module = (eval (read in nil nil))
+                                  for ref-id = (print (read in nil nil))
+                                  while module
+                                  collect (setf (gethash ref-id *serialize-table*)
+                                                module)))))))
+        (loop for i in (print *serialize-refs*)
+              do (funcall i))
+        (setf (.views *app*) modules)
+        (setf *sequencer-module*
+              (loop for module in modules
+                      thereis (and (typep module 'sequencer-module)
+                                   module)))
+        (setf *master-module*
+              (loop for module in modules
+                      thereis (and (typep module 'master-module)
+                                   module)))
+        (setf (.sequencer *audio*) *sequencer-module*)
+        (setf (.master *audio*) *master-module*))
+      (progn
+        (setf *sequencer-module*
+              (make-instance 'sequencer-module))
+        (setf *master-module*
+              (make-instance 'master-module))
+        (setf (.sequencer *audio*) *sequencer-module*)
+        (setf (.master *audio*) *master-module*)
+        (setf (.views *app*)
+              ;; (make-plugin-test-modules)
+              (make-builtin-test-modules)
+              ))))
 
 (defun list-to-pattern-lines (list)
   (make-array (length list)
