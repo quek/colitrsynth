@@ -127,14 +127,28 @@
 
 (defgeneric serialize (self stream)
   (:method :around (self stream)
-    (with-standard-io-syntax (call-next-method)))
+    (let ((*package* (find-package :colitrsynth)))
+      (with-standard-io-syntax (call-next-method))))
+  (:method :around (x (stream null))
+    (let ((*package* (find-package :colitrsynth)))
+      (with-standard-io-syntax
+        (read-from-string
+         (with-output-to-string (out)
+           (call-next-method x out))))))
   (:method (self stream)
     (format stream " ~a" self))
   (:method ((self cons) stream)
     (format stream "(list")
     (loop for x in self
           do (serialize x stream))
-    (format stream ")")))
+    (format stream ")"))
+  (:method ((self array) stream)
+    (write `(let ((x (make-array ,(length self))))
+              ,@(loop for i from 0
+                      for v across self
+                      collect `(setf (aref x ,i) ,(serialize v nil)))
+              (coerce x ',(type-of self)))
+           :stream stream)))
 
 (defun deserialize (stream)
   (ignore-errors
@@ -1442,6 +1456,7 @@
   (remove-pattern (.model track-view) (.model pattern-position-view)))
 
 (defmethod keydown ((self pattern-module) value scancode mod-value)
+  ;; TODO pattern-editor にフォーカスしている場合の pattern-editor の keydown をコールする
   (when (eq 'call-next-method
             (keydown (.pattern-editor self) value scancode mod-value))
     (call-next-method)))
@@ -1451,6 +1466,32 @@
 
 (defmethod (setf .height) :after (value (self pattern-module))
   (setf (.height (.pattern-editor self)) (- (.height self) (+ 10 *font-size*))))
+
+(defmethod serialize ((self pattern-module) stream)
+  (let ((model (.model self)))
+    (write `(setf (.length x) ,(.length model)
+                  (.lines x) ,(serialize (.lines model) nil)
+                  (.current-line x) 0)
+           :stream stream)))
+
+(defmethod serialize ((self line) stream)
+  (write `(make-instance 'line
+                         :columns ,(serialize (.columns self) nil)
+                         :lenght ,(.length self))
+         :stream stream))
+
+(defmethod serialize ((self column) stream)
+  (write `(make-instance 'column
+                         :note ,(.note self)
+                         :velocity ,(.velocity self))
+         :stream stream))
+
+#+nil
+(with-output-to-string (out)
+  (serialize (make-module (make-instance 'pattern)) out))
+
+
+
 
 (defclass osc-module-mixin ()
   ())
