@@ -10,8 +10,6 @@
 (defconstant +mouse-button-count+ 16)
 (defconstant +column-width+ 7)
 
-(defgeneric make-module (model))
-
 (defgeneric initialize (module))
 
 (defgeneric render (self renderer)
@@ -97,8 +95,9 @@
                 (.ctrl-key-p *app*))
            (awhen (.selected-module *app*)
              (sdl2-ffi.functions:sdl-set-clipboard-text
-              (let ((*package* (find-package :colitrsynth)))
-                (with-standard-io-syntax
+              (with-standard-io-syntax
+                (let ((*package* (find-package :colitrsynth))
+                      (*serialize-table* nil))
                   (with-output-to-string (out)
                     (write (serialize it) :stream out)))))))
           ((and (sdl2:scancode= scancode :scancode-v)
@@ -130,6 +129,22 @@
 (defgeneric .target (self)
   (:method ((self null)) nil))
 
+(defvar *serialize-table* nil)
+(defvar *serialize-refs* nil)
+
+(defun ref-id (object)
+  (sif (gethash object *serialize-table*)
+       it
+       (setf it (hash-table-count *serialize-table*))))
+
+(defun r (key)
+  (gethash key *serialize-table*))
+
+(defmacro s (&body body)
+  `(progn
+     (push (lambda () ,@body) *serialize-refs*)
+     nil))
+
 (defgeneric serialize (self)
   (:method (x)
     x)
@@ -145,7 +160,27 @@
            ,@(loop for i from 0
                    for v across self
                    collect `(setf (aref x ,i) ,(serialize v)))
-           (coerce x ',(type-of self))))))
+           (coerce x ',(type-of self)))))
+  (:method :after ((self standard-object))
+    (ref-id self)))
+
+(defgeneric serialize-ref (self))
+
+(defmethod serialize-ref :around (self)
+  (if *serialize-refs*
+      (call-next-method)
+      nil))
+
+(defmethod serialize-ref ((self cons))
+  `(let ((y (make-list ,(length self))))
+     ,@(loop for module in self
+             for i from 0
+             collect `(s (setf (nth i y) (r ,(ref-id module)))))
+     y))
+
+(defmethod serialize-ref ((self standard-object))
+  `(s (setf (nth i y) (r ,(ref-id self)))))
+
 
 (defgeneric deserialize (in)
   (:method ((in string))
@@ -211,7 +246,12 @@
   (setf (slot-value self 'value) value))
 
 (defclass view ()
-  ((parent :initarg :parent :initform nil :accessor .parent)
+  ((color :initarg :color :initform *default-color* :accessor .color)
+   (x :initarg :x :initform 0 :accessor .x)
+   (y :initarg :y :initform 0 :accessor .y)
+   (width :initarg :width :initform 100 :accessor .width)
+   (height :initarg :height :initform 80 :accessor .height)
+   (parent :initarg :parent :initform nil :accessor .parent)
    (children :initarg :children :initform nil :accessor .children)))
 
 (defmethod close ((self view) &key abort)
@@ -394,6 +434,17 @@
                         (- (.mouse-y *app*) (.absolute-y self)))
     (wheel it delta)))
 
+(defmethod serialize :around ((self view))
+  `(let ((x (make-instance ',(class-name (class-of self)))))
+     (setf (.x x) ,(.x self)
+           (.y x) ,(.y self)
+           (.width x) ,(.width self)
+           (.height x) ,(.height self)
+           (.color x) ,(serialize (.color self)))
+     ,(call-next-method)
+     (initialize x)
+     (make-module x)))
+
 (defclass render-border-mixin () ())
 
 (defmethod render ((self render-border-mixin) renderer)
@@ -410,7 +461,7 @@
                   drag-connect-mixin
                   render-border-mixin
                   view)
-  ((model :initarg :model :accessor .model)))
+  ())
 
 (defmethod initialize-instance :after ((self module) &key)
   (initialize self))
@@ -419,13 +470,13 @@
   (unless (typep self 'sequencer-module) ;きれいじゃない
     (add-child self
                (make-instance 'text
-                              :reader (lambda () (.name (.model self)))
-                              :writer (lambda (value) (setf (.name (.model self)) value))
+                              :reader (lambda () (.name self))
+                              :writer (lambda (value) (setf (.name self) value))
                               :x *layout-space*
                               :y *layout-space*))))
 
 (defmethod close ((self module) &key abort)
-  (close (.model self) :abort abort))
+  (declare (ignore abort)))
 
 (defmethod keydown ((self module) value scancode mod-value)
   (if (and (sdl2:scancode= scancode :scancode-delete)
@@ -464,21 +515,11 @@
                        (+ (.height self) 4))) )))
 
 (defmethod serialize :around ((self module))
-  ;; TODO sb-mop:allocate-instance じゃなくて allocate-instance だけで出力されるのなぜ？
-  ;; しかたないから inter 使ってる
-  `(let ((x (funcall (intern "ALLOCATE-INSTANCE" :sb-mop)
-                     (find-class ',(class-name (class-of (.model self)))))))
+  `(progn
      (setf (.name x) ,(.name self)
-           (.x x) ,(.x self)
-           (.y x) ,(.y self)
-           (.width x) ,(.width self)
-           (.height x) ,(.height self)
-           (.color x) ,(serialize (.color self))
-           (.in x) nil
-           (.out x) nil)
-     ,(call-next-method)
-     (initialize x)
-     (make-module x)))
+           (.in x) ,(serialize-ref (.in self))
+           (.out x) ,(serialize-ref (.out self)))
+     ,(call-next-method)))
 
 (defmethod serialize ((self module)))
 
@@ -564,13 +605,13 @@
   ((connecting :initform nil :accessor .connecting)))
 
 (defmethod connect ((in drag-connect-mixin) (out drag-connect-mixin))
-  (connect (.model in) (.model out)))
+  (connect in out))
 
 (defmethod disconnect ((in drag-connect-mixin) (out drag-connect-mixin))
-  (disconnect (.model in) (.model out)))
+  (disconnect in out))
 
 (defmethod disconnect-all ((self module))
-  (disconnect-all (.model self)))
+  (disconnect-all self))
 
 (defmethod drag-start ((self drag-connect-mixin) x y
                        (button (eql sdl2-ffi:+sdl-button-right+)))
@@ -581,7 +622,7 @@
                  (button (eql sdl2-ffi:+sdl-button-right+)))
   (let ((from (.connect-from-module *app*)))
     (when (and from (not (eq from self)))
-      (if (member (.model self) (.out from))
+      (if (member self from)
           (disconnect from self)
           (connect from self)))
     (setf (.connect-from-module *app*) nil))
@@ -654,7 +695,7 @@
 (defmethod render-connection ((self drag-connect-mixin) r)
   (loop for out-model in (.out self)
         for out = (loop for module in (.modules *app*)
-                          thereis (and (eq out-model (.model module))
+                          thereis (and (eq out-model module)
                                        module))
         do (multiple-value-bind (xs ys xe ye) (compute-connection-points self out)
              (let ((original-xs xs)
@@ -698,7 +739,7 @@
 
 (defmethod drop ((self disable-drag-connect-mixin) dropped x y (button (eql 3))))
 
-(defclass label (function-value-mixin view renderable)
+(defclass label (function-value-mixin view)
   ((last-value :initform "" :accessor .last-value)
    (last-color :accessor .last-color)
    (texture :initform nil :accessor .texture))
@@ -730,7 +771,7 @@
                         :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
                                                    (.width self) (.height self))))))
 
-(defclass button (render-border-mixin view renderable)
+(defclass button (render-border-mixin view)
   ((label-view :accessor .label-view))
   (:default-initargs :width 50 :height 30))
 
@@ -769,7 +810,7 @@
 (defclass onchange-mixin ()
   ((onchange :initarg :onchange :initform (constantly nil) :accessor .onchange)))
 
-(defclass text (focus-mixin view renderable)
+(defclass text (focus-mixin view)
   ((label :accessor .label)
    (edit-buffer :initform "" :accessor .edit-buffer)
    (cursor-position :initform 0 :accessor .cursor-position)
@@ -875,7 +916,7 @@
 
 (defclass slider (onchange-mixin
                   function-value-mixin drag-mixin
-                  render-border-mixin view renderable)
+                  render-border-mixin view)
   ((min :initarg :min :initform 0.0d0 :accessor .min)
    (max :initarg :max :initform 1.0d0 :accessor .max)))
 
@@ -899,7 +940,7 @@
                                  (max (.min self)
                                       (+ (.value self) (/ xrel 100.0))))))
 
-(defclass partial-view (view renderable)
+(defclass partial-view (view)
   ((zoom :initarg :zoom :initform 100 :accessor .zoom)
    (offset-x :initarg :offset-x :initform 0 :accessor .offset-x)
    (offset-y :initarg :offset-y :initform 0 :accessor .offset-y)))
@@ -964,7 +1005,7 @@
 (defmethod translate-child-y ((self partial-view) (child view) y)
   (+ (call-next-method) (.offset-y self)))
 
-(defclass pattern-editor (focus-mixin view renderable)
+(defclass pattern-editor (focus-mixin view)
   ((pattern :accessor .pattern)
    (lines :initform nil :accessor .lines)
    (cursor-x :initform 0 :accessor .cursor-x)
@@ -1247,18 +1288,14 @@
                             (format out " ~c~c~c ~2,'0X"
                                     c s o (.velocity column)))))))))
 
-(defclass track-view (drag-mixin
+(defclass track-view (track
+                      drag-mixin
                       drag-connect-mixin
                       drop-mixin
                       render-border-mixin
                       view)
-  ((model :initarg :model :accessor .model
-          :initform (make-instance 'track
-                                   :width 690 :height *track-height*))))
-
-(defmethod initialize-instance :after ((self track-view) &key)
-  (loop for pattern-position in (.pattern-positions (.model self))
-        do (add-pattern-after self pattern-position)))
+  ()
+  (:default-initargs :width 690 :height *track-height*))
 
 (defmethod mousebuttondown ((self track-view)
                             (button (eql sdl2-ffi:+sdl-button-right+))
@@ -1274,7 +1311,7 @@
     (setf (.x self) 0)
     (setf (.y self) (* *track-height* index))
     (setf (.height self) *track-height*)
-    (setf (.width self) (max (.width parent) (* (+ 16 (.end (.model sequencer-module)))
+    (setf (.width self) (max (.width parent) (* (+ 16 (.end sequencer-module))
                                                 *pixcel-per-line*))))
   (call-next-method))
 
@@ -1293,26 +1330,28 @@
   (let ((module (.selected-pattern *app*)))
     (if (typep module 'pattern-module)
         (let* ((start (pixcel-to-line x))
-               (end (+ start (.length (.model module)))))
+               (end (+ start (.length module))))
           (when (every (lambda (x)
                          (or (<= end (.start x))
                              (<= (.end x) start)))
-                       (.pattern-positions (.model self)))
+                       (.pattern-positions self))
             (add-pattern self module start end)))))
   (call-next-method))
 
-(defclass pattern-position-view (drag-mixin
+(defmethod serialize ((self track-view))
+  `(setf (.pattern-positions x) ,(serialize (.pattern-positions self))))
+
+(defclass pattern-position-view (pattern-position
+                                 drag-mixin
                                  name-mixin
                                  render-border-mixin
-                                 view
-                                 renderable)
-  ((model :initarg :model :accessor .model)
-   (move-delta-x :initform 0 :accessor .move-delta-x)))
+                                 view)
+  ((move-delta-x :initform 0 :accessor .move-delta-x)))
 
 (defmethod initialize-instance :after ((self pattern-position-view) &key)
   (add-child self
              (make-instance 'label
-                            :value (lambda () (.name (.model self)))
+                            :value (lambda () (.name self))
                             :x *layout-space*
                             :y *layout-space*)))
 
@@ -1320,9 +1359,9 @@
                   (button (eql sdl2-ffi:+sdl-button-left+))
                   x y)
   (loop for module in (.modules *app*)
-        with pattern = (.pattern (.model self))
+        with pattern = (.pattern self)
         if (and (typep module 'pattern-module)
-                (eq (.model module) pattern))
+                (eq module pattern))
           do (setf (.selected-pattern *app*) module)
              (loop-finish)))
 
@@ -1346,7 +1385,7 @@
   (call-next-method))
 
 (defmethod drop ((self track-view) (pattern-position-view pattern-position-view) x y button)
-  (let* ((pattern-position (.model pattern-position-view))
+  (let* ((pattern-position pattern-position-view)
          (delta (- (pixcel-to-line (.x pattern-position-view)) (.start pattern-position))))
     (incf (.start pattern-position) delta)
     (incf (.end pattern-position) delta)
@@ -1355,11 +1394,16 @@
 (defmethod resized ((self pattern-position-view))
   (setf (.height self) (.height (.parent self))))
 
+(defmethod serialize ((self pattern-position-view))
+  `(setf (.start x) ,(.start self)
+         (.end x) ,(.end self)
+         (.pattern x) ,(serialize-ref (.pattern self))))
+
 (defclass sequencer-partial-view (partial-view)
   ())
 
 (defmethod render :after ((self sequencer-partial-view) renderer)
-  (let* ((sequencer (.model (.root-parent self)))
+  (let* ((sequencer (.root-parent self))
          (x (max (.absolute-x self)
                  (min
                   (+ (.absolute-x self)
@@ -1382,17 +1426,16 @@
                             *layout-space*)))
   (call-next-method))
 
-(defclass sequencer-module (module)
+(defclass sequencer-module (sequencer module)
   ((track-views :initform nil :accessor .track-views)
-   (partial-view :accessor .partial-view))
-  (:default-initargs :model (make-instance 'sequencer)))
+   (partial-view :accessor .partial-view)))
 
 (defmethod initialize-instance :after ((self sequencer-module) &key)
   (let* ((play-button (make-instance 'button :label "▶" :x 5 :y *layout-space*))
          (add-track-button (make-instance 'button :label "+track" :x 35 :y *layout-space*))
          (bpm (make-instance 'label
                              :value (lambda ()
-                                      (format nil "BPM ~f" (.bpm (.model self))))
+                                      (format nil "BPM ~f" (.bpm self)))
                              :x 100 :y *layout-space*))
          (partial-view (make-instance 'sequencer-partial-view)))
     (add-child self play-button)
@@ -1400,7 +1443,7 @@
     (add-child self bpm)
     (add-child self partial-view)
     (setf (.partial-view self) partial-view)
-    (loop for track in (.tracks (.model self))
+    (loop for track in (.tracks self)
           do (add-new-track-after self track))
     (let ((sequencer self))
       (defmethod click ((self (eql play-button)) (button (eql 1)) x y)
@@ -1413,9 +1456,9 @@
 
 (defmethod keydown ((self sequencer-module) value scancode mod-value)
   (cond ((sdl2:scancode= scancode :scancode-1)
-         (decf (.bpm (.model self))))
+         (decf (.bpm self)))
         ((sdl2:scancode= scancode :scancode-2)
-         (incf (.bpm (.model self))))
+         (incf (.bpm self)))
         (t (call-next-method))))
 
 (defmethod drag-start ((self sequencer-module) x y (button (eql 3)))
@@ -1429,19 +1472,22 @@
     (drop it dropped (- x (.x it)) (- y (.y it)) button)))
 
 (defmethod add-new-track ((self sequencer-module))
-  (add-new-track-after self (add-new-track (.model self))))
+  (add-new-track-after self (add-new-track self)))
 
 (defmethod add-new-track-after ((self sequencer-module) (track track))
-  (let ((track-view (make-instance 'track-view :model track)))
+  (let ((track-view (make-instance 'track-view)))
     (add-child (.partial-view self) track-view)
     (setf (.track-views self) (append (.track-views self) (list track-view)))
     (resized track-view)
     track-view))
 
-(defclass pattern-module (module)
+(defmethod serialize ((self sequencer-module))
+  `(setf (.track-views x) ,(serialize (.track-views self))
+         (.partial-view x) ,(serialize (.partial-view self))))
+
+(defclass pattern-module (pattern module)
   ((pattern-editor :accessor .pattern-editor
-                   :initform (make-instance 'pattern-editor)))
-  (:default-initargs :model (make-instance 'pattern)))
+                   :initform (make-instance 'pattern-editor))))
 
 (defmethod initialize-instance :after ((self pattern-module) &key)
   (let* ((pattern-editor (.pattern-editor self))
@@ -1458,37 +1504,34 @@
     (add-child self pattern-editor)
     (add-child self octave)
     (add-child self edit-step)
-    (setf (.pattern pattern-editor) (.model self)
+    (setf (.pattern pattern-editor) self
           (.x pattern-editor) *layout-space*
           (.y pattern-editor) (+ *font-size* (* *layout-space* 2))
           (.width pattern-editor) (- (.width self) 10)
           (.height pattern-editor) (- (.height self) (+ 10 *font-size*)))))
 
-(defmethod add-pattern ((track-view track-view)
-                        (pattern-module pattern-module)
-                        start end)
-  (let ((pattern-position
-          (add-pattern (.model track-view)
-                       (.model pattern-module) start end)))
-    (add-pattern-after track-view pattern-position)))
-
-(defmethod add-pattern-after ((track-view track-view)
-                              (pattern-position pattern-position))
-  (let ((view (make-instance 'pattern-position-view :model pattern-position)))
-    (add-child track-view view)
-    (setf (.x view) (* *pixcel-per-line* (.start pattern-position))
-          (.y view) 2
-          (.width view) (* *pixcel-per-line* (- (.end pattern-position)
-                                                (.start pattern-position)))
-          (.height view) (- (.height track-view) 4))))
+(defmethod add-pattern ((track-view track-view) (pattern-module pattern-module) start end)
+  (let ((pattern-position-view (make-instance 'pattern-position-view
+                                              :pattern pattern-module
+                                              :start start :end end)))
+    (push pattern-position-view
+          (.pattern-positions track-view))
+    (update-sequencer-end)
+    (add-child track-view pattern-position-view)
+    (setf (.x pattern-position-view) (* *pixcel-per-line* (.start pattern-position-view))
+          (.y pattern-position-view) 2
+          (.width pattern-position-view) (* *pixcel-per-line* (- (.end pattern-position-view)
+                                                                 (.start pattern-position-view)))
+          (.height pattern-position-view) (- (.height track-view) 4))
+    pattern-position-view))
 
 (defmethod close ((self pattern-module) &key abort)
   (declare (ignore abort))
   (loop for track-view in (.track-views *sequencer-module*)
         do (loop for pattern-position-view in (.children track-view)
                  if (and (typep pattern-position-view 'pattern-position-view)
-                         (eql (.model self)
-                              (.pattern (.model pattern-position-view))))
+                         (eql self
+                              (.pattern pattern-position-view)))
                    do (remove-pattern track-view pattern-position-view))))
 
 (defmethod mousebuttondown :before ((self pattern-module) button state clicks x y)
@@ -1496,8 +1539,10 @@
 
 (defmethod remove-pattern ((track-view track-view)
                            (pattern-position-view pattern-position-view))
-  (remove-child track-view pattern-position-view)
-  (remove-pattern (.model track-view) (.model pattern-position-view)))
+  (setf (.pattern-positions track-view)
+        (remove pattern-position-view (.pattern-positions track-view)))
+  (update-sequencer-end)
+  (remove-child track-view pattern-position-view))
 
 (defmethod keydown ((self pattern-module) value scancode mod-value)
   ;; TODO pattern-editor にフォーカスしている場合の pattern-editor の keydown をコールする
@@ -1512,10 +1557,9 @@
   (setf (.height (.pattern-editor self)) (- (.height self) (+ 10 *font-size*))))
 
 (defmethod serialize ((self pattern-module))
-  (let ((model (.model self)))
-    `(setf (.length x) ,(.length model)
-           (.lines x) ,(serialize (.lines model))
-           (.current-line x) 0)))
+  `(setf (.length x) ,(.length self)
+         (.lines x) ,(serialize (.lines self))
+         (.current-line x) 0))
 
 (defmethod serialize ((self line))
   `(make-instance 'line
@@ -1531,67 +1575,61 @@
   ())
 
 (defmethod initialize-instance :after ((self osc-module-mixin) &key)
-  (let ((value-text (make-instance
-                     'label :x 20 :y 20
-                     :value (lambda () (format nil "~,5f" (.value (.model self)))))))
+  (let ((value-text (make-instance 'label
+                                   :x 20 :y 20
+                                   :value (lambda () (format nil "~,5f" (.value self))))))
     (add-child self value-text)))
 
-(defclass sin-osc-module (module osc-module-mixin)
-  ()
-  (:default-initargs :model (make-instance 'sin-osc)))
+(defclass sin-osc-module (sin-osc module osc-module-mixin)
+  ())
 
-(defclass saw-osc-module (module osc-module-mixin)
+(defclass saw-osc-module (saw-osc module osc-module-mixin)
   ()
-  (:default-initargs :model (make-instance 'saw-osc)))
+  (:default-initargs :name "Adsr" :height 100))
 
-(defclass adsr-module (module)
-  ()
-  (:default-initargs :model (make-instance 'adsr)))
+(defclass adsr-module (adsr module)
+  ())
 
 (defmethod initialize-instance :after ((self adsr-module) &key)
   (let ((x *layout-space*)
         (y (+ *font-size* (* *layout-space* 2)))
         (width (- (.width self) (* 2 *layout-space*)))
-        (height (+ *font-size* (round (/ *layout-space* 2))))
-        (adsr (.model self)))
+        (height (+ *font-size* (round (/ *layout-space* 2)))))
     (add-child self
-               (make-instance 'slider :value (lambda () (.a adsr))
+               (make-instance 'slider :value (lambda () (.a self))
                                       :x x :y y :width width :height height
-                                      :onchange (lambda (x) (setf (.a adsr) x))))
+                                      :onchange (lambda (x) (setf (.a self) x))))
     (add-child self
-               (make-instance 'slider :value (lambda () (.d adsr))
+               (make-instance 'slider :value (lambda () (.d self))
                                       :x x
                                       :y (incf y (+ height (round (/ *layout-space* 2))))
                                       :width width :height height
-                                      :onchange (lambda (x) (setf (.d adsr) x))))
+                                      :onchange (lambda (x) (setf (.d self) x))))
     (add-child self
-               (make-instance 'slider :value (lambda () (.s adsr))
+               (make-instance 'slider :value (lambda () (.s self))
                                       :x x
                                       :y (incf y (+ height (round (/ *layout-space* 2))))
                                       :width width :height height
-                                      :onchange (lambda (x) (setf (.s adsr) x))))
+                                      :onchange (lambda (x) (setf (.s self) x))))
     (add-child self
-               (make-instance 'slider :value (lambda () (.r adsr))
+               (make-instance 'slider :value (lambda () (.r self))
                                       :x x
                                       :y (incf y (+ height (round (/ *layout-space* 2))))
                                       :width width :height height
-                                      :onchange (lambda (x) (setf (.r adsr) x))))))
+                                      :onchange (lambda (x) (setf (.r self) x))))))
 
 (defmethod serialize ((self adsr-module))
-  (let ((model (.model self)))
-    `(setf (.a x) ,(.a model)
-           (.d x) ,(.d model)
-           (.s x) ,(.s model)
-           (.r x) ,(.r model))))
-
+  `(setf (.a x) ,(.a self)
+         (.d x) ,(.d self)
+         (.s x) ,(.s self)
+         (.r x) ,(.r self)))
 
 (defclass plugin-module (module)
   ())
 
 (defmethod serialize ((self plugin-module))
-  (let* ((model (.model self))
-         (pd (.plugin-description model)))
-    (get-plugin-state model)
+  (let ((pd (.plugin-description self)))
+    (get-plugin-state self)
     `(setf (.plugin-description x)
            (make-instance 'plugin-description
                           :name ,(.name pd)
@@ -1605,12 +1643,12 @@
                           :num-inputs ,(.num-inputs pd)
                           :num-outputs ,(.num-outputs pd)
                           :uid ,(.uid pd))
-           (.plugin-state x) ,(serialize (.plugin-state model)))))
+           (.plugin-state x) ,(serialize (.plugin-state self)))))
 
-(defclass instrument-plugin-module (plugin-module)
+(defclass instrument-plugin-module (instrument-plugin-model plugin-module)
   ())
 
-(defclass effect-plugin-module (plugin-module)
+(defclass effect-plugin-module (effect-plugin-model plugin-module)
   ())
 
 (defmethod initialize-instance :after ((self plugin-module) &key)
@@ -1618,13 +1656,12 @@
                                        :y (+ *font-size* (* *layout-space* 2)))))
     (add-child self button)
     (defmethod click ((button (eql button)) btn x y)
-      (open-editor (.model self)))))
+      (open-editor self))))
 
-(defmethod close ((self plugin-module) &key abort)
-  (close (.model self) :abort abort)
-  (call-next-method))
+(defclass op-add-module (op-add module)
+  ())
 
-(defclass operand-module (module)
+(defclass op-multi-module (op-multi module)
   ())
 
 (defclass volume-controller-mixin ()
@@ -1634,8 +1671,8 @@
   (add-child self
              (setf (.volume-slider self)
                    (make-instance 'slider
-                                  :value (lambda () (.volume (.model self)))
-                                  :onchange (lambda (x) (setf (.volume (.model self)) x)))))
+                                  :value (lambda () (.volume self))
+                                  :onchange (lambda (x) (setf (.volume self) x)))))
   (resized self))
 
 (defmethod resized ((self volume-controller-mixin))
@@ -1650,18 +1687,21 @@
     (setf (.height slider) height)
     (call-next-method)))
 
-(defclass gain-module (volume-controller-mixin module)
+(defclass gain-module (gain volume-controller-mixin module)
   ())
 
 (defmethod serialize ((self gain-module))
-  (let ((model (.model self)))
-    `(setf (.volume x) ,(.volume model))))
+  `(setf (.volume x) ,(.volume self)))
 
-(defclass master-module (volume-controller-mixin module)
+(defclass master-module (master volume-controller-mixin module)
   ()
-  (:default-initargs :model (make-instance 'master)))
+  (:default-initargs  :name "Master" :x 695 :y 515
+                        :color (list #xff #xa5 #x00 *transparency*)))
 
-(defclass menu-view (render-border-mixin view renderable)
+(defmethod serialize ((self master-module))
+  `(setf (.volume x) ,(.volume self)))
+
+(defclass menu-view (render-border-mixin view)
   ((filter :initform nil :accessor .filter)
    (buttons :initform nil :accessor .buttons))
   (:default-initargs :width 400 :height 300))
@@ -1674,13 +1714,13 @@
       (sb-ext:run-program *plugin-host-exe* nil :wait nil)
       (close self)))
   (loop for (name class . initargs)
-          in `(("Pattern" pattern)
-               ("Sin" sin-osc)
-               ("Saw" saw-osc)
-               ("Adsr" adsr)
-               ("Op Add" op-add)
-               ("Op Multi" op-multi)
-               ("Gain" gain))
+          in `(("Pattern" pattern-module)
+               ("Sin" sin-osc-module)
+               ("Saw" saw-osc-module)
+               ("Adsr" adsr-module)
+               ("Op Add" op-add-module)
+               ("Op Multi" op-multi-module)
+               ("Gain" gain-module))
         do (let ((button (make-instance 'menu-builtin-button
                                         :label name
                                         :class class
@@ -1752,12 +1792,11 @@
    (initargs :initarg :initargs :initform nil :accessor .initargs)))
 
 (defmethod click ((self menu-builtin-button) (button (eql 1)) x y)
-  (add-view (make-module
-             (apply #'make-instance (.class self)
-                    :name (.label self)
-                    :x (- (.mouse-x *app*) 10)
-                    :y (- (.mouse-y *app*) 10)
-                    (.initargs self))))
+  (add-view (apply #'make-instance (.class self)
+                   :name (.label self)
+                   :x (- (.mouse-x *app*) 10)
+                   :y (- (.mouse-y *app*) 10)
+                   (.initargs self)))
   (close (.root-parent self)))
 
 (defclass menu-plugin-button (button)
@@ -1767,14 +1806,13 @@
 (defmethod click ((self menu-plugin-button) (button (eql 1)) x y)
   (let* ((plugin-description (.plugin-description self))
          (class (if (.is-instrument plugin-description)
-                    'instrument-plugin-model
-                    'effect-plugin-model)))
-    (add-view (make-module 
-               (make-instance class
-                              :name (.name plugin-description)
-                              :x (- (.mouse-x *app*) 10)
-                              :y (- (.mouse-y *app*) 10)
-                              :plugin-description plugin-description)))
+                    'instrument-plugin-module
+                    'effect-plugin-module)))
+    (add-view (make-instance class
+                             :name (.name plugin-description)
+                             :x (- (.mouse-x *app*) 10)
+                             :y (- (.mouse-y *app*) 10)
+                             :plugin-description plugin-description))
     (close (.root-parent self))))
 
 (defun open-menu ()
@@ -1783,38 +1821,3 @@
                                :y (- (.mouse-y *app*) 10))))
     (add-view module)
     (setf (.selected-module *app*) module)))
-
-(defmethod make-module :around ((self model))
-  (let ((module (call-next-method)))
-    (initialize module)
-    module))
-
-(defmethod make-module ((self sequencer))
-  (make-instance 'sequencer-module :model self))
-
-(defmethod make-module ((self master))
-  (make-instance 'master-module :model self))
-
-(defmethod make-module ((self instrument-plugin-model))
-  (make-instance 'instrument-plugin-module :model self))
-
-(defmethod make-module ((self effect-plugin-model))
-  (make-instance 'effect-plugin-module :model self))
-
-(defmethod make-module ((self pattern))
-  (make-instance 'pattern-module :model self))
-
-(defmethod make-module ((self saw-osc))
-  (make-instance 'saw-osc-module :model self))
-
-(defmethod make-module ((self sin-osc))
-  (make-instance 'sin-osc-module :model self))
-
-(defmethod make-module ((self adsr))
-  (make-instance 'adsr-module :model self))
-
-(defmethod make-module ((self operand))
-  (make-instance 'operand-module :model self))
-
-(defmethod make-module ((self gain))
-  (make-instance 'gain-module :model self))

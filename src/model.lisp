@@ -8,25 +8,12 @@
 (defgeneric route (self left right))
 (defgeneric prepare-save (model))
 
-;; これも保存したいのでここに書く
-(defclass renderable ()
-  ((color :initarg :color :initform *default-color* :accessor .color)
-   (x :initarg :x :initform 0 :accessor .x)
-   (y :initarg :y :initform 0 :accessor .y)
-   (width :initarg :width :initform 100 :accessor .width)
-   (height :initarg :height :initform 80 :accessor .height)))
-
 (defclass name-mixin ()
   ((name :initarg :name :initform "" :accessor .name)))
 
-(defclass model (name-mixin renderable)
+(defclass model (name-mixin)
   ((in :initarg :in :accessor .in :initform nil)
    (out :initarg :out :accessor .out :initform nil)))
-
-(defmethod initialize-instance :after ((self model) &key)
-  (initialize self))
-
-(defmethod initialize ((self model)))
 
 (defmethod connect ((in model) (out model))
   (push out (.out in))
@@ -63,14 +50,8 @@
 
 (defclass track (model)
   ((pattern-positions :initform nil :accessor .pattern-positions)
-   (buffer :accessor .buffer)))
-
-(defmethod initialize ((self track))
-  (setf (.buffer self) (make-buffer :initial-element nil :element-type t)))
-
-(defmethod lepis:emit-slot ((self track) (slot (eql 'buffer)) stream)
-  (format stream " NIL")
-  nil)
+   (buffer :accessor .buffer
+           :initform (make-buffer :initial-element nil :element-type t))))
 
 (defun play-track (track start-line start-frame end-line end-frame)
   (let* ((frames-per-line (frames-per-line))
@@ -182,20 +163,6 @@
                       (loop repeat (.length self)
                             collect (make-instance 'line))))))
 
-(defmethod add-pattern ((track track) (pattern pattern) start end)
-  (let ((pattern-position (make-instance 'pattern-position
-                                         :pattern pattern
-                                         :start start :end end)))
-    (push pattern-position
-          (.pattern-positions track))
-    (update-sequencer-end)
-    pattern-position))
-
-(defmethod remove-pattern ((track track) (pattern-position pattern-position))
-  (setf (.pattern-positions track)
-        (remove pattern-position (.pattern-positions track)))
-  (update-sequencer-end))
-
 (defun midi-events-at-line-frame (pattern-position start-line start-frame end-line end-frame)
   (declare (ignore end-frame))
   (setf (.current-line (.pattern pattern-position)) start-line)
@@ -236,20 +203,10 @@
                                    (< (.frame a) (.frame b)))))))
 
 (defclass osc (model)
-  ((note :initarg :note :accessor .note)
-   (buffer :accessor .buffer)
-   (value :accessor .value :type double-float)
-   (phase :accessor .phase :type double-float)))
-
-(defmethod initialize ((self osc))
-  (setf (.note self) off)
-  (setf (.buffer self) (make-buffer))
-  (setf (.value self) 0.0d0)
-  (setf (.phase self) 0.0d0))
-
-(defmethod lepis:emit-slot ((self osc) (slot (eql 'buffer)) stream)
-  (format stream " NIL")
-  nil)
+  ((note :initarg :note :initform off :accessor .note)
+   (buffer :initform (make-buffer) :accessor .buffer)
+   (value :initform 0.0d0 :accessor .value :type double-float)
+   (phase :initform 0.0d0 :accessor .phase :type double-float)))
 
 (defmethod process ((self osc) midi-events frame)
   (flet ((midi-event (i on-or-off)
@@ -301,24 +258,12 @@
    (d :initarg :d :initform 0.05d0 :accessor .d)
    (s :initarg :s :initform 0.3d0 :accessor .s)
    (r :initarg :r :initform 0.1d0 :accessor .r)
-   (buffer :accessor .buffer)
-   (last-gate :accessor .last-gate)
-   (last-value :accessor .last-value)
-   (frame :accessor .frame)
+   (buffer :initform (make-buffer) :accessor .buffer)
+   (last-gate :initform nil :accessor .last-gate)
+   (last-value :initform nil :accessor .last-value)
+   (frame :initform 0 :accessor .frame)
    (release-time :initform 0.0d0 :accessor .release-time)
-   (release-value :initform 0.0d0 :accessor .release-value))
-  (:default-initargs :name "Adsr" :height 100))
-
-(defmethod initialize ((self adsr))
-  (setf (.buffer self) (make-buffer))
-  (setf (.last-gate self) nil)
-  (setf (.last-value self) 0.0d0)
-  (setf (.frame self) 0))
-
-(defmethod lepis:emit-slot ((self adsr) (slot (eql 'buffer)) stream)
-  (format stream " NIL")
-  nil)
-
+   (release-value :initform 0.0d0 :accessor .release-value)))
 
 (defmethod process ((self adsr) midi-events frame)
   (flet ((midi-event (i on-or-off)
@@ -366,23 +311,10 @@
     (route self buffer buffer)))
 
 (defclass operand (model)
-  ((left :accessor .left)
-   (right :accessor .right)
-   (in-count :accessor .in-count :type fixnum)))
-
-(defmethod initialize ((self operand))
-  (let ((value (initial-value self)))
-    (setf (.left self) (make-buffer :initial-element value))
-    (setf (.right self) (make-buffer :initial-element value))
-    (setf (.in-count self) 0)))
-
-(defmethod lepis:emit-slot ((self operand) (slot (eql 'left)) stream)
-  (format stream " NIL")
-  nil)
-
-(defmethod lepis:emit-slot ((self operand) (slot (eql 'right)) stream)
-  (format stream " NIL")
-  nil)
+  ((left :initarg :left :accessor .left)
+   (right :initarg :right :accessor .right)
+   (initial-value :initarg :initial-value :accessor .initial-value)
+   (in-count :initform 0 :accessor .in-count :type fixnum)))
 
 (defmethod process ((self operand) left right)
   (loop for i below *frames-per-buffer*
@@ -399,45 +331,31 @@
     (route self (.left self) (.right self))
     (setf (.in-count self) 0)
     (loop for i below *frames-per-buffer*
-          with value = (initial-value self)
+          with value = (.initial-value self)
           do (setf (aref (.left self) i) value
                    (aref (.right self) i) value))))
 
 (defclass op-add (operand)
-  ())
-
-(defmethod initial-value ((self op-add))
-  0.0d0)
+  ()
+  (:default-initargs :left (make-buffer :initial-element 0.0d0)
+                     :rigth (make-buffer :initial-element 0.0d0)
+                     :initial-value 0.0d0))
 
 (defmethod operate ((self op-add) x y)
   (+ x y))
 
 (defclass op-multi (operand)
-  ())
-
-(defmethod initial-value ((self op-multi))
-  1.0d0)
+  ()
+  (:default-initargs :left (make-buffer :initial-element 1.0d0)
+                     :rigth (make-buffer :initial-element 1.0d0)
+                     :initial-value 1.0d0))
 
 (defmethod operate ((self op-multi) x y)
   (* x y))
 
 (defclass left-right-buffer-mixin ()
-  ((left :accessor .left)
-   (right :accessor .right)))
-
-(defmethod initialize ((self left-right-buffer-mixin))
-  (setf (.left self) (make-buffer))
-  (setf (.right self) (make-buffer)))
-
-(defmethod lepis:emit-slot ((self left-right-buffer-mixin)
-                            (slot (eql 'left)) stream)
-  (format stream " NIL")
-  nil)
-
-(defmethod lepis:emit-slot ((self left-right-buffer-mixin)
-                            (slot (eql 'right)) stream)
-  (format stream " NIL")
-  nil)
+  ((left :initform (make-buffer) :accessor .left)
+   (right :initform (make-buffer) :accessor .right)))
 
 (defclass gain (left-right-buffer-mixin model)
   ((volume :initarg :volume :initform 1.0d0 :accessor .volume)))
@@ -453,9 +371,7 @@
                  (aref (.right self) i) 0.0d0)))
 
 (defclass master (left-right-buffer-mixin model)
-  ((volume :initform 0.6d0 :accessor .volume))
-  (:default-initargs  :name "Master" :x 695 :y 515
-                      :color (list #xff #xa5 #x00 *transparency*)))
+  ((volume :initform 0.6d0 :accessor .volume)))
 
 (defmethod process ((self master) left right)
   (loop for i below *frames-per-buffer*
@@ -475,19 +391,16 @@
   ((plugin-description :initarg :plugin-description :accessor .plugin-description)
    (host-process :accessor .host-process)
    (host-io :accessor .host-io)
-   (out-buffer :accessor .out-buffer)
-   (in-buffer :accessor .in-buffer)
-   (left-buffer :accessor .left-buffer)
-   (right-buffer :accessor .right-buffer)
+   (out-buffer :accessor .out-buffer
+               :initform (make-array (* *frames-per-buffer* 9) :element-type 'unsigned-byte))
+   (in-buffer :accessor .in-buffer
+              :initform (make-array (* *frames-per-buffer* 4) :element-type 'unsigned-byte))
+   (left-buffer :initform (make-buffer) :accessor .left-buffer)
+   (right-buffer :initform (make-buffer)  :accessor .right-buffer)
    (plugin-state :accessor .plugin-state)
-   (mutex :accessor .mutex)))
+   (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
 
-(defmethod initialize ((self plugin-model))
-  (setf (.out-buffer self) (make-array (* *frames-per-buffer* 9) :element-type 'unsigned-byte))
-  (setf (.in-buffer self) (make-array (* *frames-per-buffer* 4) :element-type 'unsigned-byte))
-  (setf (.left-buffer self) (make-buffer))
-  (setf (.right-buffer self) (make-buffer))
-  (setf (.mutex self) (sb-thread:make-mutex))
+(defmethod initialize-instance :after ((self plugin-model) &key)
   (run-plugin-host self)
   (when (slot-boundp self 'plugin-state)
     (set-plugin-state self)))
@@ -554,22 +467,6 @@
 
 (defmethod prepare-save ((self plugin-model))
   (get-plugin-state self))
-
-(defmethod lepis:emit-slot ((self plugin-model) (slot (eql 'out-buffer)) stream)
-  (format stream " NIL")
-  nil)
-
-(defmethod lepis:emit-slot ((self plugin-model) (slot (eql 'in-buffer)) stream)
-  (format stream " NIL")
-  nil)
-
-(defmethod lepis:emit-slot ((self plugin-model) (slot (eql 'left-buffer)) stream)
-  (format stream " NIL")
-  nil)
-
-(defmethod lepis:emit-slot ((self plugin-model) (slot (eql 'right-buffer)) stream)
-  (format stream " NIL")
-  nil)
 
 (defclass instrument-plugin-model (plugin-model) ())
 (defclass effect-plugin-model (plugin-model) ())
@@ -732,28 +629,3 @@
                                               (equal (.name x) (.name y))))
                              plugin-descriptions))
             collect x)))
-
-
-(defmethod lepis:emit ((self stream) stream sharp-dot)
-  (print nil stream))
-
-(defmethod lepis:emit ((self sb-impl::process) stream sharp-dot)
-  (print nil stream))
-
-(defmethod lepis:emit ((self sb-thread:mutex) stream sharp-dot)
-    (print nil stream))
-
-(defmethod lepis::store-object ((object stream) hash done)
-  (sunless (gethash object done)
-    (setf it t)
-    (setf (gethash object hash) (hash-table-count hash))))
-
-(defmethod lepis::store-object ((object sb-impl::process) hash done)
-  (sunless (gethash object done)
-    (setf it t)
-    (setf (gethash object hash) (hash-table-count hash))))
-
-(defmethod lepis::store-object ((object sb-thread::mutex) hash done)
-  (sunless (gethash object done)
-    (setf it t)
-    (setf (gethash object hash) (hash-table-count hash))))

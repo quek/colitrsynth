@@ -201,13 +201,3 @@
              (stop-audio)
              (pa:close-stream (.stream *audio*))))))))
 
-(defmacro delegate-model (class)
-  `(progn
-     ,@(loop for slot in (sb-mop:class-slots (find-class 'model))
-             for name = (intern (format nil ".~a"
-                                        (sb-mop:slot-definition-name slot)))
-             nconc `((defmethod ,name ((self ,class))
-                       (,name (.model self)))
-                     (defmethod (setf ,name) (value (self ,class))
-                       (setf (,name (.model self)) value))))))
-
