@@ -1,3 +1,4 @@
 (in-package :colitrsynth)
 
-"nya"
+(serialize (make-module (make-instance 'pattern))) 
+

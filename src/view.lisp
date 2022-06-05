@@ -93,12 +93,13 @@
                 (.ctrl-key-p *app*))
            (awhen (.selected-module *app*)
              (sdl2-ffi.functions:sdl-set-clipboard-text
-              (with-output-to-string (out)
-                (serialize it out)))))
+              (let ((*package* (find-package :colitrsynth)))
+                (with-standard-io-syntax
+                  (with-output-to-string (out)
+                    (write (serialize it) :stream out)))))))
           ((and (sdl2:scancode= scancode :scancode-v)
                 (.ctrl-key-p *app*))
-           (awhen (with-input-from-string (in (sdl2-ffi.functions:sdl-get-clipboard-text))
-                    (deserialize in))
+           (awhen (deserialize (sdl2-ffi.functions:sdl-get-clipboard-text))
              (multiple-value-bind (x y) (sdl2:mouse-state)
                (setf (.x it) x)
                (setf (.y it) y))
@@ -125,36 +126,32 @@
 (defgeneric .target (self)
   (:method ((self null)) nil))
 
-(defgeneric serialize (self stream)
-  (:method :around (self stream)
-    (let ((*package* (find-package :colitrsynth)))
-      (with-standard-io-syntax (call-next-method))))
-  (:method :around (x (stream null))
-    (let ((*package* (find-package :colitrsynth)))
-      (with-standard-io-syntax
-        (read-from-string
-         (with-output-to-string (out)
-           (call-next-method x out))))))
-  (:method (self stream)
-    (format stream " ~a" self))
-  (:method ((self cons) stream)
-    (format stream "(list")
-    (loop for x in self
-          do (serialize x stream))
-    (format stream ")"))
-  (:method ((self array) stream)
-    (write `(let ((x (make-array ,(length self))))
-              ,@(loop for i from 0
-                      for v across self
-                      collect `(setf (aref x ,i) ,(serialize v nil)))
-              (coerce x ',(type-of self)))
-           :stream stream)))
+(defgeneric serialize (self)
+  (:method (x)
+    x)
+  (:method ((self cons))
+    `(list
+      ,@(loop for x in self
+              collect (serialize x))))
+  (:method ((self array))
+    (if (loop for x across self
+              always (numberp x))
+        `(coerce #(,@(coerce self 'list)) ',(type-of self))
+        `(let ((x (make-array ,(length self))))
+           ,@(loop for i from 0
+                   for v across self
+                   collect `(setf (aref x ,i) ,(serialize v)))
+           (coerce x ',(type-of self))))))
 
-(defun deserialize (stream)
-  (ignore-errors
-   (with-standard-io-syntax
-     (let ((*package* (find-package :colitrsynth)))
-       (eval (read stream))))))
+(defgeneric deserialize (in)
+  (:method ((in string))
+    (with-input-from-string (in in)
+      (deserialize in)))
+  (:method ((in stream))
+    (ignore-errors
+     (with-standard-io-syntax
+       (let ((*package* (find-package :colitrsynth)))
+         (eval (read in)))))))
 
 (defclass app ()
   ((win :initarg :win :accessor .win)
@@ -455,20 +452,22 @@
                        (+ (.width self) 4)
                        (+ (.height self) 4))) )))
 
-(defmethod serialize :around ((self module) stream)
-  (format stream "(let ((x (sb-mop:allocate-instance (find-class '~a))))"
-          (class-name (class-of (.model self))))
-  (format stream "(setf (.name x) ~s)" (.name self))
-  (format stream "(setf (.x x) ~a)" (.x self))
-  (format stream "(setf (.y x) ~a)" (.y self))
-  (format stream "(setf (.width x) ~a)" (.width self))
-  (format stream "(setf (.height x) ~a)" (.height self))
-  (format stream "(setf (.color x)")
-  (serialize (.color self) stream)
-  (format stream ")")
-  (format stream "(setf (.in x) nil (.out x) nil)")
-  (call-next-method)
-  (format stream "(initialize x)(make-module x))"))
+(defmethod serialize :around ((self module))
+  ;; TODO sb-mop:allocate-instance じゃなくて allocate-instance だけで出力されるのなぜ？
+  ;; しかたないから inter 使ってる
+  `(let ((x (funcall (intern "ALLOCATE-INSTANCE" :sb-mop)
+                     (find-class ',(class-name (class-of (.model self)))))))
+     (setf (.name x) ,(.name self)
+           (.x x) ,(.x self)
+           (.y x) ,(.y self)
+           (.width x) ,(.width self)
+           (.height x) ,(.height self)
+           (.color x) ,(serialize (.color self))
+           (.in x) nil
+           (.out x) nil)
+     ,(call-next-method)
+     (initialize x)
+     (make-module x)))
 
 (defclass drag-mixin ()
   ())
@@ -1467,31 +1466,21 @@
 (defmethod (setf .height) :after (value (self pattern-module))
   (setf (.height (.pattern-editor self)) (- (.height self) (+ 10 *font-size*))))
 
-(defmethod serialize ((self pattern-module) stream)
+(defmethod serialize ((self pattern-module))
   (let ((model (.model self)))
-    (write `(setf (.length x) ,(.length model)
-                  (.lines x) ,(serialize (.lines model) nil)
-                  (.current-line x) 0)
-           :stream stream)))
+    `(setf (.length x) ,(.length model)
+           (.lines x) ,(serialize (.lines model))
+           (.current-line x) 0)))
 
-(defmethod serialize ((self line) stream)
-  (write `(make-instance 'line
-                         :columns ,(serialize (.columns self) nil)
-                         :lenght ,(.length self))
-         :stream stream))
+(defmethod serialize ((self line))
+  `(make-instance 'line
+                  :columns ,(serialize (.columns self))
+                  :lenght ,(.length self)))
 
-(defmethod serialize ((self column) stream)
-  (write `(make-instance 'column
-                         :note ,(.note self)
-                         :velocity ,(.velocity self))
-         :stream stream))
-
-#+nil
-(with-output-to-string (out)
-  (serialize (make-module (make-instance 'pattern)) out))
-
-
-
+(defmethod serialize ((self column))
+  `(make-instance 'column
+                  :note ,(.note self)
+                  :velocity ,(.velocity self)))
 
 (defclass osc-module-mixin ()
   ())
@@ -1543,48 +1532,35 @@
                                       :width width :height height
                                       :onchange (lambda (x) (setf (.r adsr) x))))))
 
-(defmethod serialize ((self adsr-module) stream)
-  (format stream "(setf (.a x) ~a)" (.a (.model self)))
-  (format stream "(setf (.d x) ~a)" (.d (.model self)))
-  (format stream "(setf (.s x) ~a)" (.s (.model self)))
-  (format stream "(setf (.r x) ~a)" (.r (.model self))))
+(defmethod serialize ((self adsr-module))
+  (let ((model (.model self)))
+    `(setf (.a x) ,(.a model)
+           (.d x) ,(.d model)
+           (.s x) ,(.s model)
+           (.r x) ,(.r model))))
+
 
 (defclass plugin-module (module)
   ())
 
-(defmethod serialize ((self plugin-module) stream)
+(defmethod serialize ((self plugin-module))
   (let* ((model (.model self))
          (pd (.plugin-description model)))
-    (format stream "(setf (.plugin-description x)
-(make-instance 'plugin-description
-:name ~s
-:format ~s
-:category ~s
-:manufacturer ~s
-:version ~s
-:file ~s
-:unique-id ~s
-:is-instrument ~s
-:num-inputs ~s
-:num-outputs ~s
-:uid ~s
-))"
-            (.name pd)
-            (.format pd)
-            (.category pd)
-            (.manufacturer pd)
-            (.version pd)
-            (.file pd)
-            (.unique-id pd)
-            (.is-instrument pd)
-            (.num-inputs pd)
-            (.num-outputs pd)
-            (.uid pd))
     (get-plugin-state model)
-    (format stream "(setf (.plugin-state x) (coerce ")
-    (serialize (.plugin-state model) stream)
-    (format stream " '(simple-array (unsigned-byte 8) (~d))))"
-            (length (.plugin-state model)))))
+    `(setf (.plugin-description x)
+           (make-instance 'plugin-description
+                          :name ,(.name pd)
+                          :format ,(.format pd)
+                          :category ,(.category pd)
+                          :manufacturer ,(.manufacturer pd)
+                          :version ,(.version pd)
+                          :file ,(.file pd)
+                          :unique-id ,(.unique-id pd)
+                          :is-instrument ,(.is-instrument pd)
+                          :num-inputs ,(.num-inputs pd)
+                          :num-outputs ,(.num-outputs pd)
+                          :uid ,(.uid pd))
+           (.plugin-state x) ,(serialize (.plugin-state model)))))
 
 (defclass instrument-plugin-module (plugin-module)
   ())
