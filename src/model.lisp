@@ -98,11 +98,7 @@
    (tracks :initarg :tracks :accessor .tracks :initform nil)
    (end :initform 0 :accessor .end)
    (looping :initform t :accessor .looping)
-   (current-line :initform 0 :accessor .current-line))
-  (:default-initargs :color (list #x00 #xff #xff *transparency*)
-                     :x 5 :y 5
-                     :width 700
-                     :height 200))
+   (current-line :initform 0 :accessor .current-line)))
 
 (defun update-sequencer-end ()
   (let ((sequencer (.sequencer *audio*)))

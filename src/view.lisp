@@ -168,13 +168,13 @@
 
 (defgeneric serialize-ref (self))
 
-(defmethod serialize-ref ((self null))
-  nil)
-
 (defmethod serialize-ref :around (self)
   (if *serialize-table*
       (call-next-method)
       nil))
+
+(defmethod serialize-ref ((self null))
+  nil)
 
 (defmethod serialize-ref ((self cons))
   `(let ((y (make-list ,(length self))))
@@ -520,7 +520,7 @@
                        (+ (.width self) 4)
                        (+ (.height self) 4))) )))
 
-(defmethod serialize ((self module))
+(defmethod serialize ((self model))
   `((setf (.name x) ,(.name self)
            (.in x) ,(serialize-ref (.in self))
            (.out x) ,(serialize-ref (.out self)))
@@ -1429,7 +1429,9 @@
   (call-next-method))
 
 (defclass sequencer-module (sequencer module)
-  ((partial-view :accessor .partial-view)))
+  ((partial-view :accessor .partial-view))
+  (:default-initargs :color (list #x00 #xff #xff *transparency*)
+                     :x 5 :y 5 :width 700 :height 200))
 
 (defmethod initialize-instance :after ((self sequencer-module) &key)
   (let* ((play-button (make-instance 'button :label "▶" :x 5 :y *layout-space*))
@@ -1476,7 +1478,9 @@
   (let ((track (make-instance 'track-view)))
     (setf (.tracks self)
           (append (.tracks self) (list track)))
-    (add-new-track-after self track)))
+    (add-new-track-after self track)
+    (resized self)
+    track))
 
 (defmethod add-new-track-after ((self sequencer-module) (track-view track-view))
   (add-child (.partial-view self) track-view)
@@ -1484,7 +1488,9 @@
 
 (defmethod serialize ((self sequencer-module))
   `((setf (.tracks x) ,(serialize (.tracks self))
-          (.partial-view x) ,(serialize (.partial-view self)))
+          (.bpm x) ,(.bpm self)
+          (.lpb x) ,(.lpb self)
+          (.looping x) ,(.looping self))
     ,@(call-next-method)))
 
 (defclass pattern-module (pattern module)
