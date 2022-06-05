@@ -35,12 +35,17 @@
 (defgeneric mousebuttonup (self button state clicks x y)
   (:method (self button state clicks x y)
     (when (eq self (click-target-module button))
-      (let ((root (.root-parent self)))
-        (click root button
-               (- (.mouse-x *app*) (.absolute-x root))
-               (- (.mouse-y *app*) (.absolute-y root)))))))
+      (let* ((root (.root-parent self))
+             (x (- (.mouse-x *app*) (.absolute-x root)))
+             (y (- (.mouse-y *app*) (.absolute-y root))))
+        (case clicks
+          (2 (double-click root button x y))
+          (t (click root button x y)))))))
 
 (defgeneric click (self button x y)
+  (:method (self button x y)))
+
+(defgeneric double-click (self button x y)
   (:method (self button x y)))
 
 (defgeneric drag-start (self x y button)
@@ -290,6 +295,13 @@
     (click it button
            (translate-child-x self it x)
            (translate-child-y self it y))))
+
+(defmethod double-click ((self view) button x y)
+  (call-next-method)
+  (awhen (child-view-at self x y)
+    (double-click it button
+                  (translate-child-x self it x)
+                  (translate-child-y self it y))))
 
 (defmethod drop ((self view) dropped x y button)
   (call-next-method)
@@ -765,17 +777,26 @@
   (:default-initargs :height (+ *char-height* 4)
                      :width (+ (* *char-width* 12) 4)))
 
-(defmethod .edit-buffer :around ((self text))
-  (if (.focused self)
-      (call-next-method)
-      (setf (.edit-buffer self) (funcall (.reader self)))))
-
 (defmethod initialize-instance :after ((self text) &key)
   (setf (.label self) (make-instance 'label
                                      :value (lambda () (.edit-buffer self))
                                      :x 3 :y 1))
   (setf (.cursor-position self) (length (.edit-buffer self)))
   (add-child self (.label self)))
+
+(defmethod click ((self text) button x y)
+  ;; single click ではフォーカスしない
+  )
+
+(defmethod .edit-buffer :around ((self text))
+  (if (.focused self)
+      (call-next-method)
+      (setf (.edit-buffer self) (funcall (.reader self)))))
+
+(defmethod double-click ((self text) button x y)
+  (unless (eq self (.focused-view *app*))
+    (setf (.focused-view *app*) self))
+  (call-next-method))
 
 (defmethod render ((self text) renderer)
   (let ((cursor-x (+ (.absolute-x self)
