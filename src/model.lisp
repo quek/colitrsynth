@@ -100,12 +100,11 @@
    (looping :initform t :accessor .looping)
    (current-line :initform 0 :accessor .current-line)))
 
-(defun update-sequencer-end ()
-  (let ((sequencer (.sequencer *audio*)))
-    (setf (.end sequencer)
-          (loop for track in (.tracks sequencer)
-                maximize (loop for pattern-position in (.pattern-positions track)
-                               maximize (.end pattern-position))))))
+(defun update-sequencer-end (sequencer)
+  (setf (.end sequencer)
+        (loop for track in (.tracks sequencer)
+              maximize (loop for pattern-position in (.pattern-positions track)
+                             maximize (.end pattern-position)))))
 
 (defun process-sequencer (self start-line start-frame end-line end-frame)
   (let ((end (.end self)))
@@ -400,18 +399,19 @@
     (call-next-method)))
 
 (defmethod run-plugin-host ((self plugin-model))
-  (setf (.host-process self)
-        (sb-ext:run-program *plugin-host-exe*
-                            (list (.name (.plugin-description self)))
-                            :wait nil))
-  (push (.host-process self) *plugin-processes*)
-  (let ((pipe (sb-win32::create-named-pipe (format nil "~a~a" *plugin-host-pipe-name*
-                                                   (sb-ext:process-pid (.host-process self)))
-                                           sb-win32::pipe-access-duplex
-                                           sb-win32::pipe-type-byte
-                                           255 0 0 100 (cffi-sys::null-pointer))))
-    (setf (.host-io self)
-          (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte))))
+  (when (slot-boundp self 'plugin-description)
+    (setf (.host-process self)
+          (sb-ext:run-program *plugin-host-exe*
+                              (list (.name (.plugin-description self)))
+                              :wait nil))
+    (push (.host-process self) *plugin-processes*)
+    (let ((pipe (sb-win32::create-named-pipe (format nil "~a~a" *plugin-host-pipe-name*
+                                                     (sb-ext:process-pid (.host-process self)))
+                                             sb-win32::pipe-access-duplex
+                                             sb-win32::pipe-type-byte
+                                             255 0 0 100 (cffi-sys::null-pointer))))
+      (setf (.host-io self)
+            (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte)))))
 
 (defmethod close ((self plugin-model) &key abort)
   (declare (ignore abort))

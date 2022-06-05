@@ -166,25 +166,25 @@
   (:method :after ((self standard-object))
     (ref-id self)))
 
-(defgeneric serialize-ref (self))
+(defgeneric serialize-ref (self &key))
 
-(defmethod serialize-ref :around (self)
+(defmethod serialize-ref :around (self &key)
   (if *serialize-table*
       (call-next-method)
       nil))
 
-(defmethod serialize-ref ((self null))
+(defmethod serialize-ref ((self null) &key)
   nil)
 
-(defmethod serialize-ref ((self cons))
+(defmethod serialize-ref ((self cons) &key)
   `(let ((y (make-list ,(length self))))
      ,@(loop for module in self
              for i from 0
              collect `(s (setf (nth ,i y) (r ,(ref-id module)))))
      y))
 
-(defmethod serialize-ref ((self standard-object))
-  `(s (r ,(ref-id self))))
+(defmethod serialize-ref ((self standard-object) &key accessor)
+  `(s (setf (,accessor x) (r ,(ref-id self)))))
 
 
 (defgeneric deserialize (in)
@@ -1340,6 +1340,8 @@
 
 (defmethod serialize ((self track-view))
   `((setf (.pattern-positions x) ,(serialize (.pattern-positions self)))
+    (loop for i in (.pattern-positions x)
+          do (add-child x i))
     ,@(call-next-method)))
 
 (defclass pattern-position-view (pattern-position
@@ -1390,7 +1392,7 @@
          (delta (- (pixcel-to-line (.x pattern-position-view)) (.start pattern-position))))
     (incf (.start pattern-position) delta)
     (incf (.end pattern-position) delta)
-    (update-sequencer-end)))
+    (update-sequencer-end *sequencer-module*)))
 
 (defmethod resized ((self pattern-position-view))
   (setf (.height self) (.height (.parent self))))
@@ -1398,7 +1400,7 @@
 (defmethod serialize ((self pattern-position-view))
   `((setf (.start x) ,(.start self)
           (.end x) ,(.end self)
-          (.pattern x) ,(serialize-ref (.pattern self)))
+          (.pattern x) ,(serialize-ref (.pattern self) :accessor '.pattern))
     ,@(call-next-method)))
 
 (defclass sequencer-partial-view (partial-view)
@@ -1495,7 +1497,8 @@
 
 (defmethod (setf .tracks) :after (tracks (self sequencer-module))
   (loop for track in tracks
-        do (add-new-track-after self track)))
+        do (add-new-track-after self track))
+  (update-sequencer-end self))
 
 (defclass pattern-module (pattern module)
   ((pattern-editor :accessor .pattern-editor
@@ -1528,7 +1531,7 @@
                                               :start start :end end)))
     (push pattern-position-view
           (.pattern-positions track-view))
-    (update-sequencer-end)
+    (update-sequencer-end *sequencer-module*)
     (add-child track-view pattern-position-view)
     (setf (.x pattern-position-view) (* *pixcel-per-line* (.start pattern-position-view))
           (.y pattern-position-view) 2
@@ -1553,7 +1556,7 @@
                            (pattern-position-view pattern-position-view))
   (setf (.pattern-positions track-view)
         (remove pattern-position-view (.pattern-positions track-view)))
-  (update-sequencer-end)
+  (update-sequencer-end *sequencer-module*)
   (remove-child track-view pattern-position-view))
 
 (defmethod keydown ((self pattern-module) value scancode mod-value)
@@ -1661,7 +1664,9 @@
                            :num-outputs ,(.num-outputs pd)
                            :uid ,(.uid pd))
             (.plugin-state x) ,(serialize (.plugin-state self)))
-      ,@(call-next-method))))
+      ,@(call-next-method)
+      (run-plugin-host x)
+      (set-plugin-state x))))
 
 (defclass instrument-plugin-module (instrument-plugin-model plugin-module)
   ())
