@@ -1,6 +1,7 @@
 # TODO
 
 - bypass
+- OFF は pattern をまたがって処理する必要があるのでは
 - pattern editor 上の方に配置するとゆがむ
 - 先頭の音が出ない場合がある
 - Op Multi -> Amp, Gain -> Merge かな

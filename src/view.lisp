@@ -67,7 +67,7 @@
           ((sdl2:scancode= scancode :scancode-space)
            (if (.playing *audio*)
                (stop)
-               (play)))
+               (play-with-key)))
           ((sdl2:scancode= scancode :scancode-f)
            (open-menu))
           ((and (sdl2:scancode= scancode :scancode-o)
@@ -214,6 +214,20 @@
    (shift-key-p :initform nil :accessor .shift-key-p)
    (ctrl-key-p :initform nil :accessor .ctrl-key-p)
    (mbox :initform (sb-concurrency:make-mailbox) :accessor .mbox)))
+
+(defun ctrl-key-p ()
+  (.ctrl-key-p *app*))
+
+(defun shift-key-p ()
+  (.shift-key-p *app*))
+
+(defun play-with-key ()
+  (cond ((ctrl-key-p)
+         (play-from-start))
+        ((shift-key-p)
+         (play-from-last))
+        (t
+         (play-from-current))))
 
 (defmethod .modules ((self app))
   (loop for view in (.views self)
@@ -1465,7 +1479,7 @@
                   (+ (.absolute-x self)
                      (.width self))
                   (+ (.absolute-x self)
-                     (* (.current-line sequencer)
+                     (* (play-position-line (.play-position sequencer))
                         *pixcel-per-line*)
                      (- (.offset-x self))))))
          (y (.absolute-y self)))
@@ -1506,7 +1520,7 @@
       (defmethod click ((self (eql play-button)) (button (eql 1)) x y)
         (if (.playing *audio*)
             (stop)
-            (play)))
+            (play-with-key)))
       (defmethod click ((self (eql add-track-button)) (button (eql 1)) x y)
         (add-new-track sequencer)))
     (resized self)))

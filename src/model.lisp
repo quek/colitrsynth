@@ -92,6 +92,35 @@
 (defun play-track-no-notes (track start-frame)
   (route track nil start-frame))
 
+(defstruct play-position
+  (line 0)
+  (line-frame 0))
+
+(defun as-frame (play-position)
+  (let* ((start-line (play-position-line play-position))
+         (start-line-frame (play-position-line-frame play-position))
+         (sec-per-line (sec-per-line))
+         (sec-per-frame (sec-per-frame))
+         (start-sec (+ (* sec-per-line start-line)
+                       (* sec-per-frame start-line-frame)))
+         (start-frame (/ start-sec sec-per-frame)))
+    (floor start-frame)))
+
+(defun inc-frame (play-position)
+  (let* ((start-line (play-position-line play-position))
+         (start-line-frame (play-position-line-frame play-position))
+         (sec-per-line (sec-per-line))
+         (sec-per-frame (sec-per-frame))
+         (start-sec (+ (* sec-per-line start-line)
+                       (* sec-per-frame start-line-frame)))
+         (start-frame (/ start-sec sec-per-frame))
+         (end-frame (+ start-frame *frames-per-buffer*))
+         (end-sec (* end-frame sec-per-frame))
+         (end-line (floor (/ end-sec sec-per-line)))
+         (end-line-frame (floor (/ (- end-sec (* sec-per-line end-line))
+                                   sec-per-frame))))
+    (make-play-position :line end-line :line-frame end-line-frame)))
+
 (defclass sequencer (model)
   ((bpm :initarg :bpm :initform 140.0d0 :accessor .bpm
         :type double-float)
@@ -99,7 +128,13 @@
    (tracks :initarg :tracks :accessor .tracks :initform nil)
    (end :initform 0 :accessor .end)
    (looping :initform t :accessor .looping)
-   (current-line :initform 0 :accessor .current-line)))
+   (play-position :initform (make-play-position)
+                  :accessor .play-position)
+   (last-play-position :initform (make-play-position)
+                       :accessor .last-play-position)))
+
+(defun current-frame (sequencer)
+  (as-frame (.play-position sequencer)))
 
 (defun update-sequencer-end (sequencer)
   (setf (.end sequencer)
@@ -114,8 +149,7 @@
        (progn
          (loop for track in (.tracks self)
                do (play-track-no-notes track start-frame))
-         (write-master-buffer)
-         (setf (.current-line self) end))
+         (write-master-buffer))
        (progn
          (cond ((playing)
                 (loop for track in (.tracks self)
@@ -126,8 +160,7 @@
                (t
                 (loop for track in (.tracks self)
                       do (play-track-no-notes track start-frame))))
-         (write-master-buffer)
-         (setf (.current-line self) start-line)))))
+         (write-master-buffer)))))
 
 (defclass column ()
   ((note :initarg :note :initform none :accessor .note)
@@ -481,7 +514,7 @@
         (right-buffer (.right-buffer self)))
     (setf (aref out (incf i)) +plugin-command-instrument+)
     (let ((bpm (ieee-floats:encode-float64 (.bpm (.sequencer *audio*))))
-          (nframes (.nframes *audio*)))
+          (nframes (current-frame (.sequencer *audio*))))
       (setf (aref out (incf i)) (if (playing) 1 0))
       (setf (aref out (incf i)) (mod bpm #x100))
       (setf (aref out (incf i)) (mod (ash bpm -8) #x100))
@@ -541,7 +574,7 @@
     (sb-thread:with-mutex ((.mutex self))
       (write-byte +plugin-command-effect+ io)
       (let ((bpm (ieee-floats:encode-float64 (.bpm (.sequencer *audio*))))
-            (nframes (.nframes *audio*)))
+            (nframes (current-frame (.sequencer *audio*))))
         (write-byte (if (playing) 1 0) io)
         (write-byte (mod bpm #x100) io)
         (write-byte (mod (ash bpm -8) #x100) io)

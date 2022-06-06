@@ -53,7 +53,6 @@
    (playing :initform nil :accessor .playing)
    (played :initform nil :accessor .played)
    (request-stop :initform nil :accessor .request-stop)
-   (nframes :initform 0 :type fixnum :accessor .nframes)
    (stream
     :initform nil
     :accessor .stream)
@@ -82,8 +81,19 @@
     (setf (.processing *audio*) nil)
     (pa::stop-stream (.stream *audio*))))
 
-(defun play ()
-  (setf (.nframes *audio*) 0)
+(defun play-from-start ()
+  (%play (make-play-position :line 0 :line-frame 0)))
+
+(defun play-from-last ()
+  (%play (.last-play-position (.sequencer *audio*))))
+
+(defun play-from-current ()
+  (%play (.play-position (.sequencer *audio*))))
+
+(defun %play (play-position)
+  (let* ((sequencer (.sequencer *audio*)))
+    (setf (.last-play-position sequencer) (.play-position sequencer))
+    (setf (.play-position sequencer) play-position))
   (setf (.playing *audio*) t))
 
 (defun stop ()
@@ -98,20 +108,15 @@
 (defun request-stop ()
   (setf (.request-stop *audio*) t))
 
-(defun line-and-frame ()
-  (if (playing)
-      (let* ((sec-per-line (sec-per-line))
-             (sec-per-frame (sec-per-frame))
-             (frames-per-line (/ sec-per-line sec-per-frame))
-             (start-line (/ (.nframes *audio*) frames-per-line))
-             (start-frame (mod (.nframes *audio*) frames-per-line))
-             (end-line (/ (+ (.nframes *audio*) *frames-per-buffer*) frames-per-line))
-             (end-frame (mod (+ (.nframes *audio*) *frames-per-buffer*) frames-per-line)))
-        (when (<= frames-per-line end-frame)
-          (incf end-line)
-          (setf end-frame (mod end-frame frames-per-line)))
-        (values (floor start-line) (floor start-frame) (floor end-line) (floor end-frame)))
-      (values 0 0 0 0)))
+
+#+nil
+(let* ((sec-per-line (sec-per-line))
+       (sec-per-frame (sec-per-frame))
+       (frames-per-line (/ sec-per-line sec-per-frame)))
+  (values sec-per-line sec-per-frame frames-per-line))
+;;⇒ 0.10714285714285714d0
+;;   2.0833333333333333d-5
+;;   5142.857142857143d0
 
 (defun write-master-buffer ()
   (flet ((limit (value)
@@ -152,18 +157,21 @@
    (ignore input-buffer time-info status-flags user-data))
   (assert (= frame-per-buffer *frames-per-buffer*))
   (setf (.buffer *audio*) output-buffer)
-  (multiple-value-bind (start-line start-frame end-line end-frame) (line-and-frame)
-    ;; (print (list start-line end-line start-frame end-frame (- end-frame start-frame)))
-    (let* ((sequencer (.sequencer *audio*))
-           (looped (and (.looping sequencer) (<= (.end sequencer) end-line)))
-           (playing (.playing *audio*)))
-      (when looped
-        (setf end-line 0))
-      (process-sequencer sequencer start-line start-frame end-line end-frame)
-      (if looped
-          (setf (.nframes *audio*) end-frame)
-          (incf (.nframes *audio*) frame-per-buffer))
-      (setf (.played *audio*) playing)))
+  (let* ((sequencer (.sequencer *audio*))
+         (start-play-position (.play-position sequencer))
+         (end-play-position (inc-frame start-play-position))
+         (looped (and (.looping sequencer) (<= (.end sequencer) (play-position-line end-play-position))))
+         (playing (.playing *audio*)))
+    (when looped
+      (setf (play-position-line end-play-position) 0))
+    (process-sequencer sequencer
+                       (play-position-line start-play-position)
+                       (play-position-line-frame start-play-position)
+                       (play-position-line end-play-position)
+                       (play-position-line-frame end-play-position))
+    (when playing
+      (setf (.play-position sequencer) end-play-position))
+    (setf (.played *audio*) playing))
   0)
 
 (defmacro with-audio (&body body)
