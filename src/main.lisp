@@ -97,7 +97,9 @@
     (when (or (sdl2:scancode= scancode :scancode-lctrl)
               (sdl2:scancode= scancode :scancode-rctrl))
       (setf (.ctrl-key-p *app*) nil))
-    (keyup (.selected-module *app*) value scancode mod-value)))
+    (keyup (or (.focused-view *app*)
+               (.selected-module *app*))
+           value scancode mod-value)))
 
 (defun handle-sdl2-mousemotion-event (x y xrel yrel state)
   #+nil

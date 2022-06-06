@@ -152,6 +152,14 @@
                       (loop repeat (.length self)
                             collect (make-instance 'line))))))
 
+(defmethod extend-column ((self pattern))
+  (loop with lines = (.lines self)
+        with line-0 = (aref lines 0)
+        with length = (min (1+ (.length line-0))
+                           (length (.columns line-0)))
+        for line across lines
+        do (setf (.length line) length)))
+
 (defun midi-events-at-line-frame (pattern-position start-line start-frame end-line end-frame)
   (declare (ignore end-frame))
   (setf (.current-line (.pattern pattern-position)) start-line)
