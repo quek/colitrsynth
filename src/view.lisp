@@ -268,6 +268,10 @@
 (defun add-view (view)
   (push view (.views *app*)))
 
+(defun addend-view (view)
+  (setf (.views *app*)
+        (append (.views *app*) (list view))))
+
 (defun remove-view (module)
   (setf (.views *app*) (remove module (.views *app*))))
 
@@ -1892,5 +1896,5 @@
   (let ((module (make-instance 'menu-view
                                :x (- (.mouse-x *app*) 10)
                                :y (- (.mouse-y *app*) 10))))
-    (add-view module)
+    (addend-view module)
     (setf (.selected-module *app*) module)))
