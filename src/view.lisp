@@ -1627,6 +1627,8 @@
   `((setf (.length x) ,(.length self)
           (.lines x) ,(serialize (.lines self))
           (.current-line x) 0)
+    (setf (.octave (.pattern-editor x)) ,(.octave (.pattern-editor self))
+          (.edit-step (.pattern-editor x)) ,(.edit-step (.pattern-editor self)))
     ,@(call-next-method)))
 
 (defmethod serialize ((self line))

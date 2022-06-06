@@ -81,6 +81,7 @@
                                   (midi-events-at-line-frame pattern-position
                                                              start-line start-frame
                                                              (- end-line start) end-frame))))))))
+    #+nil
     (when midi-events
       (print midi-events))
     (route track midi-events start-frame)))

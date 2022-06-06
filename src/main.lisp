@@ -213,11 +213,11 @@
                         (with-standard-io-syntax
                           (let ((*package* (find-package :colitrsynth)))
                             (loop for module = (eval (read in nil nil))
-                                  for ref-id = (print (read in nil nil))
+                                  for ref-id = (read in nil nil)
                                   while module
                                   collect (setf (gethash ref-id *serialize-table*)
                                                 module)))))))
-        (loop for i in (print *serialize-refs*)
+        (loop for i in *serialize-refs*
               do (funcall i))
         (setf (.views *app*) modules)
         (setf *sequencer-module*
