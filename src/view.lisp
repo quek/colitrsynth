@@ -1648,7 +1648,11 @@
 (defmethod initialize-instance :after ((self osc-module-mixin) &key)
   (let ((value-text (make-instance 'label
                                    :x 25 :y 25
-                                   :value (lambda () (format nil "~,5f" (.value self))))))
+                                   :value (let ((f (interval-upadate-value
+                                                    (lambda () (.value self))
+                                                    0.3)))
+                                            (lambda ()
+                                              (format nil "~,5f" (funcall f)))))))
     (add-child self value-text)))
 
 (defclass sin-osc-module (sin-osc module osc-module-mixin)
@@ -1777,6 +1781,24 @@
   ()
   (:default-initargs  :name "Master" :x 695 :y 515
                         :color (list #xff #xa5 #x00 *transparency*)))
+
+(defmethod initialize-instance :after ((self master-module) &key)
+  (add-child self
+             (make-instance 'label
+                            :x 25 :y 45
+                            :value (let ((f (interval-upadate-value
+                                             (lambda () (.last-left self))
+                                             0.3)))
+                                     (lambda ()
+                                       (format nil "~,5f" (funcall f))))))
+  (add-child self
+             (make-instance 'label
+                            :x 25 :y 60
+                            :value (let ((f (interval-upadate-value
+                                             (lambda () (.last-right self))
+                                             0.3)))
+                                     (lambda ()
+                                       (format nil "~,5f" (funcall f)))))))
 
 (defmethod serialize ((self master-module))
   `((setf (.volume x) ,(.volume self))

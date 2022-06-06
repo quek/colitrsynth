@@ -14,6 +14,7 @@
   ((:file "package")
    (:file "ffi")
    (:file "prelude")
+   (:file "util")
    (:file "midi")
    (:file "parameter")
    (:file "audio")

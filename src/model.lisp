@@ -369,13 +369,14 @@
                  (aref (.right self) i) 0.0d0)))
 
 (defclass master (left-right-buffer-mixin model)
-  ((volume :initform 0.6d0 :accessor .volume)))
+  ((volume :initform 0.6d0 :accessor .volume)
+   (last-left :initform 0.0d0 :accessor .last-left)
+   (last-right :initform 0.0d0 :accessor .last-right)))
 
 (defmethod process ((self master) left right)
   (loop for i below *frames-per-buffer*
         do (incf (aref (.left self) i) (aref left i))
            (incf (aref (.right self) i) (aref right i))))
-
 
 (defconstant +plugin-command-instrument+ 1)
 (defconstant +plugin-command-effect+ 2)

@@ -125,14 +125,22 @@
                   (t value))
             'single-float)))
     (let* ((master (.master *audio*))
-           (volume (.volume master)))
+           (volume (.volume master))
+           (last-left 0.0d0)
+           (last-right 0.0d0))
       (loop for i below *frames-per-buffer*
-            do (setf (cffi:mem-aref (.buffer *audio*) :float (* i 2))
-                     (limit (* (aref (.left master) i) volume))
-                     (cffi:mem-aref (.buffer *audio*) :float (1+ (* i 2)))
-                     (limit (* (aref (.right master) i) volume))
-                     (aref (.left master) i) 0.0d0
-                     (aref (.right master) i) 0.0d0)))))
+            do (setf last-left
+                     (max (abs (setf (cffi:mem-aref (.buffer *audio*) :float (* i 2))
+                                     (limit (* (aref (.left master) i) volume))))
+                          last-left))
+               (setf last-right
+                     (max (abs (setf  (cffi:mem-aref (.buffer *audio*) :float (1+ (* i 2)))
+                                      (limit (* (aref (.right master) i) volume))))
+                          last-right))
+               (setf (aref (.left master) i) 0.0d0
+                     (aref (.right master) i) 0.0d0))
+      (setf (.last-left master) last-left)
+      (setf (.last-right master) last-right))))
 
 (cffi:defcallback audio-callback :int ((input-buffer :pointer)
                                        (output-buffer :pointer)
