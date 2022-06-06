@@ -266,13 +266,13 @@
   (setf (aref (slot-value *app* 'click-target-module) button) value))
 
 (defun add-view (view)
-  (setf (.views *app*) (append(.views *app*) (list view))))
+  (push view (.views *app*)))
 
 (defun remove-view (module)
   (setf (.views *app*) (remove module (.views *app*))))
 
 (defun view-at-mouse (app)
-  (loop for view in (.views app)
+  (loop for view in (reverse (.views app))
           thereis (and (<= (.absolute-x view) (.mouse-x app) (+ (.absolute-x view) (.width view)))
                        (<= (.absolute-y view) (.mouse-y app) (+ (.absolute-y view) (.height view)))
                        view)))
@@ -501,7 +501,26 @@
   (setf (.views *app*)
         (stable-sort (.views *app*) (lambda (x y)
                                       (declare (ignore y))
-                                      (eql x self)))))
+                                      (not (eql x self))))))
+
+(defmethod render :before ((self module) renderer)
+  "選択中のモジュールを見やすくする"
+  (when (eq self (.selected-module *app*))
+    (let ((texture (sdl2:create-texture renderer :rgba8888 :target
+                                        (.width self) (.height self))))
+      (sdl2:set-render-target renderer texture)
+      (sdl2:set-texture-blend-mode texture :blend)
+      (sdl2:set-render-draw-color renderer #x00 #x00 #x00 #xcc) 
+      (sdl2:render-fill-rect
+       renderer
+       (sdl2:make-rect 0 0 (.width self) (.height self)))
+      (sdl2:set-render-target renderer nil)
+      (let ((dest-rect (sdl2:make-rect (.absolute-x self)
+                                       (.absolute-y self)
+                                       (.width self)
+                                       (.height self))))
+        (sdl2:render-copy renderer texture :source-rect nil :dest-rect dest-rect))
+      (sdl2:destroy-texture texture))))
 
 (defmethod render :after ((self module) renderer)
   (let ((color (cond ((eq self (.selected-pattern *app*))
@@ -963,7 +982,7 @@
     (unwind-protect
          (let ()
            (sdl2:set-render-target renderer texture)
-           (sdl2:set-texture-blend-mode texture :blend)
+           (sdl2:set-texture-blend-mode texture :add)
            (sdl2:set-render-draw-color renderer #x00 #x00 #x00 #xff)
            (sdl2:render-clear renderer)
 
@@ -1056,8 +1075,8 @@
                              *char-width*))
                (cursor-h *char-height*))
            (sdl2:set-render-target renderer texture)
-           (sdl2:set-texture-blend-mode texture :blend)
-           (sdl2:set-render-draw-color renderer 0 0 0 #x00)
+           (sdl2:set-texture-blend-mode texture :add)
+           (sdl2:set-render-draw-color renderer 0 0 0 #xff)
            (sdl2:render-clear renderer)
            ;; play position
            (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
