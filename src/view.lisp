@@ -158,11 +158,8 @@
     (if (loop for x across self
               always (numberp x))
         `(coerce #(,@(coerce self 'list)) ',(type-of self))
-        `(let ((x (make-array ,(length self))))
-           ,@(loop for i from 0
-                   for v across self
-                   collect `(setf (aref x ,i) ,(serialize v)))
-           (coerce x ',(type-of self)))))
+        `(make-array ,(length self) :element-type ',(array-element-type self)
+                                    :initial-contents ,(serialize (coerce self 'list)))))
   (:method :after ((self standard-object))
     (ref-id self)))
 
