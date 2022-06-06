@@ -498,9 +498,6 @@
       (write-sequence state io)
       (force-output io))))
 
-(defmethod prepare-save ((self plugin-model))
-  (get-plugin-state self))
-
 (defclass instrument-plugin-model (plugin-model) ())
 (defclass effect-plugin-model (plugin-model) ())
 
