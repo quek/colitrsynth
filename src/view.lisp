@@ -1699,7 +1699,8 @@
     ,@(call-next-method)))
 
 (defclass plugin-module (module)
-  ())
+  ()
+  (:default-initargs :height 48))
 
 (defmethod serialize ((self plugin-module))
   (let ((pd (.plugin-description self)))
@@ -1765,7 +1766,8 @@
     (call-next-method)))
 
 (defclass gain-module (gain volume-controller-mixin module)
-  ())
+  ()
+  (:default-initargs :height 45))
 
 (defmethod serialize ((self gain-module))
   `((setf (.volume x) ,(.volume self))
@@ -1853,6 +1855,9 @@
 (defmethod keydown ((self menu-view) value scancode mod-value)
   (cond ((sdl2:scancode= scancode :scancode-escape)
          (close self))
+        ((sdl2:scancode= scancode :scancode-return)
+         (awhen (car (.children self))
+           (click it sdl2-ffi:+sdl-button-left+ 0 0)))
         ((= value #x08)
          (setf (.filter self)
                (subseq (.filter self) 0 (max 0 (1- (length (.filter self)))))))
@@ -1871,11 +1876,13 @@
    (initargs :initarg :initargs :initform nil :accessor .initargs)))
 
 (defmethod click ((self menu-builtin-button) (button (eql 1)) x y)
-  (add-view (apply #'make-instance (.class self)
-                   :name (.label self)
-                   :x (- (.mouse-x *app*) 10)
-                   :y (- (.mouse-y *app*) 10)
-                   (.initargs self)))
+  (let ((module (apply #'make-instance (.class self)
+                    :name (.label self)
+                    :x (- (.mouse-x *app*) 10)
+                    :y (- (.mouse-y *app*) 10)
+                    (.initargs self))))
+    (addend-view module)
+    (setf (.selected-module *app*) module))
   (close (.root-parent self)))
 
 (defclass menu-plugin-button (button)
@@ -1886,12 +1893,14 @@
   (let* ((plugin-description (.plugin-description self))
          (class (if (.is-instrument plugin-description)
                     'instrument-plugin-module
-                    'effect-plugin-module)))
-    (add-view (make-instance class
-                             :name (.name plugin-description)
-                             :x (- (.mouse-x *app*) 10)
-                             :y (- (.mouse-y *app*) 10)
-                             :plugin-description plugin-description))
+                    'effect-plugin-module))
+         (module (make-instance class
+                                :name (.name plugin-description)
+                                :x (- (.mouse-x *app*) 10)
+                                :y (- (.mouse-y *app*) 10)
+                                :plugin-description plugin-description)))
+    (addend-view module)
+    (setf (.selected-module *app*) module)
     (close (.root-parent self))))
 
 (defun open-menu ()

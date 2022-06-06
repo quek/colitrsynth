@@ -1,12 +1,11 @@
 # TODO
 
-- lepis は使わない方がいいかな
-    - view と model をサイド統合
+- bypass
 - pattern editor 上の方に配置するとゆがむ
+- 先頭の音が出ない場合がある
 - Op Multi -> Amp, Gain -> Merge かな
 - シーケンサーのズーム
 - パターン編集でのコピペ
-- モジュールのコピペ
 - レイアウトは resized で実装したい
 - コード FX https://youtu.be/o4Mtsh3GWiU
 - モジュレーション
@@ -20,3 +19,6 @@
 - テンポ上げると MIDI イベント欠落する
     - floor は最後に
 - シーケンサーのスクロール
+- lepis は使わない方がいいかな
+    - view と model をサイド統合
+- モジュールのコピペ
