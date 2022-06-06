@@ -1073,6 +1073,7 @@
               do (setf (.line pattern-editor-line) pattern-line)))))
 
 (defmethod render ((self pattern-editor) renderer)
+  ;; TODO partial-view をつかうといいのでは？
   (let ((texture (multiple-value-call
                      #'sdl2:create-texture renderer :rgba8888 :target
                    (multiple-value-call
