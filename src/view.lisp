@@ -1371,12 +1371,14 @@
 (defmethod resized ((self track-view))
   (let* ((parent (.parent self))
          (sequencer-module (.parent-by-class self 'sequencer-module))
+         (timeline (.timeline parent))
         (index (position self (.tracks sequencer-module))))
     (setf (.x self) 0)
-    (setf (.y self) (* *track-height* index))
+    (setf (.y self) (+ (* *track-height* index) (.height timeline)))
     (setf (.height self) *track-height*)
     (setf (.width self) (max (.width parent) (* (+ 16 (.end sequencer-module))
-                                                *pixcel-per-line*))))
+                                                *pixcel-per-line*)))
+    (setf (.width timeline) (.width self)))
   (call-next-method))
 
 (defmethod drop ((self track-view) (dropped drag-connect-mixin) x y (button (eql 3))))
@@ -1459,7 +1461,7 @@
     (update-sequencer-end *sequencer-module*)))
 
 (defmethod resized ((self pattern-position-view))
-  (setf (.height self) (.height (.parent self))))
+  (setf (.height self) (- (.height (.parent self)) 4)))
 
 (defmethod serialize ((self pattern-position-view))
   `((setf (.start x) ,(.start self)
@@ -1467,8 +1469,39 @@
           (.pattern x) ,(serialize-ref (.pattern self) :accessor '.pattern))
     ,@(call-next-method)))
 
+(defclass sequencer-timeline-view (view)
+  ((labels :initform nil :accessor .labels)))
+
+(defmethod render ((self sequencer-timeline-view) renderer)
+  (let ((end-line (.end (.sequencer *audio*))))
+    (apply #'sdl2:set-render-draw-color renderer *default-color*)
+    (loop for i from 0 to (/ (+ end-line 16) 4)
+          for x = (+ (* *pixcel-per-line* i 4 4 4) (.absolute-x self))
+          do (sdl2:render-draw-line renderer
+                                    x
+                                    (+ (.absolute-y self) (floor (/ (.height self) 2)))
+                                    x
+                                    (+ (.absolute-y self) (.height self))))
+    (call-next-method)))
+
+(defmethod resized ((self sequencer-timeline-view))
+  (setf (.height self) 15)     ;width track-view の resized で設定する
+  (let ((end-line (max (.end (.parent-by-class self 'sequencer-module))
+                       (/ (.width self) *pixcel-per-line*))))
+    (loop for i from (length (.labels self)) to (/ end-line 4)
+          for label = (make-instance 'label :value (princ-to-string (1+ i))
+                                            :x (+ (* *pixcel-per-line* i 4 4 4) 3))
+          do (print 'add-child)
+             (add-child self label)
+             (push label (.labels self))))
+  (call-next-method))
+
 (defclass sequencer-partial-view (partial-view)
-  ())
+  ((timeline :initform (make-instance 'sequencer-timeline-view)
+             :accessor .timeline)))
+
+(defmethod initialize-instance :after ((self sequencer-partial-view) &key)
+  (add-child self (.timeline self)))
 
 (defmethod render :after ((self sequencer-partial-view) renderer)
   (let* ((sequencer (.root-parent self))

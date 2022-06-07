@@ -109,16 +109,6 @@
 (defun request-stop ()
   (setf (.request-stop *audio*) t))
 
-
-#+nil
-(let* ((sec-per-line (sec-per-line))
-       (sec-per-frame (sec-per-frame))
-       (frames-per-line (/ sec-per-line sec-per-frame)))
-  (values sec-per-line sec-per-frame frames-per-line))
-;;⇒ 0.10714285714285714d0
-;;   2.0833333333333333d-5
-;;   5142.857142857143d0
-
 (defun write-master-buffer ()
   (flet ((limit (value)
            (coerce
