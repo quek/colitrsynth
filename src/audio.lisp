@@ -88,11 +88,12 @@
   (%play (.last-play-position (.sequencer *audio*))))
 
 (defun play-from-current ()
-  (%play (.play-position (.sequencer *audio*))))
+  (let* ((sequencer (.sequencer *audio*)))
+    (setf (.last-play-position sequencer) (.play-position sequencer))
+    (%play (.play-position sequencer))))
 
 (defun %play (play-position)
   (let* ((sequencer (.sequencer *audio*)))
-    (setf (.last-play-position sequencer) (.play-position sequencer))
     (setf (.play-position sequencer) play-position))
   (setf (.playing *audio*) t))
 
