@@ -1,8 +1,5 @@
 (in-package :colitrsynth)
 
-(defparameter *plugin-host-exe* "C:/Users/ancient/Documents/Visual Studio 2022/PluginHost/Builds/VisualStudio2022/x64/Debug/App/PluginHost.exe")
-(defparameter *plugin-host-pipe-name* "\\\\.\\pipe\\pluin-host")
-
 ;;;; 処理の都合上必要なこ
 (defvar *pattern-scroll-lock* nil)
 (defparameter *track-height* 30)        ;TODO 固定長で妥協

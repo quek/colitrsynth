@@ -1,5 +1,12 @@
 (in-package :colitrsynth)
 
+(defparameter *plugin-host-exe*
+  "C:/Users/ancient/Documents/Visual Studio 2022/PluginHost/Builds/VisualStudio2022/x64/Debug/App/PluginHost.exe"
+  ;;"C:/Users/ancient/Documents/Visual Studio 2022/PluginHost/Builds/VisualStudio2022/x64/Release/App/PluginHost.exe"
+  )
+(defparameter *plugin-host-pipe-name* "\\\\.\\pipe\\pluin-host")
+
+
 (defgeneric initialize (x))
 (defgeneric connect (in out))
 (defgeneric disconnect (in out))
@@ -437,10 +444,6 @@
   (when (slot-boundp self 'plugin-state)
     (set-plugin-state self)))
 
-(defmethod process ((self plugin-model) x y)
-  (when (.host-io self)
-    (call-next-method)))
-
 (defmethod run-plugin-host ((self plugin-model))
   (when (slot-boundp self 'plugin-description)
     (setf (.host-process self)
@@ -502,6 +505,7 @@
 (defclass effect-plugin-model (plugin-model) ())
 
 (defmethod process ((self instrument-plugin-model) midi-events frame)
+  (declare (optimize (speed 3) (safety 0)))
   (let ((i -1)
         (length (length midi-events))
         (out (.out-buffer self))
