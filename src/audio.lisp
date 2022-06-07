@@ -151,17 +151,23 @@
   (let* ((sequencer (.sequencer *audio*))
          (start-play-position (.play-position sequencer))
          (end-play-position (inc-frame start-play-position))
-         (looped (and (.looping sequencer) (<= (.end sequencer) (play-position-line end-play-position))))
          (playing (.playing *audio*)))
-    (when looped
-      (setf (play-position-line end-play-position) 0))
+    (when (.looping sequencer)
+      (cond ((= (.loop-start-line sequencer) (.loop-end-line sequencer))
+             (when (<= (.end sequencer) (play-position-line end-play-position))
+               (setf (play-position-line end-play-position) 0)))
+            ((<= (.loop-end-line sequencer) (play-position-line end-play-position))
+             (setf (play-position-line end-play-position)
+                   (.loop-start-line sequencer)))))
     (process-sequencer sequencer
                        (play-position-line start-play-position)
                        (play-position-line-frame start-play-position)
                        (play-position-line end-play-position)
                        (play-position-line-frame end-play-position))
     (when playing
-      (setf (.play-position sequencer) end-play-position))
+      (if (<= (.end sequencer) (play-position-line end-play-position))
+          (setf (.playing *audio*) nil)
+          (setf (.play-position sequencer) end-play-position)))
     (setf (.played *audio*) playing))
   0)
 
