@@ -1469,7 +1469,7 @@
           (.pattern x) ,(serialize-ref (.pattern self) :accessor '.pattern))
     ,@(call-next-method)))
 
-(defclass sequencer-timeline-view (view)
+(defclass sequencer-timeline-view (drag-mixin view)
   ((labels :initform nil :accessor .labels)
    (sequencer :initarg :sequencer :accessor .sequencer)))
 
@@ -1477,12 +1477,33 @@
                   (button (eql sdl2-ffi:+sdl-button-left+))
                   x y)
   (let* ((sequencer (.sequencer self))
-         (line (/ x *pixcel-per-line*))
-         (line (* (round line 4) 4)))
+         (line (* (round (/ x *pixcel-per-line*) 4) 4)))
     (setf (play-position-line (.play-position sequencer))
           line
           (play-position-line-frame (.play-position sequencer))
           0)))
+
+(defmethod drag-start ((self sequencer-timeline-view) x y
+                       (button (eql sdl2-ffi:+sdl-button-left+)))
+  (let* ((sequencer (.sequencer self))
+         (line (round (/ x *pixcel-per-line*) 4)))
+    (setf (.loop-start-line sequencer) line)
+    (setf (.loop-end-line sequencer) line)))
+
+(defmethod drag ((self sequencer-timeline-view) xrel yrel
+                 (button (eql sdl2-ffi:+sdl-button-left+)))
+  (let* ((sequencer (.sequencer self))
+         (x (- (sdl2:mouse-state) (.absolute-x self)))
+         (line (round (/ x *pixcel-per-line*) 4)))
+    (setf (.loop-end-line sequencer) line)))
+
+(defmethod drag-end ((self sequencer-timeline-view) x y
+                     (button (eql sdl2-ffi:+sdl-button-left+)))
+  (let* ((sequencer (.sequencer self))
+         (line (round (/ x *pixcel-per-line*) 4)))
+    (setf (.loop-end-line sequencer) line)
+    (when (< (.loop-end-line sequencer) (.loop-start-line sequencer))
+      (rotatef (.loop-end-line sequencer) (.loop-start-line sequencer)))))
 
 (defmethod render ((self sequencer-timeline-view) renderer)
   (let* ((sequencer (.sequencer self))
@@ -1493,10 +1514,10 @@
       (apply #'sdl2:set-render-draw-color renderer *loop-color*)
       (sdl2:render-fill-rect renderer
                              (sdl2:make-rect
-                              (+ (* *pixcel-per-line* loop-start 16)
+                              (+ (* *pixcel-per-line* loop-start 4)
                                  (.absolute-x self))
                               (.absolute-y self)
-                              (+ (* *pixcel-per-line* loop-end 16))
+                              (+ (* *pixcel-per-line* (- loop-end loop-start) 4))
                               (.height self))))
     (apply #'sdl2:set-render-draw-color renderer *default-color*)
     (loop for i from 0 to (/ (+ end-line 16) 4)
