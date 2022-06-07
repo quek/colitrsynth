@@ -136,6 +136,8 @@
    (tracks :initarg :tracks :accessor .tracks :initform nil)
    (end :initform 0 :accessor .end)
    (looping :initform t :accessor .looping)
+   (loop-start-line :initform 0 :accessor .loop-start-line)
+   (loop-end-line :initform 0 :accessor .loop-end-line)
    (play-position :initform (make-play-position)
                   :accessor .play-position)
    (last-play-position :initform (make-play-position)

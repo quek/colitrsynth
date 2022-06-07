@@ -12,6 +12,7 @@
 (defparameter *selected-pattern-color* (list #xff #x80 #x80 *transparency*))
 (defparameter *focused-color* (list #xff #xff #x22 *transparency*))
 (defparameter *mute-color* (list #xff 0 0 *transparency*))
+(defparameter *loop-color* (list #x00 #x50 #x20 *transparency*))
 
 (defparameter *font-size* 14)
 (defparameter *char-width* (/ *font-size* 2))

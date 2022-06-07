@@ -1470,10 +1470,34 @@
     ,@(call-next-method)))
 
 (defclass sequencer-timeline-view (view)
-  ((labels :initform nil :accessor .labels)))
+  ((labels :initform nil :accessor .labels)
+   (sequencer :initarg :sequencer :accessor .sequencer)))
+
+(defmethod click ((self sequencer-timeline-view)
+                  (button (eql sdl2-ffi:+sdl-button-left+))
+                  x y)
+  (let* ((sequencer (.sequencer self))
+         (line (/ x *pixcel-per-line*))
+         (line (* (round line 4) 4)))
+    (setf (play-position-line (.play-position sequencer))
+          line
+          (play-position-line-frame (.play-position sequencer))
+          0)))
 
 (defmethod render ((self sequencer-timeline-view) renderer)
-  (let ((end-line (.end (.sequencer *audio*))))
+  (let* ((sequencer (.sequencer self))
+         (end-line (.end sequencer))
+         (loop-start (.loop-start-line sequencer))
+         (loop-end (.loop-end-line sequencer)))
+    (when (/= loop-start loop-end)
+      (apply #'sdl2:set-render-draw-color renderer *loop-color*)
+      (sdl2:render-fill-rect renderer
+                             (sdl2:make-rect
+                              (+ (* *pixcel-per-line* loop-start 16)
+                                 (.absolute-x self))
+                              (.absolute-y self)
+                              (+ (* *pixcel-per-line* loop-end 16))
+                              (.height self))))
     (apply #'sdl2:set-render-draw-color renderer *default-color*)
     (loop for i from 0 to (/ (+ end-line 16) 4)
           for x = (+ (* *pixcel-per-line* i 4 4 4) (.absolute-x self))
@@ -1491,14 +1515,12 @@
     (loop for i from (length (.labels self)) to (/ end-line 4)
           for label = (make-instance 'label :value (princ-to-string (1+ i))
                                             :x (+ (* *pixcel-per-line* i 4 4 4) 3))
-          do (print 'add-child)
-             (add-child self label)
+          do (add-child self label)
              (push label (.labels self))))
   (call-next-method))
 
 (defclass sequencer-partial-view (partial-view)
-  ((timeline :initform (make-instance 'sequencer-timeline-view)
-             :accessor .timeline)))
+  ((timeline :initarg :timeline :accessor .timeline)))
 
 (defmethod initialize-instance :after ((self sequencer-partial-view) &key)
   (add-child self (.timeline self)))
@@ -1539,7 +1561,9 @@
                              :value (lambda ()
                                       (format nil "BPM ~f" (.bpm self)))
                              :x 100 :y *layout-space*))
-         (partial-view (make-instance 'sequencer-partial-view)))
+         (partial-view (make-instance 'sequencer-partial-view
+                                      :timeline  (make-instance 'sequencer-timeline-view
+                                                                :sequencer self))))
     (add-child self play-button)
     (add-child self add-track-button)
     (add-child self bpm)
