@@ -5,6 +5,7 @@
 
 (defparameter *cursor-color* (list #x00 #x00 #xcc *transparency*))
 (defparameter *default-color* (list #xdd #xdd #xdd *transparency*))
+(defparameter *background-color* (list #x00 #x00 #x00 *transparency*))
 (defparameter *play-position-color* (list #x00 #x80 #x00 *transparency*))
 (defparameter *connection-line-color* (list #x22 #x8b #x22 *transparency*))
 (defparameter *connection-point-color* (list #xff #xff #xff *transparency*))

@@ -1570,6 +1570,33 @@
                             *layout-space*)))
   (call-next-method))
 
+(defclass loop-button (button)
+  ((fill-color :accessor .fill-color)
+   (sequencer :initarg :sequencer :accessor .sequencer))
+  (:default-initargs :label "L"))
+
+(defmethod initialize-instance :after ((self loop-button) &key)
+  (setf (.fill-color self)
+        (if (.looping (.sequencer self))
+            *loop-color*
+            *background-color*)))
+  
+(defmethod click ((self loop-button) (button (eql 1)) x y)
+  (setf (.fill-color self)
+        (if (setf (.looping (.sequencer self))
+                  (not (.looping (.sequencer self))))
+            *loop-color*
+            *background-color*)))
+
+(defmethod render ((self loop-button) render)
+  (apply #'sdl2:set-render-draw-color render (.fill-color self))
+  (sdl2:render-fill-rect render
+                         (sdl2:make-rect (.absolute-x self)
+                                         (.absolute-y self)
+                                         (.width self)
+                                         (.height self)))
+  (call-next-method))
+
 (defclass sequencer-module (sequencer module)
   ((partial-view :accessor .partial-view))
   (:default-initargs :color (list #x00 #xff #xff *transparency*)
@@ -1577,28 +1604,30 @@
 
 (defmethod initialize-instance :after ((self sequencer-module) &key)
   (let* ((play-button (make-instance 'button :label "▶" :x 5 :y *layout-space*))
-         (add-track-button (make-instance 'button :label "+track" :x 35 :y *layout-space*))
+         (loop-button (make-instance 'loop-button :x 30 :y *layout-space*
+                                     :sequencer self))
+         (add-track-button (make-instance 'button :label "+track" :x 55 :y *layout-space*))
          (bpm (make-instance 'label
                              :value (lambda ()
                                       (format nil "BPM ~f" (.bpm self)))
-                             :x 100 :y *layout-space*))
+                             :x 115 :y *layout-space*))
          (partial-view (make-instance 'sequencer-partial-view
                                       :timeline  (make-instance 'sequencer-timeline-view
                                                                 :sequencer self))))
     (add-child self play-button)
+    (add-child self loop-button)
     (add-child self add-track-button)
     (add-child self bpm)
     (add-child self partial-view)
     (setf (.partial-view self) partial-view)
     (loop for track in (.tracks self)
           do (add-new-track-after self track))
-    (let ((sequencer self))
-      (defmethod click ((self (eql play-button)) (button (eql 1)) x y)
-        (if (.playing *audio*)
-            (stop)
-            (play-with-key)))
-      (defmethod click ((self (eql add-track-button)) (button (eql 1)) x y)
-        (add-new-track sequencer)))
+    (defmethod click ((play-button (eql play-button)) (button (eql 1)) x y)
+      (if (.playing *audio*)
+          (stop)
+          (play-with-key)))
+    (defmethod click ((add-track-button (eql add-track-button)) (button (eql 1)) x y)
+      (add-new-track self))
     (resized self)))
 
 (defmethod keydown ((self sequencer-module) value scancode mod-value)
