@@ -22,16 +22,16 @@
   (:method (self button state clicks x y)
     (setf (click-target-module button) self)
     (swhen (.focused-view *app*)
-      (unless (and (<= (.absolute-x it) (.mouse-x *app*) (+ (.absolute-x it) (.width it)))
-                   (<= (.absolute-y it) (.mouse-y *app*) (+ (.absolute-y it) (.height it))))
+      (unless (and (<= (.render-x it) (.mouse-x *app*) (+ (.render-x it) (.width it)))
+                   (<= (.render-y it) (.mouse-y *app*) (+ (.render-y it) (.height it))))
         (setf it nil)))))
 
 (defgeneric mousebuttonup (self button state clicks x y)
   (:method (self button state clicks x y)
     (when (eq self (click-target-module button))
       (let* ((root (.root-parent self))
-             (x (- (.mouse-x *app*) (.absolute-x root)))
-             (y (- (.mouse-y *app*) (.absolute-y root))))
+             (x (- (.mouse-x *app*) (.render-x root)))
+             (y (- (.mouse-y *app*) (.render-y root))))
         (case clicks
           (2 (double-click root button x y))
           (t (click root button x y)))))))
@@ -125,6 +125,19 @@
 
 (defgeneric .target (self)
   (:method ((self null)) nil))
+
+(defgeneric .x (self))
+(defgeneric .render-x (self))
+(defgeneric .screen-x (self))
+(defgeneric .render-center-x (self))
+(defgeneric .screen-center-x (self))
+(defgeneric .y (self))
+(defgeneric .render-y (self))
+(defgeneric .screen-y (self))
+(defgeneric .render-center-y (self))
+(defgeneric .screen-center-y (self))
+
+
 
 (defvar *serialize-table* nil)
 (defvar *serialize-refs* nil)
@@ -288,8 +301,8 @@
 
 (defun view-at-mouse (app)
   (loop for view in (reverse (.views app))
-          thereis (and (<= (.absolute-x view) (.mouse-x app) (+ (.absolute-x view) (.width view)))
-                       (<= (.absolute-y view) (.mouse-y app) (+ (.absolute-y view) (.height view)))
+          thereis (and (<= (.render-x view) (.mouse-x app) (+ (.render-x view) (.width view)))
+                       (<= (.render-y view) (.mouse-y app) (+ (.render-y view) (.height view)))
                        view)))
 
 (defmethod child-view-at ((self view) x y)
@@ -398,30 +411,52 @@
 (defmethod .y ((self null))
   0)
 
-(defmethod .absolute-x ((self null))
+(defmethod .render-x ((self null))
   0)
 
-(defmethod .absolute-y ((self null))
+(defmethod .render-y ((self null))
   0)
 
-(defmethod .absolute-x ((self view))
+(defmethod .render-x ((self view))
   (+ (.x self)
      (if (typep (.parent self) 'partial-view)
          0
-         (.absolute-x (.parent self)))))
+         (.render-x (.parent self)))))
 
-(defmethod .absolute-y ((self view))
+(defmethod .screen-x ((self null))
+  0)
+
+(defmethod .screen-x ((self view))
+  (+ (.x self)
+     (.screen-x (.parent self))))
+
+(defmethod .render-y ((self view))
   (+ (.y self)
      (if (typep (.parent self) 'partial-view)
          0
-         (.absolute-y (.parent self)))))
+         (.render-y (.parent self)))))
 
-(defmethod .absolute-center-x ((self view))
-  (+ (.absolute-x self)
+(defmethod .screen-y ((self null))
+  0)
+
+(defmethod .screen-y ((self view))
+  (+ (.y self)
+     (.screen-y (.parent self))))
+
+(defmethod .render-center-x ((self view))
+  (+ (.render-x self)
      (round (/ (.width self) 2))))
 
-(defmethod .absolute-center-y ((self view))
-  (+ (.absolute-y self)
+(defmethod .screen-center-x ((self view))
+  (+ (.screen-x self)
+     (round (/ (.width self) 2))))
+
+(defmethod .render-center-y ((self view))
+  (+ (.render-y self)
+     (round (/ (.height self) 2))))
+
+(defmethod .screen-center-y ((self view))
+  (+ (.screen-y self)
      (round (/ (.height self) 2))))
 
 (defmethod translate-child-x ((self view) (child view) x)
@@ -451,8 +486,8 @@
 (defmethod wheel ((self view) delta)
   (call-next-method)
   (awhen (child-view-at self
-                        (- (.mouse-x *app*) (.absolute-x self))
-                        (- (.mouse-y *app*) (.absolute-y self)))
+                        (- (.mouse-x *app*) (.render-x self))
+                        (- (.mouse-y *app*) (.render-y self)))
     (wheel it delta)))
 
 (defmethod serialize :around ((self view))
@@ -474,8 +509,8 @@
                    (multiple-value-bind (x y) (f parent x y)
                      (values (translate-child-x parent self x)
                              (translate-child-x parent self y)))
-                   (values (- x (.absolute-x self))
-                           (- y (.absolute-y self)))))))
+                   (values (- x (.render-x self))
+                           (- y (.render-y self)))))))
     (multiple-value-bind (x y) (sdl2:mouse-state)
       (f view x y))))
 
@@ -484,8 +519,8 @@
 (defmethod render ((self render-border-mixin) renderer)
   (apply #'sdl2:set-render-draw-color renderer (.color self))
   (sdl2:render-draw-rect renderer
-                         (sdl2:make-rect (.absolute-x self)
-                                         (.absolute-y self)
+                         (sdl2:make-rect (.render-x self)
+                                         (.render-y self)
                                          (.width self)
                                          (.height self)))
   (call-next-method))
@@ -546,8 +581,8 @@
        renderer
        (sdl2:make-rect 0 0 (.width self) (.height self)))
       (sdl2:set-render-target renderer nil)
-      (let ((dest-rect (sdl2:make-rect (.absolute-x self)
-                                       (.absolute-y self)
+      (let ((dest-rect (sdl2:make-rect (.render-x self)
+                                       (.render-y self)
                                        (.width self)
                                        (.height self))))
         (sdl2:render-copy renderer texture :source-rect nil :dest-rect dest-rect))
@@ -562,8 +597,8 @@
       (apply #'sdl2:set-render-draw-color renderer color)
       (sdl2:render-draw-rect
        renderer
-       (sdl2:make-rect (- (.absolute-x self) 2)
-                       (- (.absolute-y self) 2)
+       (sdl2:make-rect (- (.render-x self) 2)
+                       (- (.render-y self) 2)
                        (+ (.width self) 4)
                        (+ (.height self) 4))) )))
 
@@ -642,15 +677,15 @@
   (call-next-method)
   (apply #'sdl2:set-render-draw-color renderer (.color self))
   (sdl2:render-draw-line renderer
-                         (+ (.absolute-x self) (.width self) -10)
-                         (+ (.absolute-y self) (.height self) -1)
-                         (+ (.absolute-x self) (.width self) -1)
-                         (+ (.absolute-y self) (.height self) -10))
+                         (+ (.render-x self) (.width self) -10)
+                         (+ (.render-y self) (.height self) -1)
+                         (+ (.render-x self) (.width self) -1)
+                         (+ (.render-y self) (.height self) -10))
   (sdl2:render-draw-line renderer
-                         (+ (.absolute-x self) (.width self) -7)
-                         (+ (.absolute-y self) (.height self) -1)
-                         (+ (.absolute-x self) (.width self) -1)
-                         (+ (.absolute-y self) (.height self) -7)))
+                         (+ (.render-x self) (.width self) -7)
+                         (+ (.render-y self) (.height self) -1)
+                         (+ (.render-x self) (.width self) -1)
+                         (+ (.render-y self) (.height self) -7)))
 
 (defclass drag-connect-mixin ()
   ((connecting :initform nil :accessor .connecting)))
@@ -699,26 +734,20 @@
                        nil
                        (cons (round (+ ax (* p (- bx ax))))
                              (round (+ ay (* p (- by ay)))))))))))
-    (let* ((offset-x (if (typep from 'track-view)
-                         (.offset-x (.parent from))
-                         0))
-           (offset-y (if (typep from 'track-view)
-                         (.offset-y (.parent from))
-                         0))
-           (x1 (- (.absolute-center-x from) offset-x))
-           (y1 (- (.absolute-center-y from) offset-y))
-           (x2 (.absolute-center-x to))
-           (y2 (.absolute-center-y to))
-           (xs1 (- (.absolute-x from) offset-x))
-           (ys1 (- (.absolute-y from) offset-y))
+    (let* ((x1 (.screen-center-x from))
+           (y1 (.screen-center-y from))
+           (x2 (.screen-center-x to))
+           (y2 (.screen-center-y to))
+           (xs1 (.screen-x from))
+           (ys1 (.screen-y from))
            (xs2 (+ xs1 (.width from)))
            (ys2 ys1)
            (xs3 xs2)
            (ys3 (+ ys2 (.height from)))
            (xs4 xs1)
            (ys4 ys3)
-           (xe1 (.absolute-x to))
-           (ye1 (.absolute-y to))
+           (xe1 (.screen-x to))
+           (ye1 (.screen-y to))
            (xe2 (+ xe1 (.width to)))
            (ye2 ye1)
            (xe3 xe2)
@@ -749,11 +778,11 @@
                    (original-ys ys))
                (when (typep self 'track-view)
                  (let ((partial-view (.parent self)))
-                   (setf xs (min (max xs (.absolute-x partial-view))
-                                 (+ (.absolute-x partial-view)
+                   (setf xs (min (max xs (.render-x partial-view))
+                                 (+ (.render-x partial-view)
                                     (.width partial-view))))
-                   (setf ys (min (max ys (.absolute-y partial-view))
-                                 (+ (.absolute-y partial-view)
+                   (setf ys (min (max ys (.render-y partial-view))
+                                 (+ (.render-y partial-view)
                                     (.height partial-view))))))
                (apply #'sdl2:set-render-draw-color r *connection-line-color*)
                (sdl2:render-draw-line r xs ys xe ye)
@@ -763,18 +792,18 @@
                                         (sdl2:make-rect (- xs 2) (- ys 2) 5 5))))))
   (when (eq self (.connect-from-module *app*))
     (apply #'sdl2:set-render-draw-color r *connection-line-color*)
-    (let ((xs (.absolute-center-x self))
-          (ys (.absolute-center-y self))
+    (let ((xs (.render-center-x self))
+          (ys (.render-center-y self))
           (xe (.mouse-x *app*))
           (ye (.mouse-y *app*)))
       (when (typep self 'track-view)
         (let ((partial-view (.parent self)))
-          (setf xs (floor (/ (+ (.absolute-x partial-view)
+          (setf xs (floor (/ (+ (.render-x partial-view)
                                 (.width partial-view))
                              2)))
           (setf ys (min (max (- ys (.offset-y partial-view))
-                             (.absolute-y partial-view))
-                        (+ (.absolute-y partial-view)
+                             (.render-y partial-view))
+                        (+ (.render-y partial-view)
                            (.height partial-view))))))
       (sdl2:render-draw-line r xs ys xe ye)))
   (call-next-method))
@@ -815,7 +844,7 @@
       (sdl2:render-copy renderer
                         (.texture self)
                         :source-rect nil
-                        :dest-rect (sdl2:make-rect (.absolute-x self) (.absolute-y self)
+                        :dest-rect (sdl2:make-rect (.render-x self) (.render-y self)
                                                    (.width self) (.height self))))))
 
 (defclass button (render-border-mixin view)
@@ -888,10 +917,10 @@
   (call-next-method))
 
 (defmethod render ((self text) renderer)
-  (let ((cursor-x (+ (.absolute-x self)
+  (let ((cursor-x (+ (.render-x self)
                      2
                      (* *char-width* (.cursor-position self))))
-        (cursor-y (+ (.absolute-y self) 2))
+        (cursor-y (+ (.render-y self) 2))
         (cursor-w *char-width*)
         (cursor-h *char-height*))
     (when (.focused self)
@@ -901,8 +930,8 @@
                                              cursor-w cursor-h))
       (apply #'sdl2:set-render-draw-color renderer *focused-color*)
       (sdl2:render-draw-rect renderer
-                             (sdl2:make-rect (.absolute-x self)
-                                             (.absolute-y self)
+                             (sdl2:make-rect (.render-x self)
+                                             (.render-y self)
                                              (.width self)
                                              (.height self)))))
   (call-next-method))
@@ -976,11 +1005,11 @@
   (let ((x (+ (round (* (/ (- (.value self) (.min self))
                            (.max self))
                         (.width self)))
-              (.absolute-x self))))
+              (.render-x self))))
     (sdl2:set-render-draw-color renderer #xff #x00 #xff #xff)
     (sdl2:render-draw-line renderer
-                           x (1+ (.absolute-y self))
-                           x (+ (.absolute-y self) (.height self) -2))))
+                           x (1+ (.render-y self))
+                           x (+ (.render-y self) (.height self) -2))))
 
 (defmethod drag ((self slider) xrel yrel button)
   (funcall (.onchange self) (min (.max self)
@@ -1016,8 +1045,8 @@
            (sdl2:set-render-target renderer nil)
            (let* ((src-x (.offset-x self))
                   (src-y (max 0 (.offset-y self)))
-                  (dst-x (.absolute-x self))
-                  (dst-y (- (.absolute-y self) (min 0 (.offset-y self))))
+                  (dst-x (.render-x self))
+                  (dst-y (- (.render-y self) (min 0 (.offset-y self))))
                   (dst-w (.width self))
                   (src-w dst-w)
                   (src-h (+ (.height self) (min 0 (.offset-y self))))
@@ -1027,6 +1056,18 @@
                   (src-rect (sdl2:make-rect src-x src-y src-w src-h)))
              (sdl2:render-copy renderer texture :source-rect src-rect :dest-rect dst-rect)))
       (sdl2:destroy-texture texture))))
+
+(defmethod .screen-center-x ((self partial-view))
+  (- (call-next-method) (.offset-x self)))
+
+(defmethod .screen-center-y ((self partial-view))
+  (- (call-next-method) (.offset-y self)))
+
+(defmethod .screen-x ((self partial-view))
+  (- (call-next-method) (.offset-x self)))
+
+(defmethod .screen-y ((self partial-view))
+  (- (call-next-method) (.offset-y self)))
 
 (defmethod .texture-height ((self partial-view))
   (max (loop for child in (.children self)
@@ -1045,7 +1086,7 @@
         (setf (.offset-x self)
               (max 0 (min
                       (- (.offset-x self) (* 5 delta))
-                      (- x2 (+ (.absolute-x self) (.width self))))))        
+                      (- x2 (+ (.render-x self) (.width self))))))        
         (setf (.offset-y self)
               (max 0 (min
                       (- (.offset-y self) (* 5 delta))
@@ -1100,8 +1141,8 @@
   (when (.focused self)
     (apply #'sdl2:set-render-draw-color renderer *focused-color*)
     (sdl2:render-draw-rect renderer
-                           (sdl2:make-rect (.absolute-x self)
-                                           (.absolute-y self)
+                           (sdl2:make-rect (.render-x self)
+                                           (.render-y self)
                                            (.width self)
                                            (.height self)))))
 
@@ -1331,8 +1372,8 @@
     ;; play position
     (when (= (.current-line (.pattern parent)) position)
       (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
-      (let ((play-x (.absolute-x self))
-            (play-y (.absolute-y self))
+      (let ((play-x (.render-x self))
+            (play-y (.render-y self))
             (play-w (.width self))
             (play-h *char-height*))
         (sdl2:render-fill-rect
@@ -1342,7 +1383,7 @@
                (= (.cursor-y parent) position))
       (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
       (let ((cursor-x (* *char-width* (+ (.cursor-x parent) 3)))
-            (cursor-y (.absolute-y self))
+            (cursor-y (.render-y self))
             (cursor-w (if (zerop (mod (.cursor-x parent) +column-width+))
                           (* *char-width* 3)
                           *char-width*))
@@ -1515,18 +1556,18 @@
       (sdl2:render-fill-rect renderer
                              (sdl2:make-rect
                               (+ (* *pixcel-per-line* loop-start)
-                                 (.absolute-x self))
-                              (.absolute-y self)
+                                 (.render-x self))
+                              (.render-y self)
                               (+ (* *pixcel-per-line* (- loop-end loop-start)))
                               (.height self))))
     (apply #'sdl2:set-render-draw-color renderer *default-color*)
     (loop for i from 0 to (/ (+ end-line 16) 4)
-          for x = (+ (* *pixcel-per-line* i 4 4 4) (.absolute-x self))
+          for x = (+ (* *pixcel-per-line* i 4 4 4) (.render-x self))
           do (sdl2:render-draw-line renderer
                                     x
-                                    (+ (.absolute-y self) (floor (/ (.height self) 2)))
+                                    (+ (.render-y self) (floor (/ (.height self) 2)))
                                     x
-                                    (+ (.absolute-y self) (.height self))))
+                                    (+ (.render-y self) (.height self))))
     (call-next-method)))
 
 (defmethod resized ((self sequencer-timeline-view))
@@ -1548,15 +1589,15 @@
 
 (defmethod render :after ((self sequencer-partial-view) renderer)
   (let* ((sequencer (.root-parent self))
-         (x (max (.absolute-x self)
+         (x (max (.render-x self)
                  (min
-                  (+ (.absolute-x self)
+                  (+ (.render-x self)
                      (.width self))
-                  (+ (.absolute-x self)
+                  (+ (.render-x self)
                      (* (play-position-line (.play-position sequencer))
                         *pixcel-per-line*)
                      (- (.offset-x self))))))
-         (y (.absolute-y self)))
+         (y (.render-y self)))
     (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
     (sdl2:render-draw-line renderer x y x (+ y (.height self)))))
 
@@ -1591,8 +1632,8 @@
 (defmethod render ((self loop-button) render)
   (apply #'sdl2:set-render-draw-color render (.fill-color self))
   (sdl2:render-fill-rect render
-                         (sdl2:make-rect (.absolute-x self)
-                                         (.absolute-y self)
+                         (sdl2:make-rect (.render-x self)
+                                         (.render-y self)
                                          (.width self)
                                          (.height self)))
   (call-next-method))
@@ -1960,8 +2001,8 @@
 
 (defmethod render :before ((self menu-view) renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
-  (sdl2:render-fill-rect renderer (sdl2:make-rect (.absolute-x self)
-                                                  (.absolute-y self)
+  (sdl2:render-fill-rect renderer (sdl2:make-rect (.render-x self)
+                                                  (.render-y self)
                                                   (.width self)
                                                   (.height self))))
 

@@ -111,7 +111,7 @@
                     (.drag-resize-module *app*)
                     (view-at-mouse *app*))))
     (mousemotion module
-                 (- x (.absolute-x module)) (- y (.absolute-y module))
+                 (- x (.render-x module)) (- y (.render-y module))
                  xrel yrel state)))
 
 (defun handle-sdl2-mousebuttondown-event (button state clicks x y)
@@ -121,7 +121,7 @@
   (let ((module (view-at-mouse *app*)))
     (mousebuttondown module
                      button state clicks
-                     (- x (.absolute-x module)) (- y (.absolute-y module)))))
+                     (- x (.render-x module)) (- y (.render-y module)))))
 
 (defun handle-sdl2-mousebuttonup-event (button state clicks x y)
   #+nil
@@ -135,7 +135,7 @@
                   (.drag-resize-module *app*))
              (view-at-mouse *app*))
     (mousebuttonup it button state clicks
-                   (- x (.absolute-x it)) (- y (.absolute-y it))))
+                   (- x (.render-x it)) (- y (.render-y it))))
   (setf (.drag-resize-module *app*) nil)
   (setf (.dragging *app*) nil)
   (setf (click-target-module button) nil)
