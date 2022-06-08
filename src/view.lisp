@@ -323,13 +323,13 @@
 (defmethod .children-bounds ((self view))
   (values
    (loop for child in (.children self)
-         minimize (.absolute-x child))
+         minimize (.x child))
    (loop for child in (.children self)
-         minimize (.absolute-y child))
+         minimize (.y child))
    (loop for child in (.children self)
-         maximize (+ (.absolute-x child) (.width child)))
+         maximize (+ (.x child) (.width child)))
    (loop for child in (.children self)
-         maximize (+ (.absolute-y child) (.height child)))))
+         maximize (+ (.y child) (.height child)))))
 
 (defmethod mousebuttondown ((self view) button state clicks x y)
   (call-next-method)
@@ -1049,7 +1049,7 @@
         (setf (.offset-y self)
               (max 0 (min
                       (- (.offset-y self) (* 5 delta))
-                      (- y2 (+ (.absolute-y self) (.height self)))))))))
+                      (- y2 (.height self))))))))
 
 (defmethod translate-child-x ((self partial-view) (child view) x)
   (+ (call-next-method) (.offset-x self)))
@@ -1694,7 +1694,7 @@
           (.x pattern-editor) *layout-space*
           (.y pattern-editor) (+ *font-size* (* *layout-space* 2))
           (.width pattern-editor) (- (.width self) 10)
-          (.height pattern-editor) (- (.height self) (+ 10 *font-size*)))))
+          (.height pattern-editor) (- (.height self) (+ 15 *font-size*)))))
 
 (defmethod add-pattern ((track-view track-view) (pattern-module pattern-module) start end)
   (let ((pattern-position-view (make-instance 'pattern-position-view
