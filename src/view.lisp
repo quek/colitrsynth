@@ -1525,6 +1525,14 @@
           (play-position-line-frame (.play-position sequencer))
           0)))
 
+(defmethod click ((self sequencer-timeline-view)
+                  (button (eql sdl2-ffi:+sdl-button-right+))
+                  x y)
+  (let* ((sequencer (.sequencer self)))
+    (setf (.loop-start-line sequencer) 0)
+    (setf (.loop-end-line sequencer) 0)))
+
+
 (defmethod drag-start ((self sequencer-timeline-view) x y
                        (button (eql sdl2-ffi:+sdl-button-left+)))
   (let* ((sequencer (.sequencer self))
@@ -1545,12 +1553,6 @@
     (setf (.loop-end-line sequencer) line)
     (when (< (.loop-end-line sequencer) (.loop-start-line sequencer))
       (rotatef (.loop-end-line sequencer) (.loop-start-line sequencer)))))
-
-(defmethod double-click ((self sequencer-timeline-view) button x y)
-  (let* ((sequencer (.sequencer self)))
-    (setf (.loop-start-line sequencer) 0)
-    (setf (.loop-end-line sequencer) 0))
-  (call-next-method))
 
 (defmethod render ((self sequencer-timeline-view) renderer)
   (let* ((sequencer (.sequencer self))
