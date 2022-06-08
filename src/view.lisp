@@ -395,30 +395,34 @@
 (defmethod .x ((self null))
   0)
 
-(defmethod .absolute-x ((self null))
+(defmethod .y ((self null))
   0)
 
-(defmethod .absolute-x ((self view))
-  (+ (.x self)
-     (.absolute-x (.parent self))))
-
-(defmethod .absolute-center-x ((self view))
-  (+ (.absolute-x self)
-     (round (/ (.width self) 2))))
-
-(defmethod .y ((self null))
+(defmethod .absolute-x ((self null))
   0)
 
 (defmethod .absolute-y ((self null))
   0)
 
-(defmethod .absolute-center-y ((self view))
-  (+ (.absolute-y self)
-     (round (/ (.height self) 2))))
+(defmethod .absolute-x ((self view))
+  (+ (.x self)
+     (if (typep (.parent self) 'partial-view)
+         0
+         (.absolute-x (.parent self)))))
 
 (defmethod .absolute-y ((self view))
   (+ (.y self)
-     (.absolute-y (.parent self))))
+     (if (typep (.parent self) 'partial-view)
+         0
+         (.absolute-y (.parent self)))))
+
+(defmethod .absolute-center-x ((self view))
+  (+ (.absolute-x self)
+     (round (/ (.width self) 2))))
+
+(defmethod .absolute-center-y ((self view))
+  (+ (.absolute-y self)
+     (round (/ (.height self) 2))))
 
 (defmethod translate-child-x ((self view) (child view) x)
   (- x (.x child)))
@@ -996,7 +1000,6 @@
                        view)))
 
 (defmethod render ((self partial-view) renderer)
-  ;; texture を width x height にして .absolute-x/y を変えた方が効率よさそう
   (let* ((texture-width (.texture-width self))
          (texture-height (.texture-height self))
          (texture (sdl2:create-texture renderer :rgba8888 :target
@@ -1011,14 +1014,15 @@
            (call-next-method)
 
            (sdl2:set-render-target renderer nil)
-           (let* ((dst-x (.absolute-x self))
-                  (dst-y (.absolute-y self))
+           (let* ((src-x (.offset-x self))
+                  (src-y (max 0 (.offset-y self)))
+                  (dst-x (.absolute-x self))
+                  (dst-y (- (.absolute-y self) (min 0 (.offset-y self))))
                   (dst-w (.width self))
-                  (dst-h (.height self))
-                  (src-x (+ (.absolute-x self) (.offset-x self)))
-                  (src-y (+ (.absolute-y self) (.offset-y self)))
                   (src-w dst-w)
-                  (src-h dst-h)
+                  (src-h (+ (.height self) (min 0 (.offset-y self))))
+                  (dst-h (+ (.height self) (min 0 (.offset-y self))
+                            (min 0 (- texture-height (.height self)  (.offset-y self)))))
                   (dst-rect (sdl2:make-rect dst-x dst-y dst-w dst-h))
                   (src-rect (sdl2:make-rect src-x src-y src-w src-h)))
              (sdl2:render-copy renderer texture :source-rect src-rect :dest-rect dst-rect)))
@@ -1026,13 +1030,13 @@
 
 (defmethod .texture-height ((self partial-view))
   (max (loop for child in (.children self)
-             maximize (+ (.absolute-y child) (.height child)))
-       (+ (.absolute-y self) (.height self))))
+             maximize (+ (.y child) (.height child)))
+       (.height self)))
 
 (defmethod .texture-width ((self partial-view))
   (max (loop for child in (.children self)
-             maximize (+ (.absolute-x child) (.width child)))
-       (+ (.absolute-x self) (.width self))))
+             maximize (+ (.x child) (.width child)))
+       (.width self)))
 
 (defmethod wheel ((self partial-view) delta)
   (multiple-value-bind (x1 y1 x2 y2) (.children-bounds self)
@@ -1064,7 +1068,8 @@
 
 (defmethod (setf .cursor-y) :after (value (self pattern-editor))
   (setf (.offset-y self)
-        (round (- (* *char-height* value) (/ (.height self) 2)))))
+        (round (- (* *char-height* (+ value 0.7)) ;なんで 0.7?
+                  (/ (.height self) 2)))))
 
 ;; TODO もしかすると resized に移すべき？
 (defmethod render :before ((self pattern-editor) renderer)
@@ -1297,9 +1302,6 @@
   (setf (.cursor-y self) (mod (+ (.cursor-y self) (.edit-step self))
                               (length (.lines (.pattern self))))))
 
-(defmethod .texture-height ((self pattern-editor))
-  (ceiling (* (call-next-method) 1.5)))
-
 (defclass pattern-editor-line (label)
   ((line :initarg :line :accessor .line)))
 
@@ -1339,7 +1341,7 @@
     (when (and (.focused parent)
                (= (.cursor-y parent) position))
       (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
-      (let ((cursor-x (* *char-width* (+ (.cursor-x parent) 5)))
+      (let ((cursor-x (* *char-width* (+ (.cursor-x parent) 3)))
             (cursor-y (.absolute-y self))
             (cursor-w (if (zerop (mod (.cursor-x parent) +column-width+))
                           (* *char-width* 3)
