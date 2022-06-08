@@ -996,15 +996,9 @@
                        view)))
 
 (defmethod render ((self partial-view) renderer)
-  ;; texture を width x height にして .absolute-x/y を変え他方が効率よさそう
-  (let* ((texture-width
-           (max (loop for child in (.children self)
-                      maximize (+ (.absolute-x child) (.width child)))
-                (+ (.absolute-x self) (.width self))))
-         (texture-height
-           (max (loop for child in (.children self)
-                      maximize (+ (.absolute-y child) (.height child)))
-                (+ (.absolute-y self) (.height self))))
+  ;; texture を width x height にして .absolute-x/y を変えた方が効率よさそう
+  (let* ((texture-width (.texture-width self))
+         (texture-height (.texture-height self))
          (texture (sdl2:create-texture renderer :rgba8888 :target
                                        texture-width texture-height)))
     (unwind-protect
@@ -1030,6 +1024,16 @@
              (sdl2:render-copy renderer texture :source-rect src-rect :dest-rect dst-rect)))
       (sdl2:destroy-texture texture))))
 
+(defmethod .texture-height ((self partial-view))
+  (max (loop for child in (.children self)
+             maximize (+ (.absolute-y child) (.height child)))
+       (+ (.absolute-y self) (.height self))))
+
+(defmethod .texture-width ((self partial-view))
+  (max (loop for child in (.children self)
+             maximize (+ (.absolute-x child) (.width child)))
+       (+ (.absolute-x self) (.width self))))
+
 (defmethod wheel ((self partial-view) delta)
   (multiple-value-bind (x1 y1 x2 y2) (.children-bounds self)
     (declare (ignore x1 y1))
@@ -1049,7 +1053,7 @@
 (defmethod translate-child-y ((self partial-view) (child view) y)
   (+ (call-next-method) (.offset-y self)))
 
-(defclass pattern-editor (focus-mixin view)
+(defclass pattern-editor (focus-mixin partial-view)
   ((pattern :accessor .pattern)
    (lines :initform nil :accessor .lines)
    (cursor-x :initform 0 :accessor .cursor-x)
@@ -1057,6 +1061,10 @@
    (octave :initform 4 :accessor .octave)
    (edit-step :initform 0 :accessor .edit-step)
    (shifting-p :initform nil :accessor .shifting-p)))
+
+(defmethod (setf .cursor-y) :after (value (self pattern-editor))
+  (setf (.offset-y self)
+        (round (- (* *char-height* value) (/ (.height self) 2)))))
 
 ;; TODO もしかすると resized に移すべき？
 (defmethod render :before ((self pattern-editor) renderer)
@@ -1083,58 +1091,7 @@
               do (setf (.line pattern-editor-line) pattern-line)))))
 
 (defmethod render ((self pattern-editor) renderer)
-  ;; TODO partial-view をつかうといいのでは？
-  (let ((texture (multiple-value-call
-                     #'sdl2:create-texture renderer :rgba8888 :target
-                   (multiple-value-call
-                       ;; window からはみ出ると表示がひずむので
-                       (lambda (w h) (values (+ w (.width self))
-                                             ;; 最後の方にスクロールしたとき表示がひずむので適当に大きく
-                                             (* h 3)))
-                     (sdl2:get-window-size (.win *app*))))))
-    (unwind-protect
-         (let ((play-x (.absolute-x self))
-               (play-y (+ (* (.current-line (.pattern self)) *char-height*) (.absolute-y self) 2))
-               (play-w (.width self))
-               (play-h *char-height*)
-               (cursor-x (+ (* *char-width* (+ 3 (.cursor-x self)))  (.absolute-x self) 2))
-               (cursor-y (+ (* (.cursor-y self) *char-height*) (.absolute-y self) 2))
-               (cursor-w (if (zerop (mod (.cursor-x self) +column-width+))
-                             (* *char-width* 3)
-                             *char-width*))
-               (cursor-h *char-height*))
-           (sdl2:set-render-target renderer texture)
-           (sdl2:set-texture-blend-mode texture :add)
-           (sdl2:set-render-draw-color renderer 0 0 0 #xff)
-           (sdl2:render-clear renderer)
-           ;; play position
-           (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
-           (sdl2:render-fill-rect
-            renderer
-            (sdl2:make-rect play-x play-y play-w play-h))
-           ;; cursor position
-           (when (.focused self)
-             (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
-             (sdl2:render-fill-rect
-              renderer
-              (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h)))
-           
-           (call-next-method)
-
-           (sdl2:set-render-target renderer nil)
-           (let* ((dst-x (.absolute-x self))
-                  (dst-y (.absolute-y self))
-                  (dst-w (.width self))
-                  (dst-h (.height self))
-                  (offset-y (- cursor-y dst-y (round (/ dst-h 2)) (- (round (/ *char-height* 2)))))
-                  (src-x dst-x)
-                  (src-y (+ dst-y offset-y))
-                  (src-w dst-w)
-                  (src-h dst-h)
-                  (dst-rect (sdl2:make-rect dst-x dst-y dst-w dst-h))
-                  (src-rect (sdl2:make-rect src-x src-y src-w src-h)))
-             (sdl2:render-copy renderer texture :source-rect src-rect :dest-rect dst-rect)))
-      (sdl2:destroy-texture texture)))
+  (call-next-method)
   (when (.focused self)
     (apply #'sdl2:set-render-draw-color renderer *focused-color*)
     (sdl2:render-draw-rect renderer
@@ -1340,30 +1297,56 @@
   (setf (.cursor-y self) (mod (+ (.cursor-y self) (.edit-step self))
                               (length (.lines (.pattern self))))))
 
+(defmethod .texture-height ((self pattern-editor))
+  (ceiling (* (call-next-method) 1.5)))
+
 (defclass pattern-editor-line (label)
   ((line :initarg :line :accessor .line)))
 
 (defmethod render :before ((self pattern-editor-line) renderer)
-  (setf (.value self)
-        (with-output-to-string (out)
-          (format out "~2,'0X" (position self (.lines (.parent self))))
-          (loop with line = (.line self)
-                repeat (.length line)
-                for column across (.columns line)
-                for note = (.note column)
-                do (cond ((= note off)
-                          (write-string " OFF --" out))
-                         ((= note none)
-                          (write-string " --- --" out))
-                         (t
-                          (let* ((c-s-o (format nil "~a" (midino-to-note note)))
-                                 (c (char c-s-o 0))
-                                 (s (if (char= (char c-s-o 1) #\#)
-                                        #\#
-                                        #\-))
-                                 (o (char c-s-o (if (char= s #\#) 2 1))))
-                            (format out " ~c~c~c ~2,'0X"
-                                    c s o (.velocity column)))))))))
+  (let* ((parent (.parent self))
+         (position (position self (.lines parent))))
+    (setf (.value self)
+          (with-output-to-string (out)
+            (format out "~2,'0X" position)
+            (loop with line = (.line self)
+                  repeat (.length line)
+                  for column across (.columns line)
+                  for note = (.note column)
+                  do (cond ((= note off)
+                            (write-string " OFF --" out))
+                           ((= note none)
+                            (write-string " --- --" out))
+                           (t
+                            (let* ((c-s-o (format nil "~a" (midino-to-note note)))
+                                   (c (char c-s-o 0))
+                                   (s (if (char= (char c-s-o 1) #\#)
+                                          #\#
+                                          #\-))
+                                   (o (char c-s-o (if (char= s #\#) 2 1))))
+                              (format out " ~c~c~c ~2,'0X"
+                                      c s o (.velocity column))))))))
+    ;; play position
+    (when (= (.current-line (.pattern parent)) position)
+      (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
+      (let ((play-x (.absolute-x self))
+            (play-y (.absolute-y self))
+            (play-w (.width self))
+            (play-h *char-height*))
+        (sdl2:render-fill-rect
+         renderer (sdl2:make-rect play-x play-y play-w play-h))))
+    ;; cursor
+    (when (and (.focused parent)
+               (= (.cursor-y parent) position))
+      (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
+      (let ((cursor-x (* *char-width* (+ (.cursor-x parent) 5)))
+            (cursor-y (.absolute-y self))
+            (cursor-w (if (zerop (mod (.cursor-x parent) +column-width+))
+                          (* *char-width* 3)
+                          *char-width*))
+            (cursor-h *char-height*))
+        (sdl2:render-fill-rect
+         renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))))
 
 (defclass track-view (track
                       drag-mixin
