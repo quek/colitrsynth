@@ -1546,6 +1546,12 @@
     (when (< (.loop-end-line sequencer) (.loop-start-line sequencer))
       (rotatef (.loop-end-line sequencer) (.loop-start-line sequencer)))))
 
+(defmethod double-click ((self sequencer-timeline-view) button x y)
+  (let* ((sequencer (.sequencer self)))
+    (setf (.loop-start-line sequencer) 0)
+    (setf (.loop-end-line sequencer) 0))
+  (call-next-method))
+
 (defmethod render ((self sequencer-timeline-view) renderer)
   (let* ((sequencer (.sequencer self))
          (end-line (.end sequencer))
