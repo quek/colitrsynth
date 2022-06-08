@@ -205,9 +205,13 @@
                          'pa:pa-stream
                          :handle (cffi:mem-ref handle :pointer)
                          :input-sample-format (.sample-format *audio*)
-                         :input-channels (if (zerop (the fixnum (.input-channels *audio*))) nil (.input-channels *audio*))
+                         :input-channels (if (zerop (the fixnum (.input-channels *audio*)))
+                                             nil
+                                             (.input-channels *audio*))
                          :output-sample-format (.sample-format *audio*)
-                         :output-channels (if (zerop (the fixnum (.output-channels *audio*))) nil (.output-channels *audio*))
+                         :output-channels (if (zerop (the fixnum (.output-channels *audio*)))
+                                              nil
+                                              (.output-channels *audio*))
                          :frames-per-buffer (.frames-per-buffer *audio*))))
                 ,@body)
            (when (.stream *audio*)
