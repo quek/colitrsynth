@@ -451,7 +451,10 @@
   (when (slot-boundp self 'plugin-description)
     (setf (.host-process self)
           (sb-ext:run-program *plugin-host-exe*
-                              (list (.name (.plugin-description self)))
+                              (list
+                               "--sample-rate" (format nil "~f" *sample-rate*)
+                               "--buffer-size" (format nil "~d" *frames-per-buffer*)
+                               "--plugin-name" (.name (.plugin-description self)))
                               :wait nil))
     (push (.host-process self) *plugin-processes*)
     (let ((pipe (sb-win32::create-named-pipe (format nil "~a~a" *plugin-host-pipe-name*

@@ -14,7 +14,7 @@
   (current-time pa::pa-time)
   (output-buffer-dac-time pa::pa-time))
 
-(defparameter *frames-per-buffer* 1024)
+(defparameter *frames-per-buffer* 2048)
 (defparameter *sample-rate* 48000.0d0)
 (defun sec-per-line ()
   (/ 60.0d0 (.bpm (.sequencer *audio*)) (.lpb (.sequencer *audio*))))
