@@ -463,6 +463,18 @@
           (.height x) ,(.height self)
           (.color x) ,(serialize (.color self)))))
 
+(defun local-mouse-position (view)
+  (labels ((f (self x y)
+             (let ((parent (.parent self)))
+               (if parent
+                   (multiple-value-bind (x y) (f parent x y)
+                     (values (translate-child-x parent self x)
+                             (translate-child-x parent self y)))
+                   (values (- x (.absolute-x self))
+                           (- y (.absolute-y self)))))))
+    (multiple-value-bind (x y) (sdl2:mouse-state)
+      (f view x y))))
+
 (defclass render-border-mixin () ())
 
 (defmethod render ((self render-border-mixin) renderer)
@@ -572,7 +584,8 @@
         (progn
           (sunless (.dragging drag-state)
             (setf it t)
-            (drag-start self x y (.button drag-state)))
+            (multiple-value-bind (x y) (local-mouse-position self)
+              (drag-start self x y (.button drag-state))))
           (drag self xrel yrel (.button drag-state)))
         (call-next-method))))
 
@@ -582,11 +595,11 @@
         (progn
           (if (.dragging drag-state)
               (progn
-                (drag-end self x y button)
-                (drop (view-at-mouse *app*) self
-                      (+ (.absolute-x self) x)
-                      (+ (.absolute-y self) y)
-                      button))
+                (multiple-value-bind (x y) (local-mouse-position self)
+                  (drag-end self x y button))
+                (awhen (view-at-mouse *app*)
+                  (multiple-value-bind (x y) (local-mouse-position it)
+                    (drop it self x y button))))
               (call-next-method))
           (setf drag-state nil))
         (call-next-method)))
@@ -1496,8 +1509,7 @@
 (defmethod drag ((self sequencer-timeline-view) xrel yrel
                  (button (eql sdl2-ffi:+sdl-button-left+)))
   (let* ((sequencer (.sequencer self))
-         (x (- (sdl2:mouse-state) (.absolute-x self)))
-         (line (x-to-rounded-line x)))
+         (line (x-to-rounded-line (local-mouse-position self))))
     (setf (.loop-end-line sequencer) line)))
 
 (defmethod drag-end ((self sequencer-timeline-view) x y
