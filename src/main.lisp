@@ -268,8 +268,8 @@
                                   a4 off e5 a4 off a4 off e5
                                   a4 none none none e5 none a5 none
                                   a4 off e5 a4 off a4 off e5)))))
-    (connect track1 plugin)
-    (connect plugin *master-module*)
+    (connect (make-instance 'midi-connection :src track1 :dest plugin))
+    (connect (make-instance 'audio-connection :src plugin :dest *master-module*))
     (add-pattern track1 pattern1 0 line-length)
     (list *sequencer-module* *master-module* pattern1 plugin)))
 
@@ -295,10 +295,10 @@
          (op-multi (make-instance 'op-multi-module
                                   :name "Op Multi"
                                   :x 200 :y 400)))
-    (connect track1 saw)
-    (connect track1 adsr)
-    (connect saw op-multi)
-    (connect adsr op-multi)
-    (connect op-multi *master-module*)
+    (connect (make-instance 'midi-connection :src track1 :dest saw))
+    (connect (make-instance 'midi-connection :src track1 :dest adsr))
+    (connect (make-instance 'audio-connection :src saw :dest op-multi))
+    (connect (make-instance 'audio-connection :src adsr :dest op-multi))
+    (connect (make-instance 'audio-connection :src op-multi :dest *master-module*))
     (add-pattern track1 pattern1 0 line-length)
     (list *sequencer-module* *master-module* pattern1 saw adsr op-multi)))

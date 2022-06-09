@@ -303,6 +303,7 @@
 
 (defun view-at-mouse (app)
   (loop for view in (reverse (.views app))
+        ;; TODO connector はみ出させたい
           thereis (and (<= (.render-x view) (.mouse-x app) (+ (.render-x view) (.width view)))
                        (<= (.render-y view) (.mouse-y app) (+ (.render-y view) (.height view)))
                        view)))
@@ -538,11 +539,15 @@
            (setf (.from-connector *app*) self))
           ((eq self from-connector))
           (t
-           (let ((from (.module from-connector))
-                 (to (.module self)))
-             (if (member from (.in to))
-                 (disconnect from to)
-                 (connect from to))
+           (let* ((from (.module from-connector))
+                  (to (.module self))
+                  (connection (make-instance 'audio-connection
+                                             :src from :dest to)))
+             (if (connected-p connection)
+                 (disconnect connection)
+                 (if (ctrl-key-p)
+                     (open-connector-menu connection)
+                     (connect connection)))
              (setf (.from-connector *app*) nil))))))
 
 (defmethod render ((self connector) renderer)
@@ -653,9 +658,21 @@
 
 (defmethod serialize ((self model))
   `((setf (.name x) ,(.name self)
-           (.in x) ,(serialize-ref (.in self))
-           (.out x) ,(serialize-ref (.out self)))
+           (.in x) ,(serialize (.in self))
+           (.out x) ,(serialize (.out self)))
     ,@(call-next-method)))
+
+(defmethod serialize :around ((self connection))
+  `(let ((x (make-instance ',(class-name (find-class self))
+                           :src ,(serialize-ref (.src self))
+                           :dest ,(serialize-ref (.dest self))
+                           ,@(call-next-method))))))
+
+(defmethod serialize ((self connection))
+  nil)
+
+(defmethod serialize ((self param-connection))
+  `(:param ,(.param self)))
 
 (defclass drag-mixin ()
   ())
@@ -799,11 +816,9 @@
           (values xs ys xe ye))))))
 
 (defmethod render-connection ((self connector-mixin) r)
-  (loop for out-model in (.out self)
-        for out = (loop for module in (.modules *app*)
-                          thereis (and (eq out-model module)
-                                       module))
-        do (multiple-value-bind (xs ys xe ye) (compute-connection-points self out)
+  (loop for connection in (.out self)
+        do (multiple-value-bind (xs ys xe ye)
+               (compute-connection-points self (.dest connection))
              (let ((original-xs xs)
                    (original-ys ys))
                (when (typep self 'track-view)
@@ -1977,6 +1992,10 @@
    (buttons :initform nil :accessor .buttons))
   (:default-initargs :width 400 :height 300))
 
+(defmethod initialize-instance :after ((self menu-view)&key)
+  (setf (.buttons self) (sort (.buttons self) #'string<
+                              :key (lambda (x) (string-downcase (.label x))))))
+
 (defun open-menu (class &rest args)
   (let ((module (apply #'make-instance
                        class
@@ -1986,11 +2005,22 @@
     (addend-view module)
     (setf (.selected-module *app*) module)))
 
-(defclass plugin-parameter-menu-view (menu-view)
-  ())
+(defclass connector-menu-view (menu-view)
+  ((connection :initarg :connection :accessor .connection)))
 
-(defun open-plugin-parameter-menu ()
-  (open-menu 'plugin-parameter-menu-view))
+(defmethod initialize-instance :after ((self connector-menu-view) &key)
+  (loop for param in (.params (.dest (.connection self)))
+        for button = (make-instance 'button :label (plugin-parameter-name param))
+        do (add-child self button)
+           (push button (.buttons self))
+           (defmethod click ((button (eql button)) btn x y)
+             (connect (make-instance 'param-connection
+                                     :src (.src (.connection self))
+                                     :dst (.dest (.connection self))
+                                     :param param)))))
+
+(defun open-connector-menu (connection)
+  (open-menu 'connector-menu-view :connection connection))
 
 (defclass module-menu-view (menu-view)
   ())
@@ -2021,9 +2051,7 @@
                                         :label (.name plugin-description)
                                         :plugin-description plugin-description)))
              (add-child self button)
-             (push button (.buttons self))))
-  (setf (.buttons self) (sort (.buttons self) #'string<
-                              :key (lambda (x) (string-downcase (.label x))))))
+             (push button (.buttons self)))))
 
 #+TODO-delete
 (defmethod render :before ((self module-menu-view) renderer)

@@ -8,37 +8,68 @@
 
 
 (defgeneric initialize (x))
-(defgeneric connect (from to))
-(defgeneric disconnect (from to))
-(defgeneric disconnect-all (self))
-(defgeneric process (model left right))
+(defgeneric connect (connection))
+(defgeneric disconnect (connection))
+(defgeneric disconnect-all (model))
+(defgeneric process (model connection left right))
 (defgeneric route (self left right))
 (defgeneric prepare-save (model))
 
 (defclass name-mixin ()
   ((name :initarg :name :initform "" :accessor .name)))
 
+(defclass connection ()
+  ((src :initarg :src :accessor .src)
+   (dest :initarg :dest :accessor .dest)))
+
+(defclass audio-connection (connection)
+  ())
+
+(defclass midi-connection (connection)
+  ())
+
+(defclass param-connection (connection)
+  ((param :initarg :param :accessor .param)))
+
+(defmethod connection-eql (a b)
+  (and (eql (type-of a) (type-of b))
+       (eql (.src a) (.src b))
+       (eql (.dest a) (.dest b))))
+
+(defmethod connection-eql ((a param-connection) (b param-connection))
+  (and (call-next-method)
+       (= (plugin-parameter-index a)
+          (plugin-parameter-index b))))
+
 (defclass model (name-mixin)
   ((in :initarg :in :accessor .in :initform nil)
    (out :initarg :out :accessor .out :initform nil)))
 
-(defmethod connect ((from model) (to model))
-  (push to (.out from))
-  (push from (.in to)))
+(defmethod connect (connection)
+  (push connection (.out (.src connection)))
+  (push connection (.in (.dest connection))))
 
-(defmethod disconnect ((from model) (to model))
-  (setf (.out from) (remove to (.out from)))
-  (setf (.in to) (remove from (.in to))))
+(defmethod connected-p (connection)
+  (member connection (.in (.dest connection))
+          :test #'connection-eql))
+
+(defmethod disconnect (connection)
+  (setf (.out (.src connection))
+        (remove connection (.out (.src connection))
+                :test #'connection-eql))
+  (setf (.in (.dest connection))
+        (remove connection (.in (.dest connection))
+                :test #'connection-eql)))
 
 (defmethod disconnect-all ((self model))
-  (loop for from in (copy-list (.in self))
-        do (disconnect from self))
-  (loop for to in (copy-list (.out self))
-        do (disconnect self to)))
+  (loop for connection in (copy-list (.in self))
+        do (disconnect connection))
+  (loop for connection in (copy-list (.out self))
+        do (disconnect connection)))
 
 (defmethod route ((self model) left right)
-  (loop for out in (.out self)
-        do (process out left right)))
+  (loop for connection in (.out self)
+        do (process (.dest connection) connection left right)))
 
 (defmethod close ((self model) &key abort)
   (declare (ignore abort)))
@@ -249,7 +280,7 @@
    (value :initform 0.0d0 :accessor .value :type double-float)
    (phase :initform 0.0d0 :accessor .phase :type double-float)))
 
-(defmethod process ((self osc) midi-events frame)
+(defmethod process ((self osc) (connection midi-connection) midi-events frame)
   (flet ((midi-event (i on-or-off)
            (loop for x in midi-events
                    thereis (and (= (.event x) on-or-off)
@@ -306,7 +337,7 @@
    (release-time :initform 0.0d0 :accessor .release-time)
    (release-value :initform 0.0d0 :accessor .release-value)))
 
-(defmethod process ((self adsr) midi-events frame)
+(defmethod process ((self adsr) (connection midi-connection) midi-events frame)
   (flet ((midi-event (i on-or-off)
            (loop for x in midi-events
                    thereis (and (or (= (.event x) on-or-off)
@@ -357,7 +388,7 @@
    (initial-value :initarg :initial-value :accessor .initial-value)
    (in-count :initform 0 :accessor .in-count :type fixnum)))
 
-(defmethod process ((self operand) left right)
+(defmethod process ((self operand) (conection audio-connection) left right)
   (loop for i below *frames-per-buffer*
         do (setf (aref (.left self) i)
                  (operate self
@@ -401,7 +432,7 @@
 (defclass gain (left-right-buffer-mixin model)
   ((volume :initarg :volume :initform 1.0d0 :accessor .volume)))
 
-(defmethod process ((self gain) left right)
+(defmethod process ((self gain) (connection audio-connection) left right)
   (loop for i below *frames-per-buffer*
         with volume = (.volume self)
         do (setf (aref (.left self) i) (* (aref left i) volume))
@@ -416,7 +447,7 @@
    (last-left :initform 0.0d0 :accessor .last-left)
    (last-right :initform 0.0d0 :accessor .last-right)))
 
-(defmethod process ((self master) left right)
+(defmethod process ((self master) (connection audio-connection) left right)
   (loop for i below *frames-per-buffer*
         do (incf (aref (.left self) i) (aref left i))
            (incf (aref (.right self) i) (aref right i))))
@@ -428,7 +459,7 @@
 (defconstant +plugin-command-quit+ 5)
 (defconstant +plugin-command-get-state+ 6)
 (defconstant +plugin-command-set-state+ 7)
-(defconstant +plugin-command-get-parameters+ 8)
+(defconstant +plugin-command-get-params+ 8)
 (defconstant +plugin-command-set-parameter+ 9)
 
 (defclass plugin-model (model)
@@ -442,13 +473,17 @@
    (left-buffer :initform (make-buffer) :accessor .left-buffer)
    (right-buffer :initform (make-buffer)  :accessor .right-buffer)
    (plugin-state :accessor .plugin-state)
-   (parameters :initform nil :accessor .parameters)
+   (params :initform nil :accessor .params)
+   (in-params :initform nil :accessor .in-para)
    (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
 
 (defmethod initialize-instance :after ((self plugin-model) &key)
   (run-plugin-host self)
   (when (slot-boundp self 'plugin-state)
     (set-plugin-state self)))
+
+(defmethod connect-param ((from plugin-model) (to plugin-model) index)
+  )
 
 (defmethod run-plugin-host ((self plugin-model))
   (when (slot-boundp self 'plugin-description)
@@ -467,7 +502,7 @@
                                              255 0 0 100 (cffi-sys::null-pointer))))
       (setf (.host-io self)
             (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte)))
-    (get-parameters self)))
+    (get-params self)))
 
 (defmethod close ((self plugin-model) &key abort)
   (declare (ignore abort))
@@ -514,7 +549,9 @@
 (defclass instrument-plugin-model (plugin-model) ())
 (defclass effect-plugin-model (plugin-model) ())
 
-(defmethod process ((self instrument-plugin-model) midi-events frame)
+(defmethod process ((self instrument-plugin-model)
+                    (connection audio-connection)
+                    midi-events frame)
   (declare (optimize (speed 3) (safety 0)))
   (let ((i -1)
         (length (length (the list midi-events)))
@@ -575,7 +612,9 @@
                                         'double-float))))))
     (route self left-buffer right-buffer)))
 
-(defmethod process ((self effect-plugin-model) left right)
+(defmethod process ((self effect-plugin-model)
+                    (connection audio-connection)
+                    left right)
   (let ((out (.out-buffer self))
         (in (.in-buffer self))
         (io (.host-io self))
@@ -687,15 +726,15 @@
   value
   value-as-text)
 
-(defmethod get-parameters ((self plugin-model))
+(defmethod get-params ((self plugin-model))
   (let ((io (.host-io self))
         (buffer (make-array 4 :element-type '(unsigned-byte 8)))
         (size 0))
     (sb-thread:with-mutex ((.mutex self))
-      (write-byte +plugin-command-get-parameters+ io)
+      (write-byte +plugin-command-get-params+ io)
       (loop repeat 300
             until (ignore-errors (not (force-output io)))
-            do (format *debug-io* "~&get-parameters: wait plugin host")
+            do (format *debug-io* "~&get-params: wait plugin host")
                (sleep 0.1))
       (read-sequence buffer io)
       (setf (ldb (byte 8 0) size) (aref buffer 0))
@@ -705,7 +744,7 @@
       (setf buffer (make-array size :element-type '(unsigned-byte 8)))
       (read-sequence buffer io))
     (with-input-from-string (in (sb-ext:octets-to-string buffer :external-format :utf-8))
-      (setf (.parameters self)
+      (setf (.params self)
             (loop for param in (read in)
                   collect (make-plugin-parameter :index (nth 0 param)
                                                  :name (nth 1 param)
