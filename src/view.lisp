@@ -1805,6 +1805,31 @@
   (update-sequencer-end *sequencer-module*)
   (remove-child track-view pattern-position-view))
 
+#+ちょっと線が多すぎる
+(defmethod render-connection ((self pattern-module) r)
+  (loop for track in (.tracks (.sequencer *audio*))
+        do (loop for pattern-position in (.pattern-positions track)
+                 if (eq self (.pattern pattern-position))
+                   do (multiple-value-bind (xs ys xe ye)
+                          (compute-connection-points self pattern-position)
+                        (let ((original-xs xs)
+                              (original-ys ys))
+                          (when (typep self 'track-view)
+                            (let ((partial-view (.parent self)))
+                              (setf xs (min (max xs (.render-x partial-view))
+                                            (+ (.render-x partial-view)
+                                               (.width partial-view))))
+                              (setf ys (min (max ys (.render-y partial-view))
+                                            (+ (.render-y partial-view)
+                                               (.height partial-view))))))
+                          (apply #'sdl2:set-render-draw-color r *connection-line-color*)
+                          (sdl2:render-draw-line r xs ys xe ye)
+                          (when (and (= xs original-xs) (= ys original-ys))
+                            (apply #'sdl2:set-render-draw-color r *connection-point-color*)
+                            (sdl2:render-fill-rect r
+                                                   (sdl2:make-rect (- xs 3) (- ys 3) 7 7)))))))
+  (call-next-method))
+
 (defmethod keydown ((self pattern-module) value scancode mod-value)
   ;; TODO pattern-editor にフォーカスしている場合の pattern-editor の keydown をコールする
   (when (eq 'call-next-method
