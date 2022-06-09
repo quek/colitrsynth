@@ -68,7 +68,7 @@
                (stop)
                (play-with-key)))
           ((sdl2:scancode= scancode :scancode-f)
-           (open-menu))
+           (open-module-menu))
           ((and (sdl2:scancode= scancode :scancode-o)
                 (not (zerop (logand mod-value sdl2-ffi:+kmod-ctrl+))))
            (sb-thread:make-thread (lambda (*app*)
@@ -1977,7 +1977,25 @@
    (buttons :initform nil :accessor .buttons))
   (:default-initargs :width 400 :height 300))
 
-(defmethod initialize-instance :after ((self menu-view) &key)
+(defun open-menu (class &rest args)
+  (let ((module (apply #'make-instance
+                       class
+                       :x (- (.mouse-x *app*) 10)
+                       :y (- (.mouse-y *app*) 10)
+                       args)))
+    (addend-view module)
+    (setf (.selected-module *app*) module)))
+
+(defclass plugin-parameter-menu-view (menu-view)
+  ())
+
+(defun open-plugin-parameter-menu ()
+  (open-menu 'plugin-parameter-menu-view))
+
+(defclass module-menu-view (menu-view)
+  ())
+
+(defmethod initialize-instance :after ((self module-menu-view) &key)
   (let ((button (make-instance 'button :label "Manage Plugins")))
     (add-child self button)
     (push button (.buttons self))
@@ -2007,7 +2025,8 @@
   (setf (.buttons self) (sort (.buttons self) #'string<
                               :key (lambda (x) (string-downcase (.label x))))))
 
-(defmethod render :before ((self menu-view) renderer)
+#+TODO-delete
+(defmethod render :before ((self module-menu-view) renderer)
   (sdl2:set-render-draw-color renderer 0 0 0 #xff)
   (sdl2:render-fill-rect renderer (sdl2:make-rect (.render-x self)
                                                   (.render-y self)
@@ -2093,9 +2112,5 @@
     (setf (.selected-module *app*) module)
     (close (.root-parent self))))
 
-(defun open-menu ()
-  (let ((module (make-instance 'menu-view
-                               :x (- (.mouse-x *app*) 10)
-                               :y (- (.mouse-y *app*) 10))))
-    (addend-view module)
-    (setf (.selected-module *app*) module)))
+(defun open-module-menu ()
+  (open-menu 'module-menu-view))
