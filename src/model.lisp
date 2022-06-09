@@ -428,6 +428,8 @@
 (defconstant +plugin-command-quit+ 5)
 (defconstant +plugin-command-get-state+ 6)
 (defconstant +plugin-command-set-state+ 7)
+(defconstant +plugin-command-get-parameters+ 8)
+(defconstant +plugin-command-set-parameter+ 9)
 
 (defclass plugin-model (model)
   ((plugin-description :initarg :plugin-description :accessor .plugin-description)
@@ -440,6 +442,7 @@
    (left-buffer :initform (make-buffer) :accessor .left-buffer)
    (right-buffer :initform (make-buffer)  :accessor .right-buffer)
    (plugin-state :accessor .plugin-state)
+   (parameters :initform nil :accessor .parameters)
    (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
 
 (defmethod initialize-instance :after ((self plugin-model) &key)
@@ -463,7 +466,8 @@
                                              sb-win32::pipe-type-byte
                                              255 0 0 100 (cffi-sys::null-pointer))))
       (setf (.host-io self)
-            (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte)))))
+            (sb-sys:make-fd-stream pipe :input t :output t :element-type 'unsigned-byte)))
+    (get-parameters self)))
 
 (defmethod close ((self plugin-model) &key abort)
   (declare (ignore abort))
@@ -676,3 +680,34 @@
                                               (equal (.name x) (.name y))))
                              plugin-descriptions))
             collect x)))
+
+(defstruct plugin-parameter
+  index
+  name
+  value
+  value-as-text)
+
+(defmethod get-parameters ((self plugin-model))
+  (let ((io (.host-io self))
+        (buffer (make-array 4 :element-type '(unsigned-byte 8)))
+        (size 0))
+    (sb-thread:with-mutex ((.mutex self))
+      (write-byte +plugin-command-get-parameters+ io)
+      (loop repeat 300
+            until (ignore-errors (not (force-output io)))
+            do (format *debug-io* "~&get-parameters: wait plugin host")
+               (sleep 0.1))
+      (read-sequence buffer io)
+      (setf (ldb (byte 8 0) size) (aref buffer 0))
+      (setf (ldb (byte 8 8) size) (aref buffer 1))
+      (setf (ldb (byte 8 16) size) (aref buffer 2))
+      (setf (ldb (byte 8 24) size) (aref buffer 3))
+      (setf buffer (make-array size :element-type '(unsigned-byte 8)))
+      (read-sequence buffer io))
+    (with-input-from-string (in (sb-ext:octets-to-string buffer :external-format :utf-8))
+      (setf (.parameters self)
+            (loop for param in (read in)
+                  collect (make-plugin-parameter :index (nth 0 param)
+                                                 :name (nth 1 param)
+                                                 :value (nth 2 param)
+                                                 :value-as-text (nth 3 param)))))))
