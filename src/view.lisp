@@ -24,7 +24,10 @@
     (swhen (.focused-view *app*)
       (unless (and (<= (.render-x it) (.mouse-x *app*) (+ (.render-x it) (.width it)))
                    (<= (.render-y it) (.mouse-y *app*) (+ (.render-y it) (.height it))))
-        (setf it nil)))))
+        (setf it nil))))
+  (:method (self (button (eql sdl2-ffi:+sdl-button-right+))
+            state clicks x y)
+    (setf (.from-connector *app*) nil)))
 
 (defgeneric mousebuttonup (self button state clicks x y)
   (:method (self button state clicks x y)
@@ -301,11 +304,18 @@
 (defun remove-view (module)
   (setf (.views *app*) (remove module (.views *app*))))
 
+(defmethod at-x-y-p ((self view) x y)
+  (and (<= (.screen-x self) x (+ (.screen-x self) (.width self)))
+       (<= (.screen-y self) y (+ (.screen-y self) (.height self)))))
+
+(defmethod at-x-y-p ((self connector-mixin) x y)
+  (or (call-next-method)
+      (at-x-y-p (.connector self) x y)))
+
 (defun view-at-mouse (app)
   (loop for view in (reverse (.views app))
         ;; TODO connector はみ出させたい
-          thereis (and (<= (.render-x view) (.mouse-x app) (+ (.render-x view) (.width view)))
-                       (<= (.render-y view) (.mouse-y app) (+ (.render-y view) (.height view)))
+          thereis (and (at-x-y-p view (.mouse-x app)(.mouse-y app))
                        view)))
 
 (defmethod child-view-at ((self view) x y)
@@ -562,8 +572,8 @@
 
 (defmethod resized ((self connector))
   (let ((module (.module self)))
-    (setf (.x self) (- (.width module) 14))
-    (setf (.y self) 0)
+    (setf (.x self) (- (.width module) 7))
+    (setf (.y self) -7)
     (setf (.width self) 14)
     (setf (.height self) 14)))
 
