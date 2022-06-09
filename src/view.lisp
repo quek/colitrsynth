@@ -550,13 +550,13 @@
                      (connect connection)))
              (setf (.from-connector *app*) nil))))))
 
-(defmethod render ((self connector) renderer)
+(defmethod render-connection ((self connector) renderer)
   (when (eq self (.from-connector *app*))
     (apply #'sdl2:set-render-draw-color renderer *connection-line-color*)
     (multiple-value-bind (x y) (sdl2:mouse-state)
       (sdl2:render-draw-line renderer
-                             (.render-center-x self)
-                             (.render-center-y self)
+                             (.screen-center-x self)
+                             (.screen-center-y self)
                              x y)))
   (call-next-method))
 

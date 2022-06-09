@@ -148,10 +148,18 @@
   (sdl2:render-clear renderer)
   (sdl2:set-render-draw-color renderer #xcc #xcc #xcc *transparency*)
 
-  (loop for view in (.views *app*)
-        do (render-connection view renderer))
-  (loop for view in (.views *app*)
-        do (render view renderer))
+  (if (.from-connector *app*)
+      ;; パッチングしているときは線を前面描画したい
+      (progn
+        (loop for view in (.views *app*)
+              do (render view renderer))
+        (loop for view in (.views *app*)
+              do (render-connection view renderer)))
+      (progn
+        (loop for view in (.views *app*)
+              do (render-connection view renderer))
+        (loop for view in (.views *app*)
+              do (render view renderer))))
   
   (sdl2:render-present renderer)
   (when (.request-stop *audio*)
