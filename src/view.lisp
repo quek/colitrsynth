@@ -541,7 +541,7 @@
           (t
            (let* ((from (.module from-connector))
                   (to (.module self))
-                  (connection (make-instance 'audio-connection
+                  (connection (make-instance (default-connection-class from to)
                                              :src from :dest to)))
              (if (connected-p connection)
                  (disconnect connection)
@@ -663,16 +663,17 @@
     ,@(call-next-method)))
 
 (defmethod serialize :around ((self connection))
-  `(let ((x (make-instance ',(class-name (find-class self))
-                           :src ,(serialize-ref (.src self))
-                           :dest ,(serialize-ref (.dest self))
-                           ,@(call-next-method))))))
+  `(let ((x (make-instance ',(class-name (class-of self)))))
+     (setf (.src x) ,(serialize-ref (.src self) :accessor '.src))
+     (setf (.dest x) ,(serialize-ref (.dest self) :accessor '.dest))
+     ,@(call-next-method)
+     x))
 
 (defmethod serialize ((self connection))
   nil)
 
 (defmethod serialize ((self param-connection))
-  `(:param ,(.param self)))
+  `((setf (.param x) ,(.param self))))
 
 (defclass drag-mixin ()
   ())
@@ -2009,15 +2010,22 @@
   ((connection :initarg :connection :accessor .connection)))
 
 (defmethod initialize-instance :after ((self connector-menu-view) &key)
-  (loop for param in (.params (.dest (.connection self)))
-        for button = (make-instance 'button :label (plugin-parameter-name param))
-        do (add-child self button)
-           (push button (.buttons self))
-           (defmethod click ((button (eql button)) btn x y)
-             (connect (make-instance 'param-connection
-                                     :src (.src (.connection self))
-                                     :dst (.dest (.connection self))
-                                     :param param)))))
+  (mapc (lambda (param)
+          (let ((button (make-instance
+                         'menu-button
+                         :label (plugin-parameter-name param)
+                         :onclick (lambda ()
+                                    (let ((connection
+                                            (make-instance 'param-connection
+                                                           :src (.src (.connection self))
+                                                           :dest (.dest (.connection self))
+                                                           :param param)))
+                                      (if (connected-p connection)
+                                          (disconnect connection)
+                                          (connect connection)))))))
+            (add-child self button)
+            (push button (.buttons self))))
+        (.params (.dest (.connection self)))))
 
 (defun open-connector-menu (connection)
   (open-menu 'connector-menu-view :connection connection))
@@ -2107,6 +2115,13 @@
     (setf (.selected-module *app*) nil))
   (remove-view self)
   (call-next-method))
+
+(defclass menu-button (button)
+  ((onclick :initarg :onclick :accessor .onclick)))
+
+(defmethod click ((self menu-button) button x y)
+  (funcall (.onclick self))
+  (close (.root-parent self)))
 
 (defclass menu-builtin-button (button)
   ((class :initarg :class :accessor .class)

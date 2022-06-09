@@ -38,8 +38,11 @@
 
 (defmethod connection-eql ((a param-connection) (b param-connection))
   (and (call-next-method)
-       (= (plugin-parameter-index a)
-          (plugin-parameter-index b))))
+       (= (plugin-parameter-index (.param a))
+          (plugin-parameter-index (.param b)))))
+
+(defmethod default-connection-class (src dest)
+  'audio-connection)
 
 (defclass model (name-mixin)
   ((in :initarg :in :accessor .in :initform nil)
@@ -90,6 +93,9 @@
   ((pattern-positions :initform nil :accessor .pattern-positions)
    (buffer :accessor .buffer
            :initform (make-buffer :initial-element nil :element-type t))))
+
+(defmethod default-connection-class ((src track) dest)
+  'midi-connection)
 
 (defun play-track (track start-line start-frame end-line end-frame)
   (let* ((frames-per-line (frames-per-line))
@@ -460,7 +466,7 @@
 (defconstant +plugin-command-get-state+ 6)
 (defconstant +plugin-command-set-state+ 7)
 (defconstant +plugin-command-get-params+ 8)
-(defconstant +plugin-command-set-parameter+ 9)
+(defconstant +plugin-command-set-param+ 9)
 
 (defclass plugin-model (model)
   ((plugin-description :initarg :plugin-description :accessor .plugin-description)
@@ -528,6 +534,11 @@
                                     :initial-element 0)))
         (read-sequence state io)
         (setf (.plugin-state self) state)))))
+
+(defmethod process ((self plugin-model)
+                    (connection param-connection)
+                    value _)
+  (set-param self (.param connection) (aref value 0)))
 
 (defmethod set-plugin-state ((self plugin-model))
   (let* ((io (.host-io self))
@@ -750,3 +761,23 @@
                                                  :name (nth 1 param)
                                                  :value (nth 2 param)
                                                  :value-as-text (nth 3 param)))))))
+
+(defmethod set-param ((self plugin-model) param value)
+  (let ((io (.host-io self))
+        (buffer (make-array 8 :element-type '(unsigned-byte 8)))
+        (i -1)
+        (index (plugin-parameter-index param)))
+    (sb-thread:with-mutex ((.mutex self))
+      (write-byte +plugin-command-set-param+ io)
+      (force-output io)
+      (setf (aref buffer (incf i)) (ldb (byte 8 0) index))
+      (setf (aref buffer (incf i)) (ldb (byte 8 8) index))
+      (setf (aref buffer (incf i)) (ldb (byte 8 16) index))
+      (setf (aref buffer (incf i)) (ldb (byte 8 24) index))
+      (let ((value (ieee-floats:encode-float32 value)))
+        (setf (aref buffer (incf i)) (ldb (byte 8 0) value))
+        (setf (aref buffer (incf i)) (ldb (byte 8 8) value))
+        (setf (aref buffer (incf i)) (ldb (byte 8 16) value))
+        (setf (aref buffer (incf i)) (ldb (byte 8 24) value)))
+      (write-sequence buffer io)
+      (force-output io))))
