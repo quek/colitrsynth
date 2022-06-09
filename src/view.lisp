@@ -59,7 +59,9 @@
 
 (defgeneric keydown (self value scancode mod-value)
   (:method (self value scancode mod-value)
-    (cond ((sdl2:scancode= scancode :scancode-scrolllock)
+    (cond ((sdl2:scancode= scancode :scancode-escape)
+           (setf (.from-connector *app*) nil))
+          ((sdl2:scancode= scancode :scancode-scrolllock)
            (setf *pattern-scroll-lock* (not *pattern-scroll-lock*)))
           ((sdl2:scancode= scancode :scancode-space)
            (if (.playing *audio*)
@@ -219,7 +221,7 @@
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (dragging :initform nil :accessor .dragging)
    (drag-state :initform nil :accessor .drag-state)
-   (connect-from-module :initform nil :accessor .connect-from-module)
+   (from-connector :initform nil :accessor .from-connector)
    (song-file :initform nil :accessor .song-file)
    (shift-key-p :initform nil :accessor .shift-key-p)
    (ctrl-key-p :initform nil :accessor .ctrl-key-p)
@@ -525,15 +527,62 @@
                                          (.height self)))
   (call-next-method))
 
-(defclass module (drag-resize-mixin
+(defclass connector (render-border-mixin view)
+  ((module :initarg :module :accessor .module)))
+
+(defmethod click ((self connector)
+                  (button (eql sdl2-ffi:+sdl-button-left+))
+                  x y)
+  (let ((from-connector (.from-connector *app*)))
+    (cond ((null from-connector)
+           (setf (.from-connector *app*) self))
+          ((eq self from-connector))
+          (t
+           (let ((from (.module from-connector))
+                 (to (.module self)))
+             (if (member from (.in to))
+                 (disconnect from to)
+                 (connect from to))
+             (setf (.from-connector *app*) nil))))))
+
+(defmethod render ((self connector) renderer)
+  (when (eq self (.from-connector *app*))
+    (apply #'sdl2:set-render-draw-color renderer *connection-line-color*)
+    (multiple-value-bind (x y) (sdl2:mouse-state)
+      (sdl2:render-draw-line renderer
+                             (.render-center-x self)
+                             (.render-center-y self)
+                             x y)))
+  (call-next-method))
+
+(defmethod resized ((self connector))
+  (let ((module (.module self)))
+    (setf (.x self) (- (.width module) 14))
+    (setf (.y self) 0)
+    (setf (.width self) 14)
+    (setf (.height self) 14)))
+
+(defclass connector-mixin ()
+  ((connector :initarg :connector :accessor .connector)))
+
+(defmethod initialize-instance :after ((self connector-mixin) &key)
+  (let ((connector (make-instance 'connector :module self)))
+    (setf (.connector self) connector)
+    (add-child self connector)))
+
+(defclass module (connector-mixin
+                  drag-resize-mixin
                   drag-move-mixin
-                  drag-connect-mixin
                   render-border-mixin
                   view)
   ())
 
 (defmethod initialize-instance :after ((self module) &key)
   (initialize self))
+
+(defmethod initialize-instance :around ((self module) &key)
+  (call-next-method)
+  (resized self))
 
 (defmethod initialize ((self module))
   (unless (typep self 'sequencer-module) ;きれいじゃない
@@ -687,28 +736,9 @@
                          (+ (.render-x self) (.width self) -1)
                          (+ (.render-y self) (.height self) -7)))
 
-(defclass drag-connect-mixin ()
-  ((connecting :initform nil :accessor .connecting)))
-
-(defmethod disconnect ((in drag-connect-mixin) (out drag-connect-mixin))
-  (disconnect in out))
-
 (defmethod disconnect-all ((self module))
   (disconnect-all self))
 
-(defmethod drag-start ((self drag-connect-mixin) x y
-                       (button (eql sdl2-ffi:+sdl-button-right+)))
-  (setf (.connect-from-module *app*) self)
-  (call-next-method))
-
-(defmethod drop ((self drag-connect-mixin) (dropped drag-connect-mixin) x y
-                 (button (eql sdl2-ffi:+sdl-button-right+)))
-  (when (not (eq dropped self))
-    (if (member self (.out dropped))
-        (disconnect dropped self)
-        (connect dropped self)))
-  (setf (.connect-from-module *app*) nil) ;TODO .connect-from-module って必要？
-  (call-next-method))
 
 (defun compute-connection-points (from to)
   (flet ((intersec (ax ay bx by cx cy dx dy)
@@ -768,7 +798,7 @@
                 (cons x2 y2))
           (values xs ys xe ye))))))
 
-(defmethod render-connection ((self drag-connect-mixin) r)
+(defmethod render-connection ((self connector-mixin) r)
   (loop for out-model in (.out self)
         for out = (loop for module in (.modules *app*)
                           thereis (and (eq out-model module)
@@ -789,31 +819,8 @@
                (when (and (= xs original-xs) (= ys original-ys))
                  (apply #'sdl2:set-render-draw-color r *connection-point-color*)
                  (sdl2:render-fill-rect r
-                                        (sdl2:make-rect (- xs 2) (- ys 2) 5 5))))))
-  (when (eq self (.connect-from-module *app*))
-    (apply #'sdl2:set-render-draw-color r *connection-line-color*)
-    (let ((xs (.render-center-x self))
-          (ys (.render-center-y self))
-          (xe (.mouse-x *app*))
-          (ye (.mouse-y *app*)))
-      (when (typep self 'track-view)
-        (let ((partial-view (.parent self)))
-          (setf xs (floor (/ (+ (.render-x partial-view)
-                                (.width partial-view))
-                             2)))
-          (setf ys (min (max (- ys (.offset-y partial-view))
-                             (.render-y partial-view))
-                        (+ (.render-y partial-view)
-                           (.height partial-view))))))
-      (sdl2:render-draw-line r xs ys xe ye)))
+                                        (sdl2:make-rect (- xs 3) (- ys 3) 7 7))))))
   (call-next-method))
-
-(defclass disable-drag-connect-mixin ()
-  ())
-
-(defmethod drag-start ((self disable-drag-connect-mixin) x y (button (eql 3))))
-
-(defmethod drop ((self disable-drag-connect-mixin) dropped x y (button (eql 3))))
 
 (defclass label (function-value-mixin view)
   ((last-value :initform "" :accessor .last-value)
@@ -1393,8 +1400,8 @@
 
 (defclass track-view (track
                       drag-mixin
-                      drag-connect-mixin
                       drop-mixin
+                      connector-mixin
                       render-border-mixin
                       view)
   ()
@@ -1419,8 +1426,6 @@
                                                 *pixcel-per-line*)))
     (setf (.width timeline) (.width self)))
   (call-next-method))
-
-(defmethod drop ((self track-view) (dropped drag-connect-mixin) x y (button (eql 3))))
 
 (defun pixcel-to-line (pixcel)
   ;; 16 ラインにグリッド
@@ -1690,11 +1695,6 @@
   "track-view にディスパッチする。"
   (awhen (child-view-at self x y)
     (drag-start it (- x (.x it)) (- y (.y it)) button)))
-
-(defmethod drop ((self sequencer-module) (dropped drag-connect-mixin) x y (button (eql 3)))
-  "track-view にディスパッチする。"
-  (awhen (child-view-at self x y)
-    (drop it dropped (- x (.x it)) (- y (.y it)) button)))
 
 (defmethod add-new-track ((self sequencer-module))
   (let ((track (make-instance 'track-view)))

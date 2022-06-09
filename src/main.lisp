@@ -138,8 +138,7 @@
                    (- x (.render-x it)) (- y (.render-y it))))
   (setf (.drag-resize-module *app*) nil)
   (setf (.dragging *app*) nil)
-  (setf (click-target-module button) nil)
-  (setf (.connect-from-module *app*) nil))
+  (setf (click-target-module button) nil))
 
 (defun handle-sdl2-mousewheel-event (delta)
   (wheel (view-at-mouse *app*) delta))

@@ -8,8 +8,8 @@
 
 
 (defgeneric initialize (x))
-(defgeneric connect (in out))
-(defgeneric disconnect (in out))
+(defgeneric connect (from to))
+(defgeneric disconnect (from to))
 (defgeneric disconnect-all (self))
 (defgeneric process (model left right))
 (defgeneric route (self left right))
@@ -22,19 +22,19 @@
   ((in :initarg :in :accessor .in :initform nil)
    (out :initarg :out :accessor .out :initform nil)))
 
-(defmethod connect ((in model) (out model))
-  (push out (.out in))
-  (push in (.in out)))
+(defmethod connect ((from model) (to model))
+  (push to (.out from))
+  (push from (.in to)))
 
-(defmethod disconnect ((in model) (out model))
-  (setf (.out in) (remove out (.out in)))
-  (setf (.in out) (remove in (.in out))))
+(defmethod disconnect ((from model) (to model))
+  (setf (.out from) (remove to (.out from)))
+  (setf (.in to) (remove from (.in to))))
 
 (defmethod disconnect-all ((self model))
-  (loop for in in (copy-list (.in self))
-        do (disconnect in self))
-  (loop for out in (copy-list (.out self))
-        do (disconnect self out)))
+  (loop for from in (copy-list (.in self))
+        do (disconnect from self))
+  (loop for to in (copy-list (.out self))
+        do (disconnect self to)))
 
 (defmethod route ((self model) left right)
   (loop for out in (.out self)
