@@ -308,10 +308,6 @@
   (and (<= (.screen-x self) x (+ (.screen-x self) (.width self)))
        (<= (.screen-y self) y (+ (.screen-y self) (.height self)))))
 
-(defmethod at-x-y-p ((self connector-mixin) x y)
-  (or (call-next-method)
-      (at-x-y-p (.connector self) x y)))
-
 (defun view-at-mouse (app)
   (loop for view in (reverse (.views app))
         ;; TODO connector はみ出させたい
@@ -579,6 +575,10 @@
 
 (defclass connector-mixin ()
   ((connector :initarg :connector :accessor .connector)))
+
+(defmethod at-x-y-p ((self connector-mixin) x y)
+  (or (call-next-method)
+      (at-x-y-p (.connector self) x y)))
 
 (defmethod initialize-instance :after ((self connector-mixin) &key)
   (let ((connector (make-instance 'connector :module self)))
