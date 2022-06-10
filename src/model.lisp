@@ -477,8 +477,10 @@
     (declare (fixnum i)
              ((simple-array (unsigned-byte 8) (*)) out in))
     (setf (aref out (incf i)) +plugin-command-instrument+)
-    (let ((bpm (ieee-floats:encode-float64
-                (the double-float (.bpm (.sequencer *audio*)))))
+    (let ((bpm
+            (locally (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
+              (ieee-floats:encode-float64
+               (the double-float (.bpm (.sequencer *audio*))))))
           (nframes (current-frame (.sequencer *audio*))))
       (declare (fixnum nframes))
       (setf (aref out (incf i)) (if (playing) 1 0))
