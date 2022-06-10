@@ -1027,7 +1027,10 @@
                   function-value-mixin drag-mixin
                   render-border-mixin view)
   ((min :initarg :min :initform 0.0d0 :accessor .min)
-   (max :initarg :max :initform 1.0d0 :accessor .max)))
+   (max :initarg :max :initform 1.0d0 :accessor .max)
+   (compute-function :initarg :compute-function
+                     :initform #'compute-linear
+                     :accessor .compute-function)))
 
 (defmethod initialize-instance :after ((self slider) &key)
   (add-child self (make-instance 'label :value (lambda () (format nil "~,5f" (.value self)))
@@ -1045,9 +1048,11 @@
                            x (+ (.render-y self) (.height self) -2))))
 
 (defmethod drag ((self slider) xrel yrel button)
-  (funcall (.onchange self) (min (.max self)
-                                 (max (.min self)
-                                      (+ (.value self) (/ xrel 100.0))))))
+  (funcall (.onchange self)
+           (min (.max self)
+                (max (.min self)
+                     (funcall (.compute-function self)
+                              (.value self) xrel)))))
 
 (defclass partial-view (view)
   ((zoom :initarg :zoom :initform 100 :accessor .zoom)
@@ -1867,6 +1872,8 @@
   (add-child self
              (setf (.frequency-slider self)
                    (make-instance 'slider
+                                  :max 2000.0d0
+                                  :compute-function #'compute-expt
                                   :value (lambda () (.frequency self))
                                   :onchange (lambda (x) (setf (.frequency self) x)))))
   (resized self))
@@ -1995,6 +2002,7 @@
   (add-child self
              (setf (.volume-slider self)
                    (make-instance 'slider
+                                  :max 2.0d0
                                   :value (lambda () (.volume self))
                                   :onchange (lambda (x) (setf (.volume self) x)))))
   (resized self))
