@@ -620,8 +620,8 @@
 
 (defmethod serialize ((self model))
   `((setf (.name x) ,(.name self)
-           (.in x) ,(serialize (.in self))
-           (.out x) ,(serialize (.out self)))
+          ,@(when *serialize-table* `((.in x) ,(serialize (.in self))))
+          ,@(when *serialize-table* `((.out x) ,(serialize (.out self)))))
     ,@(call-next-method)))
 
 (defmethod serialize :around ((self connection))

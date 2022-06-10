@@ -395,10 +395,12 @@
   ())
 
 (defclass op-add-module (op-add module)
-  ())
+  ()
+  (:default-initargs :width 55 :height 25))
 
 (defclass op-multi-module (op-multi module)
-  ())
+  ()
+  (:default-initargs :width 70 :height 25))
 
 (defclass volume-controller-mixin ()
   ((volume-slider :initarg :volume-slide :accessor .volume-slider)))
