@@ -18,6 +18,7 @@
    (:file "util")
    (:file "midi")
    (:file "parameter")
+   (:file "class")
    (:file "audio")
    (:file "model")
    (:file "view")

@@ -16,21 +16,6 @@
 (defgeneric route (self left right))
 (defgeneric prepare-save (model))
 
-(defclass name-mixin ()
-  ((name :initarg :name :initform "" :accessor .name)))
-
-(defclass connection ()
-  ((src :initarg :src :accessor .src)
-   (dest :initarg :dest :accessor .dest)))
-
-(defclass audio-connection (connection)
-  ())
-
-(defclass midi-connection (connection)
-  ())
-
-(defclass param-connection (connection)
-  ((param :initarg :param :accessor .param)))
 
 (defmethod connection-eql (a b)
   (and (eql (type-of a) (type-of b))
@@ -45,9 +30,6 @@
 (defmethod default-connection-class (src dest)
   'audio-connection)
 
-(defclass model (name-mixin)
-  ((in :initarg :in :accessor .in :initform nil)
-   (out :initarg :out :accessor .out :initform nil)))
 
 (defmethod connect (connection)
   (push connection (.out (.src connection)))
@@ -80,20 +62,11 @@
 
 (defmethod prepare-save ((self model)))
 
-(defclass pattern-position ()
-  ((pattern :initarg :pattern :accessor .pattern)
-   (start :initarg :start :accessor .start)
-   (end :initarg :end :accessor .end)
-   (last-notes :accessor .last-notes
-               :initform (make-array 16 :initial-element off))))
+
 
 (defmethod .name ((self pattern-position))
   (.name (.pattern self)))
 
-(defclass track (model)
-  ((pattern-positions :initform nil :accessor .pattern-positions)
-   (buffer :accessor .buffer
-           :initform (make-buffer :initial-element nil :element-type t))))
 
 (defmethod default-connection-class ((src track) dest)
   'midi-connection)
@@ -167,19 +140,6 @@
                                    sec-per-frame))))
     (make-play-position :line end-line :line-frame end-line-frame)))
 
-(defclass sequencer (model)
-  ((bpm :initarg :bpm :initform 140.0d0 :accessor .bpm
-        :type double-float)
-   (lpb :initarg :lpb :initform 4 :accessor .lpb)
-   (tracks :initarg :tracks :accessor .tracks :initform nil)
-   (end :initform 0 :accessor .end)
-   (looping :initform t :accessor .looping)
-   (loop-start-line :initform 0 :accessor .loop-start-line)
-   (loop-end-line :initform 0 :accessor .loop-end-line)
-   (play-position :initform (make-play-position)
-                  :accessor .play-position)
-   (last-play-position :initform (make-play-position)
-                       :accessor .last-play-position)))
 
 (defun current-frame (sequencer)
   (as-frame (.play-position sequencer)))
@@ -213,21 +173,6 @@
           do (process model nil nil nil))
   (write-master-buffer))
 
-(defclass column ()
-  ((note :initarg :note :initform none :accessor .note)
-   (velocity :initarg :velocity :initform 100 :accessor .velocity)))
-
-(defclass line ()
-  ((columns :initarg :columns :accessor .columns
-            :initform (make-array 16 :initial-contents
-                                  (loop repeat 16 collect (make-instance 'column))))
-   (length :initarg :lenght :initform 1 :accessor .length)))
-
-(defclass pattern (model)
-  ((length :initarg :length :initform #x40 :accessor .length)
-   (lines :initarg :lines :accessor .lines)
-   (current-line :initform 0 :accessor .current-line))
-  (:default-initargs :name "Pattern" :height 300))
 
 (defmethod initialize-instance :after ((self pattern) &key)
   (unless (slot-boundp self 'lines)
@@ -284,11 +229,7 @@
                                    (< (.event a) (.event b))
                                    (< (.frame a) (.frame b)))))))
 
-(defclass lfo (model)
-  ((buffer :initform (make-buffer) :accessor .buffer)
-   (frequency :initarg :frequency :initform 1.0d0 :accessor .frequency)
-   (phase :initform 0.0d0 :accessor .phase :type double-float)
-   (unipolar-p :initarg :unipolar-p :initform t :accessor .unipolar-p) ))
+
 
 (defmethod process((self lfo) connection left right)
   (loop for i below *frames-per-buffer*
@@ -301,11 +242,6 @@
            (incf (.phase self)))
   (route self (.buffer self) (.buffer self)))
 
-(defclass osc (model)
-  ((note :initarg :note :initform off :accessor .note)
-   (buffer :initform (make-buffer) :accessor .buffer)
-   (value :initform 0.0d0 :accessor .value :type double-float)
-   (phase :initform 0.0d0 :accessor .phase :type double-float)))
 
 (defmethod process ((self osc) (connection midi-connection) midi-events frame)
   (flet ((midi-event (i on-or-off)
@@ -332,17 +268,12 @@
              (incf (.phase self))))
   (route self (.buffer self) (.buffer self)))
 
-(defclass sin-osc (osc)
-  ()
-  (:default-initargs :name "Sin"))
+
 
 (defmethod osc-frame-value ((self sin-osc))
   (sin (* (/ (* 2 pi (midino-to-freq (.note self))) *sample-rate*)
           (.phase self))))
 
-(defclass saw-osc (osc)
-  ()
-  (:default-initargs :name "Saw"))
 
 (defmethod osc-frame-value ((self saw-osc))
   (* 0.3d0        ;TODO 音大きいのでとりあえずつけとく。本来はいらない？
@@ -352,17 +283,7 @@
            2d0)
         1d0)))
 
-(defclass adsr (model)
-  ((a :initarg :a :initform 0.003d0 :accessor .a)
-   (d :initarg :d :initform 0.05d0 :accessor .d)
-   (s :initarg :s :initform 0.3d0 :accessor .s)
-   (r :initarg :r :initform 0.1d0 :accessor .r)
-   (buffer :initform (make-buffer) :accessor .buffer)
-   (last-gate :initform nil :accessor .last-gate)
-   (last-value :initform nil :accessor .last-value)
-   (frame :initform 0 :accessor .frame :type fixnum)
-   (release-time :initform 0.0d0 :accessor .release-time)
-   (release-value :initform 0.0d0 :accessor .release-value)))
+
 
 (defmethod process ((self adsr) (connection midi-connection) midi-events frame)
   (flet ((midi-event (i on-or-off)
@@ -409,11 +330,7 @@
   (let ((buffer (.buffer self)))
     (route self buffer buffer)))
 
-(defclass operand (model)
-  ((left :initarg :left :accessor .left)
-   (right :initarg :right :accessor .right)
-   (initial-value :initarg :initial-value :accessor .initial-value)
-   (in-count :initform 0 :accessor .in-count :type fixnum)))
+
 
 (defmethod process ((self operand) (conection audio-connection) left right)
   (loop for i below *frames-per-buffer*
@@ -434,30 +351,15 @@
           do (setf (aref (.left self) i) value
                    (aref (.right self) i) value))))
 
-(defclass op-add (operand)
-  ()
-  (:default-initargs :left (make-buffer :initial-element 0.0d0)
-                     :right (make-buffer :initial-element 0.0d0)
-                     :initial-value 0.0d0))
+
 
 (defmethod operate ((self op-add) x y)
   (+ x y))
 
-(defclass op-multi (operand)
-  ()
-  (:default-initargs :left (make-buffer :initial-element 1.0d0)
-                     :right (make-buffer :initial-element 1.0d0)
-                     :initial-value 1.0d0))
 
 (defmethod operate ((self op-multi) x y)
   (* x y))
 
-(defclass left-right-buffer-mixin ()
-  ((left :initform (make-buffer) :accessor .left)
-   (right :initform (make-buffer) :accessor .right)))
-
-(defclass gain (left-right-buffer-mixin model)
-  ((volume :initarg :volume :initform 1.0d0 :accessor .volume)))
 
 (defmethod process ((self gain) (connection audio-connection) left right)
   (loop for i below *frames-per-buffer*
@@ -468,11 +370,6 @@
   (loop for i below *frames-per-buffer*
         do (setf (aref (.left self) i) 0.0d0
                  (aref (.right self) i) 0.0d0)))
-
-(defclass master (left-right-buffer-mixin model)
-  ((volume :initform 0.6d0 :accessor .volume)
-   (last-left :initform 0.0d0 :accessor .last-left)
-   (last-right :initform 0.0d0 :accessor .last-right)))
 
 (defmethod process ((self master) (connection audio-connection) left right)
   (loop for i below *frames-per-buffer*
@@ -489,20 +386,7 @@
 (defconstant +plugin-command-get-params+ 8)
 (defconstant +plugin-command-set-param+ 9)
 
-(defclass plugin-model (model)
-  ((plugin-description :initarg :plugin-description :accessor .plugin-description)
-   (host-process :accessor .host-process)
-   (host-io :accessor .host-io)
-   (out-buffer :accessor .out-buffer
-               :initform (make-array (* *frames-per-buffer* 9) :element-type '(unsigned-byte 8)))
-   (in-buffer :accessor .in-buffer
-              :initform (make-array (* *frames-per-buffer* 4) :element-type '(unsigned-byte 8)))
-   (left-buffer :initform (make-buffer) :accessor .left-buffer)
-   (right-buffer :initform (make-buffer)  :accessor .right-buffer)
-   (plugin-state :accessor .plugin-state)
-   (params :initform nil :accessor .params)
-   (in-params :initform nil :accessor .in-para)
-   (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
+
 
 (defmethod initialize-instance :after ((self plugin-model) &key)
   (run-plugin-host self)
@@ -578,8 +462,6 @@
       (write-sequence state io)
       (force-output io))))
 
-(defclass instrument-plugin-model (plugin-model) ())
-(defclass effect-plugin-model (plugin-model) ())
 
 (defmethod process ((self instrument-plugin-model)
                     (connection audio-connection)
@@ -711,18 +593,7 @@
     (write-byte +plugin-command-edit+ (.host-io plugin-model))
     (force-output (.host-io plugin-model))))
 
-(defclass plugin-description ()
-  ((name :initarg :name :accessor .name)
-   (format :initarg :format :accessor .format)
-   (category :initarg :category :accessor .category)
-   (omanufacturer :initarg :manufacturer :accessor .manufacturer)
-   (version :initarg :version :accessor .version)
-   (file :initarg :file :accessor .file)
-   (unique-id :initarg :unique-id :accessor .unique-id)
-   (is-instrument :initarg :is-instrument :accessor .is-instrument)
-   (num-inputs :initarg :num-inputs :accessor .num-inputs)
-   (num-outputs :initarg :num-outputs :accessor .num-outputs)
-   (uid :initarg :uid :accessor .uid)))
+
 
 (defun load-known-plugins ()
   (let ((xml (cxml:parse-file (format nil "~a\\CoLiTrSynth\\Plugin Host.settings"

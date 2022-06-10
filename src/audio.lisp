@@ -14,8 +14,6 @@
   (current-time pa::pa-time)
   (output-buffer-dac-time pa::pa-time))
 
-(defparameter *frames-per-buffer* 2048)
-(defparameter *sample-rate* 48000.0d0)
 (defun sec-per-line ()
   (/ 60.0d0 (.bpm (.sequencer *audio*)) (.lpb (.sequencer *audio*))))
 (defun sec-per-frame ()
@@ -25,50 +23,6 @@
 
 (defun make-buffer (&key (initial-element 0.0d0) (element-type 'double-float))
   (make-array *frames-per-buffer* :initial-element initial-element :element-type element-type))
-
-(defclass audio ()
-  ((device-api
-    :initarg :device-api
-    :initform "ASIO"
-    :accessor .device-api)
-   (device-name
-    :initarg :device-name
-    :initform "Prism Sound USB Audio Class 2.0"
-    ;; :initform "FL Studio ASIO"
-    :accessor .device-name)
-   (sample-rate
-    :initarg :sample-rate
-    :initform *sample-rate*
-    :type double-float
-    :accessor .sample-rate)
-   (frames-per-buffer
-    :initarg frames-per-buffer
-    :initform *frames-per-buffer*
-    :accessor .frames-per-buffer)
-   (sample-format
-    :initarg sample-format
-    :initform :float
-    :accessor .sample-format)
-   (processing :initform nil :accessor .processing)
-   (playing :initform nil :accessor .playing)
-   (played :initform nil :accessor .played)
-   (request-stop :initform nil :accessor .request-stop)
-   (stream
-    :initform nil
-    :accessor .stream)
-   (input-channels
-    :initarg :input-channels
-    :initform 0
-    :type fixnum
-    :accessor .input-channels)
-   (output-channels
-    :initarg :output-channels
-    :initform 2
-    :type fixnum
-    :accessor .output-channels)
-   (buffer :accessor .buffer)
-   (sequencer :initarg :sequencer :accessor .sequencer)
-   (master :accessor .master)))
 
 (defun start-audio ()
   (unless (.processing *audio*)

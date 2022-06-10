@@ -2,9 +2,7 @@
 
 ;;;; 処理の都合上必要なこ
 (defvar *pattern-scroll-lock* nil)
-(defparameter *track-height* 30)        ;TODO 固定長で妥協
 
-(defconstant +mouse-button-count+ 16)
 (defconstant +column-width+ 7)
 
 (defgeneric initialize (module))
@@ -209,26 +207,7 @@
        (let ((*package* (find-package :colitrsynth)))
          (eval (read in)))))))
 
-(defclass app ()
-  ((win :initarg :win :accessor .win)
-   (width :initarg :width :initform 800 :accessor .width)
-   (height :initarg :height :initform 600 :accessor .height)
-   (font :initform nil :accessor .font)
-   (views :initarg :views :initform '() :accessor .views)
-   (mouse-x :initform 0 :accessor .mouse-x)
-   (mouse-y :initform 0 :accessor .mouse-y)
-   (selected-module :initform nil :accessor .selected-module)
-   (selected-pattern :initform nil :accessor .selected-pattern)
-   (focused-view :initform nil :accessor .focused-view)
-   (click-target-module :initform (make-array +mouse-button-count+))
-   (drag-resize-module :initform nil :accessor .drag-resize-module)
-   (dragging :initform nil :accessor .dragging)
-   (drag-state :initform nil :accessor .drag-state)
-   (from-connector :initform nil :accessor .from-connector)
-   (song-file :initform nil :accessor .song-file)
-   (shift-key-p :initform nil :accessor .shift-key-p)
-   (ctrl-key-p :initform nil :accessor .ctrl-key-p)
-   (mbox :initform (sb-concurrency:make-mailbox) :accessor .mbox)))
+
 
 (defun ctrl-key-p ()
   (.ctrl-key-p *app*))
@@ -256,16 +235,7 @@
 (defmethod (setf .song-file) :after (value (self app))
   (sdl2:set-window-title (.win self) (or value "----")))
 
-(defclass drag-state ()
-  ((target :initarg :target :accessor .target)
-   (button :initarg :button :accessor .button)
-   (x :initarg :x :accessor .x)
-   (y :initarg :y :accessor .y)
-   (state :initarg :state :accessor .state)
-   (dragging :initform nil :accessor .dragging)))
 
-(defclass function-value-mixin ()
-  ((value :initarg :value :initform 0.0d0)))
 
 (defmethod .value ((self function-value-mixin))
   (let ((value (slot-value self 'value)))
@@ -276,14 +246,7 @@
 (defmethod (setf .value) (value (self function-value-mixin))
   (setf (slot-value self 'value) value))
 
-(defclass view ()
-  ((color :initarg :color :initform *default-color* :accessor .color)
-   (x :initarg :x :initform 0 :accessor .x)
-   (y :initarg :y :initform 0 :accessor .y)
-   (width :initarg :width :initform 100 :accessor .width)
-   (height :initarg :height :initform 80 :accessor .height)
-   (parent :initarg :parent :initform nil :accessor .parent)
-   (children :initarg :children :initform nil :accessor .children)))
+
 
 (defmethod close ((self view) &key abort)
   (declare (ignore abort)))
@@ -523,8 +486,6 @@
     (multiple-value-bind (x y) (sdl2:mouse-state)
       (f view x y))))
 
-(defclass render-border-mixin () ())
-
 (defmethod render ((self render-border-mixin) renderer)
   (apply #'sdl2:set-render-draw-color renderer (.color self))
   (sdl2:render-draw-rect renderer
@@ -534,8 +495,6 @@
                                          (.height self)))
   (call-next-method))
 
-(defclass connector (render-border-mixin view)
-  ((module :initarg :module :accessor .module)))
 
 (defmethod click ((self connector)
                   (button (eql sdl2-ffi:+sdl-button-left+))
@@ -573,8 +532,7 @@
     (setf (.width self) 14)
     (setf (.height self) 14)))
 
-(defclass connector-mixin ()
-  ((connector :initarg :connector :accessor .connector)))
+
 
 (defmethod at-x-y-p ((self connector-mixin) x y)
   (or (call-next-method)
@@ -585,12 +543,6 @@
     (setf (.connector self) connector)
     (add-child self connector)))
 
-(defclass module (connector-mixin
-                  drag-resize-mixin
-                  drag-move-mixin
-                  render-border-mixin
-                  view)
-  ())
 
 (defmethod initialize-instance :after ((self module) &key)
   (initialize self))
@@ -685,8 +637,6 @@
 (defmethod serialize ((self param-connection))
   `((setf (.param x) ,(.param self))))
 
-(defclass drag-mixin ()
-  ())
 
 (defmethod mousebuttondown ((self drag-mixin) button state clicks x y)
   (setf (.drag-state *app*)
@@ -722,17 +672,9 @@
   (setf (.drag-state *app*) nil))
 
 
-(defclass drop-mixin ()
-  ())
-
-(defclass drag-move-mixin (drag-mixin)
-  ())
 
 (defmethod drag ((self drag-move-mixin) xrel yrel (button (eql 1)))
   (move self xrel yrel))
-
-(defclass drag-resize-mixin (drag-mixin)
-  ())
 
 (defmethod drag-start ((self drag-resize-mixin) x y (button (eql 1)))
   (if (and (< (.width self) (+ 10 x))
@@ -848,11 +790,6 @@
                                         (sdl2:make-rect (- xs 3) (- ys 3) 7 7))))))
   (call-next-method))
 
-(defclass label (function-value-mixin view)
-  ((last-value :initform "" :accessor .last-value)
-   (last-color :accessor .last-color)
-   (texture :initform nil :accessor .texture))
-  (:default-initargs :width 0 :height 0 :value "くえっ"))
 
 (defmethod initialize-instance :after ((self label) &key)
   (setf (.last-color self) (.color self)))
@@ -880,9 +817,6 @@
                         :dest-rect (sdl2:make-rect (.render-x self) (.render-y self)
                                                    (.width self) (.height self))))))
 
-(defclass button (render-border-mixin view)
-  ((label-view :accessor .label-view))
-  (:default-initargs :width 50 :height 30))
 
 (defmethod initialize-instance :after ((self button) &key label)
   (let ((label (make-instance 'label :value label :x 5 :y 2)))
@@ -900,8 +834,6 @@
     (setf (.width self) (+ 10 (.width label))
           (.height self) (+ 4 (.height label)))))
 
-(defclass focus-mixin ()
-  ((focused :initform nil :accessor .focused)))
 
 (defmethod click ((self focus-mixin) button x y)
   (unless (eq self (.focused-view *app*))
@@ -916,17 +848,6 @@
   (setf (.focused self) nil)
   (call-next-method))
 
-(defclass onchange-mixin ()
-  ((onchange :initarg :onchange :initform (constantly nil) :accessor .onchange)))
-
-(defclass text (focus-mixin view)
-  ((label :accessor .label)
-   (edit-buffer :initform "" :accessor .edit-buffer)
-   (cursor-position :initform 0 :accessor .cursor-position)
-   (reader :initarg :reader :accessor .reader)
-   (writer :initarg :writer :accessor .writer))
-  (:default-initargs :height (+ *char-height* 4)
-                     :width (+ (* *char-width* 12) 4)))
 
 (defmethod initialize-instance :after ((self text) &key)
   (setf (.label self) (make-instance 'label
@@ -1023,15 +944,6 @@
            (incf (.cursor-position self)))
           (t (call-next-method)))))
 
-(defclass slider (onchange-mixin
-                  function-value-mixin drag-mixin
-                  render-border-mixin view)
-  ((min :initarg :min :initform 0.0d0 :accessor .min)
-   (max :initarg :max :initform 1.0d0 :accessor .max)
-   (compute-function :initarg :compute-function
-                     :initform #'compute-linear
-                     :accessor .compute-function)))
-
 (defmethod initialize-instance :after ((self slider) &key)
   (add-child self (make-instance 'label :value (lambda () (format nil "~,5f" (.value self)))
                                        :x *layout-space* :y (round (/ *layout-space*)))))
@@ -1066,10 +978,6 @@
                                           100
                                           1)))))))
 
-(defclass partial-view (view)
-  ((zoom :initarg :zoom :initform 100 :accessor .zoom)
-   (offset-x :initarg :offset-x :initform 0 :accessor .offset-x)
-   (offset-y :initarg :offset-y :initform 0 :accessor .offset-y)))
 
 (defmethod child-view-at ((self partial-view) x y)
   (loop for view in (.children self)
@@ -1148,14 +1056,6 @@
 (defmethod translate-child-y ((self partial-view) (child view) y)
   (+ (call-next-method) (.offset-y self)))
 
-(defclass pattern-editor (focus-mixin partial-view)
-  ((pattern :accessor .pattern)
-   (lines :initform nil :accessor .lines)
-   (cursor-x :initform 0 :accessor .cursor-x)
-   (cursor-y :initform 0 :accessor .cursor-y)
-   (octave :initform 4 :accessor .octave)
-   (edit-step :initform 0 :accessor .edit-step)
-   (shifting-p :initform nil :accessor .shifting-p)))
 
 (defmethod (setf .cursor-y) :after (value (self pattern-editor))
   (setf (.offset-y self)
@@ -1393,8 +1293,6 @@
   (setf (.cursor-y self) (mod (+ (.cursor-y self) (.edit-step self))
                               (length (.lines (.pattern self))))))
 
-(defclass pattern-editor-line (label)
-  ((line :initarg :line :accessor .line)))
 
 (defmethod render :before ((self pattern-editor-line) renderer)
   (let* ((parent (.parent self))
@@ -1441,14 +1339,6 @@
         (sdl2:render-fill-rect
          renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))))
 
-(defclass track-view (track
-                      drag-mixin
-                      drop-mixin
-                      connector-mixin
-                      render-border-mixin
-                      view)
-  ()
-  (:default-initargs :width 690 :height *track-height*))
 
 (defmethod mousebuttondown ((self track-view)
                             (button (eql sdl2-ffi:+sdl-button-right+))
@@ -1497,12 +1387,7 @@
           do (add-child x i))
     ,@(call-next-method)))
 
-(defclass pattern-position-view (pattern-position
-                                 drag-mixin
-                                 name-mixin
-                                 render-border-mixin
-                                 view)
-  ((move-delta-x :initform 0 :accessor .move-delta-x)))
+
 
 (defmethod initialize-instance :after ((self pattern-position-view) &key)
   (add-child self
@@ -1556,9 +1441,6 @@
           (.pattern x) ,(serialize-ref (.pattern self) :accessor '.pattern))
     ,@(call-next-method)))
 
-(defclass sequencer-timeline-view (drag-mixin view)
-  ((labels :initform nil :accessor .labels)
-   (sequencer :initarg :sequencer :accessor .sequencer)))
 
 (defun x-to-rounded-line (x)
   (* (round (/ x *pixcel-per-line*) 4) 4))
@@ -1637,8 +1519,6 @@
              (push label (.labels self))))
   (call-next-method))
 
-(defclass sequencer-partial-view (partial-view)
-  ((timeline :initarg :timeline :accessor .timeline)))
 
 (defmethod initialize-instance :after ((self sequencer-partial-view) &key)
   (add-child self (.timeline self)))
@@ -1667,10 +1547,6 @@
                             *layout-space*)))
   (call-next-method))
 
-(defclass loop-button (button)
-  ((fill-color :accessor .fill-color)
-   (sequencer :initarg :sequencer :accessor .sequencer))
-  (:default-initargs :label "L"))
 
 (defmethod initialize-instance :after ((self loop-button) &key)
   (setf (.fill-color self)
@@ -1694,10 +1570,6 @@
                                          (.height self)))
   (call-next-method))
 
-(defclass sequencer-module (sequencer module)
-  ((partial-view :accessor .partial-view))
-  (:default-initargs :color (list #x00 #xff #xff *transparency*)
-                     :x 5 :y 5 :width 700 :height 200))
 
 (defmethod initialize-instance :after ((self sequencer-module) &key)
   (let* ((play-button (make-instance 'button :label "▶" :x 5 :y *layout-space*))
@@ -1763,9 +1635,6 @@
         do (add-new-track-after self track))
   (update-sequencer-end self))
 
-(defclass pattern-module (pattern module)
-  ((pattern-editor :accessor .pattern-editor
-                   :initform (make-instance 'pattern-editor))))
 
 (defmethod initialize-instance :after ((self pattern-module) &key)
   (let* ((pattern-editor (.pattern-editor self))
@@ -1877,8 +1746,6 @@
                   :note ,(.note self)
                   :velocity ,(.velocity self)))
 
-(defclass lfo-module (lfo module)
-  ((frequency-slider :initarg :frequency-slide :accessor .frequency-slider)))
 
 (defmethod initialize-instance :after ((self lfo-module) &key)
   (add-child self
@@ -1902,9 +1769,7 @@
     (setf (.height slider) height)
     (call-next-method)))
 
-(defclass osc-module-mixin ()
-  ()
-  (:default-initargs :height 50))
+
 
 (defmethod initialize-instance :after ((self osc-module-mixin) &key)
   (let ((value-text (make-instance 'label
@@ -1915,18 +1780,6 @@
                                             (lambda ()
                                               (format nil "~,5f" (funcall f)))))))
     (add-child self value-text)))
-
-(defclass sin-osc-module (sin-osc module osc-module-mixin)
-  ()
-  (:default-initargs :name "Sin"))
-
-(defclass saw-osc-module (saw-osc module osc-module-mixin)
-  ()
-  (:default-initargs :name "Saw"))
-
-(defclass adsr-module (adsr module)
-  ()
-  (:default-initargs :name "Adsr" :height 100))
 
 (defmethod initialize-instance :after ((self adsr-module) &key)
   (let ((x *layout-space*)
@@ -1963,9 +1816,6 @@
           (.r x) ,(.r self))
     ,@(call-next-method)))
 
-(defclass plugin-module (module)
-  ()
-  (:default-initargs :height 48))
 
 (defmethod serialize ((self plugin-module))
   (let ((pd (.plugin-description self)))
@@ -1988,12 +1838,6 @@
       (run-plugin-host x)
       (set-plugin-state x))))
 
-(defclass instrument-plugin-module (instrument-plugin-model plugin-module)
-  ())
-
-(defclass effect-plugin-module (effect-plugin-model plugin-module)
-  ())
-
 (defmethod initialize-instance :after ((self plugin-module) &key)
   (let ((button (make-instance 'button :label "Open" :x *layout-space*
                                        :y (+ *font-size* (* *layout-space* 2)))))
@@ -2001,14 +1845,6 @@
     (defmethod click ((button (eql button)) btn x y)
       (open-editor self))))
 
-(defclass op-add-module (op-add module)
-  ())
-
-(defclass op-multi-module (op-multi module)
-  ())
-
-(defclass volume-controller-mixin ()
-  ((volume-slider :initarg :volume-slide :accessor .volume-slider)))
 
 (defmethod initialize-instance :after ((self volume-controller-mixin) &key)
   (add-child self
@@ -2031,18 +1867,12 @@
     (setf (.height slider) height)
     (call-next-method)))
 
-(defclass gain-module (gain volume-controller-mixin module)
-  ()
-  (:default-initargs :height 45))
+
 
 (defmethod serialize ((self gain-module))
   `((setf (.volume x) ,(.volume self))
     ,@(call-next-method)))
 
-(defclass master-module (master volume-controller-mixin module)
-  ()
-  (:default-initargs  :name "Master" :x 695 :y 515
-                        :color (list #xff #xa5 #x00 *transparency*)))
 
 (defmethod initialize-instance :after ((self master-module) &key)
   (add-child self
@@ -2066,9 +1896,7 @@
   `((setf (.volume x) ,(.volume self))
     ,@(call-next-method)))
 
-(defclass menu-view (render-border-mixin view)
-  ((filter :initform nil :accessor .filter)
-   (buttons :initform nil :accessor .buttons)))
+
 
 (defmethod initialize-instance :around ((self menu-view) &key)
   (call-next-method)
@@ -2090,8 +1918,7 @@
         (addend-view module)
         (setf (.selected-module *app*) module)))))
 
-(defclass connector-menu-view (menu-view)
-  ((connection :initarg :connection :accessor .connection)))
+
 
 (defmethod initialize-instance :after ((self connector-menu-view) &key)
   (mapc (lambda (param)
@@ -2114,8 +1941,7 @@
 (defun open-connector-menu (connection)
   (open-menu 'connector-menu-view :connection connection))
 
-(defclass module-menu-view (menu-view)
-  ())
+
 
 (defmethod initialize-instance :after ((self module-menu-view) &key)
   (let ((button (make-instance 'button :label "Manage Plugins")))
@@ -2201,16 +2027,13 @@
   (remove-view self)
   (call-next-method))
 
-(defclass menu-button (button)
-  ((onclick :initarg :onclick :accessor .onclick)))
+
 
 (defmethod click ((self menu-button) button x y)
   (funcall (.onclick self))
   (close (.root-parent self)))
 
-(defclass menu-builtin-button (button)
-  ((class :initarg :class :accessor .class)
-   (initargs :initarg :initargs :initform nil :accessor .initargs)))
+
 
 (defmethod click ((self menu-builtin-button) (button (eql 1)) x y)
   (let ((module (apply #'make-instance (.class self)
@@ -2222,9 +2045,7 @@
     (setf (.selected-module *app*) module))
   (close (.root-parent self)))
 
-(defclass menu-plugin-button (button)
-  ((plugin-description :initarg :plugin-description
-                       :accessor .plugin-description)))
+
 
 (defmethod click ((self menu-plugin-button) (button (eql 1)) x y)
   (let* ((plugin-description (.plugin-description self))

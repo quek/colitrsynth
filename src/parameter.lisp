@@ -1,8 +1,9 @@
 (in-package :colitrsynth)
 
+(defparameter *frames-per-buffer* 2048)
+(defparameter *sample-rate* 48000.0d0)
 
 (defparameter *transparency* #xc0)
-
 (defparameter *cursor-color* (list #x00 #x00 #xcc *transparency*))
 (defparameter *default-color* (list #xdd #xdd #xdd *transparency*))
 (defparameter *background-color* (list #x00 #x00 #x00 *transparency*))
@@ -20,3 +21,5 @@
 (defparameter *char-height* *font-size*)
 (defparameter *pixcel-per-line* 1)
 (defparameter *layout-space* 5)
+
+(defparameter *track-height* 30)        ;TODO 固定長で妥協
