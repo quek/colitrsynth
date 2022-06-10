@@ -170,13 +170,6 @@
 
 (defun handle-sdl2-quit-event ()
   (stop-audio)
-  #+nil
-  (lepis:! 'models (loop for module in (.modules *app*)
-                         collect (let ((model (.model module)))
-                                   (prepare-save model)
-                                   model)))
-  #+nil
-  (lepis:dump-db)
   (loop for module in (.modules *app*)
         do (close module))
   (when (.font *app*)

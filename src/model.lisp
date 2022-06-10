@@ -11,7 +11,8 @@
 (defgeneric connect (connection))
 (defgeneric disconnect (connection))
 (defgeneric disconnect-all (model))
-(defgeneric process (model connection left right))
+(defgeneric process (model connection left right)
+  (:method (model (connection null) left route)))
 (defgeneric route (self left right))
 (defgeneric prepare-save (model))
 
@@ -193,21 +194,24 @@
   (let ((end (.end self)))
     (if (or (zerop end)
             (< end start-line))
-       (progn
-         (loop for track in (.tracks self)
-               do (play-track-no-notes track start-frame))
-         (write-master-buffer))
-       (progn
-         (cond ((playing)
-                (loop for track in (.tracks self)
-                      do (play-track track start-line start-frame end-line end-frame)))
-               ((played)
-                (loop for track in (.tracks self)
-                      do (play-track-all-off track start-frame)))
-               (t
-                (loop for track in (.tracks self)
-                      do (play-track-no-notes track start-frame))))
-         (write-master-buffer)))))
+        (loop for track in (.tracks self)
+              do (play-track-no-notes track start-frame))
+        (progn
+          (cond ((playing)
+                 (loop for track in (.tracks self)
+                       do (play-track track start-line start-frame end-line end-frame)))
+                ((played)
+                 (loop for track in (.tracks self)
+                       do (play-track-all-off track start-frame)))
+                (t
+                 (loop for track in (.tracks self)
+                       do (play-track-no-notes track start-frame)))))))
+  (loop for model in (.modules *app*)
+        if (and (null (.in model))
+                (not (typep model 'sequencer)) ;TODO class にして
+                (not (typep model 'pattern)))
+          do (process model nil nil nil))
+  (write-master-buffer))
 
 (defclass column ()
   ((note :initarg :note :initform none :accessor .note)
@@ -279,6 +283,23 @@
     (sort events (lambda (a b) (if (= (.frame a) (.frame b))
                                    (< (.event a) (.event b))
                                    (< (.frame a) (.frame b)))))))
+
+(defclass lfo (model)
+  ((buffer :initform (make-buffer) :accessor .buffer)
+   (frequency :initarg :frequency :initform 1.0d0 :accessor .frequency)
+   (phase :initform 0.0d0 :accessor .phase :type double-float)
+   (unipolar-p :initarg :unipolar-p :initform t :accessor .unipolar-p) ))
+
+(defmethod process((self lfo) connection left right)
+  (loop for i below *frames-per-buffer*
+        for value = (let ((value (sin (* (/ (* 2 pi (.frequency self)) *sample-rate*)
+                                         (.phase self)))))
+                      (if (.unipolar-p self)
+                          (/ (1+ value) 2)
+                          value))
+        do (setf (aref (.buffer self) i) value)
+           (incf (.phase self)))
+  (route self (.buffer self) (.buffer self)))
 
 (defclass osc (model)
   ((note :initarg :note :initform off :accessor .note)
