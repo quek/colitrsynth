@@ -1038,21 +1038,33 @@
 
 (defmethod render ((self slider) renderer)
   (call-next-method)
-  (let ((x (+ (round (* (/ (- (.value self) (.min self))
-                           (.max self))
-                        (.width self)))
-              (.render-x self))))
-    (sdl2:set-render-draw-color renderer #xff #x00 #xff #xff)
-    (sdl2:render-draw-line renderer
-                           x (1+ (.render-y self))
-                           x (+ (.render-y self) (.height self) -2))))
+  ;; TODO 座標計算は resized でやる。これあってるの？
+  (let ((value (.value self))
+        (f (.compute-function self)))
+    (multiple-value-bind (_ min-x) (funcall f (.min self) 0)
+      (declare (ignore _))
+      (multiple-value-bind (_ max-x)  (funcall f (.max self) 0)
+        (declare (ignore _))
+        (multiple-value-bind (_ current-x) (funcall f value 0)
+          (declare (ignore _))
+          (let ((x (+ (round (* (.width self)
+                                (/ (- current-x min-x) (- max-x min-x))))
+                      (.render-x self)))
+                (y (.render-y self)))
+            (sdl2:set-render-draw-color renderer #xff #x00 #xff #xff)
+            (sdl2:render-draw-line renderer
+                                   x (1+ y)
+                                   x (+ y (.height self) -2))))))))
 
 (defmethod drag ((self slider) xrel yrel button)
   (funcall (.onchange self)
            (min (.max self)
                 (max (.min self)
                      (funcall (.compute-function self)
-                              (.value self) xrel)))))
+                              (.value self)
+                              (/ xrel (if (ctrl-key-p)
+                                          100
+                                          1)))))))
 
 (defclass partial-view (view)
   ((zoom :initarg :zoom :initform 100 :accessor .zoom)

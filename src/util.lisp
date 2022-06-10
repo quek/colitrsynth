@@ -2,11 +2,11 @@
 
 (defun compute-linear (value delta &optional (k 200.0d0))
   (let ((x (+ (* value k) delta)))
-    (/ x k)))
+    (values (/ x k) x)))
 
-(defun compute-expt (value delta &optional (k 5000.0d0))
+(defun compute-expt (value delta &optional (k 1000.0d0))
   (let ((x (+ (sqrt (* value k)) delta)))
-    (/ (expt x 2) k)))
+    (values (/ (expt x 2) k) x)))
 
 (defun interval-upadate-value (value-function interval)
   (let ((time (get-internal-real-time))
