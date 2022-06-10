@@ -23,7 +23,7 @@
       (unless (and (<= (.render-x it) (.mouse-x *app*) (+ (.render-x it) (.width it)))
                    (<= (.render-y it) (.mouse-y *app*) (+ (.render-y it) (.height it))))
         (setf it nil))))
-  (:method (self (button (eql sdl2-ffi:+sdl-button-right+))
+  (:method :after (self (button (eql sdl2-ffi:+sdl-button-right+))
             state clicks x y)
     (setf (.from-connector *app*) nil)))
 
@@ -1409,6 +1409,7 @@
 (defmethod click ((self pattern-position-view)
                   (button (eql sdl2-ffi:+sdl-button-right+))
                   x y)
+  (print "dletetetetee")
   (remove-pattern (.parent-by-class self 'track-view) self)
   (call-next-method))
 

@@ -464,7 +464,7 @@
 
 
 (defmethod process ((self instrument-plugin-model)
-                    (connection audio-connection)
+                    (connection midi-connection)
                     midi-events frame)
   (declare (optimize (speed 3) (safety 0)))
   (let ((i -1)
