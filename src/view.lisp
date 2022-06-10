@@ -633,7 +633,7 @@
                                       (declare (ignore y))
                                       (not (eql x self))))))
 
-(defmethod render :before ((self module) renderer)
+(defmethod render :before (self renderer)
   "選択中のモジュールを見やすくする"
   (when (eq self (.selected-module *app*))
     (let ((texture (sdl2:create-texture renderer :rgba8888 :target
@@ -2068,21 +2068,27 @@
 
 (defclass menu-view (render-border-mixin view)
   ((filter :initform nil :accessor .filter)
-   (buttons :initform nil :accessor .buttons))
-  (:default-initargs :width 400 :height 300))
+   (buttons :initform nil :accessor .buttons)))
 
-(defmethod initialize-instance :after ((self menu-view)&key)
+(defmethod initialize-instance :around ((self menu-view) &key)
+  (call-next-method)
   (setf (.buttons self) (sort (.buttons self) #'string<
                               :key (lambda (x) (string-downcase (.label x))))))
 
 (defun open-menu (class &rest args)
-  (let ((module (apply #'make-instance
-                       class
-                       :x (- (.mouse-x *app*) 10)
-                       :y (- (.mouse-y *app*) 10)
-                       args)))
-    (addend-view module)
-    (setf (.selected-module *app*) module)))
+  (multiple-value-bind (window-width window-height)
+      (sdl2:get-window-size (.win *app*))
+    (multiple-value-bind (mouse-x mouse-y) (sdl2:mouse-state)
+      (let* ((width 400)
+             (height 300)
+             (x (round (max 0 (min (- mouse-x (/ width 2)) (- window-width width)))))
+             (y (round (max 0 (min (- mouse-y (/ height 2)) (- window-height height)))))
+             (module (apply #'make-instance class
+                            :x x :y y
+                            :width width :height height
+                            args)))
+        (addend-view module)
+        (setf (.selected-module *app*) module)))))
 
 (defclass connector-menu-view (menu-view)
   ((connection :initarg :connection :accessor .connection)))
