@@ -18,7 +18,10 @@
    (:file "util")
    (:file "midi")
    (:file "parameter")
+   
    (:file "class")
+   (:file "connection")
+   
    (:file "audio")
    (:file "model")
    (:file "view")

@@ -427,7 +427,8 @@
    (buttons :initform nil :accessor .buttons)))
 
 (defclass connector-menu-view (menu-view)
-  ((connection :initarg :connection :accessor .connection)))
+  ((available-connections :initarg :available-connections
+                          :accessor .available-connections)))
 
 (defclass module-menu-view (menu-view)
   ())

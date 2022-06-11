@@ -504,15 +504,15 @@
            (setf (.from-connector *app*) self))
           ((eq self from-connector))
           (t
-           (let* ((from (.module from-connector))
-                  (to (.module self))
-                  (connection (make-instance (default-connection-class from to)
-                                             :src from :dest to)))
-             (if (connected-p connection)
-                 (disconnect connection)
-                 (if (ctrl-key-p)
-                     (open-connector-menu connection)
-                     (connect connection)))
+           (let* ((src (.module from-connector))
+                  (dest (.module self))
+                  (available-connections (available-connections src dest)))
+             (if (ctrl-key-p)
+                 (open-connector-menu available-connections)
+                 (let ((connection (car available-connections)))
+                   (if (connected-p connection)
+                       (disconnect connection)
+                       (connect connection))))
              (setf (.from-connector *app*) nil))))))
 
 (defmethod render-connection ((self connector) renderer)
@@ -1920,28 +1920,44 @@
         (addend-view module)
         (setf (.selected-module *app*) module)))))
 
-
+(defgeneric available-connections (src dest)
+  (:method (src (dest module))
+    (list (make-instance 'audio-connection :src src :dest dest)))
+  (:method (src (dest osc-module-mixin))
+    (list (make-instance 'midi-connection :src src :dest dest)))
+  (:method (src (dest adsr-module))
+    (list (make-instance 'midi-connection :src src :dest dest)))
+  (:method (src (dest plugin-module))
+    (loop for param in (.params dest)
+          collect (make-instance 'param-connection
+                                 :src src :dest dest
+                                 :param param)))
+  (:method (src (dest instrument-plugin-model))
+    (cons (make-instance 'midi-connection :src src :dest dest)
+          (call-next-method)))
+  (:method (src (dest effect-plugin-model))
+    (append
+     (loop for i below (.input-nbuses dest)
+           collect (make-instance 'audio-connection
+                                  :src src :dest dest
+                                  :dest-bus i))
+     (call-next-method))))
 
 (defmethod initialize-instance :after ((self connector-menu-view) &key)
-  (mapc (lambda (param)
+  (mapc (lambda (connection)
           (let ((button (make-instance
                          'menu-button
-                         :label (plugin-parameter-name param)
+                         :label (.name connection)
                          :onclick (lambda ()
-                                    (let ((connection
-                                            (make-instance 'param-connection
-                                                           :src (.src (.connection self))
-                                                           :dest (.dest (.connection self))
-                                                           :param param)))
-                                      (if (connected-p connection)
-                                          (disconnect connection)
-                                          (connect connection)))))))
+                                    (if (connected-p connection)
+                                        (disconnect connection)
+                                        (connect connection))))))
             (add-child self button)
             (push button (.buttons self))))
-        (.params (.dest (.connection self)))))
+        (.available-connections self)))
 
-(defun open-connector-menu (connection)
-  (open-menu 'connector-menu-view :connection connection))
+(defun open-connector-menu (available-connections)
+  (open-menu 'connector-menu-view :available-connections available-connections))
 
 
 
