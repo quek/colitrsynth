@@ -56,7 +56,7 @@
    (dest :initarg :dest :accessor .dest)))
 
 (defclass audio-connection (connection)
-  ())
+  ((dest-channel :initarg :dest-channel :accessor .dest-channel)))
 
 (defclass midi-connection (connection)
   ())
@@ -186,6 +186,8 @@
    (params :initform nil :accessor .params)
    (in-params :initform nil :accessor .in-para)
    (latency :initform 0 :accessor .latency)
+   (input-nbuses :initform 0 :accessor .input-nbuses)
+   (output-nbuses :initform 0 :accessor .output-nbuses)
    (input-nchannels :initform 0 :accessor .input-nchannels)
    (output-nchannels :initform 0 :accessor .output-nchannels)
    (sidechain-nchannels :initform 0 :accessor .sidechain-nchannels)
