@@ -229,7 +229,9 @@
                       thereis (and (typep module 'master-module)
                                    module)))
         (setf (.sequencer *audio*) *sequencer-module*)
-        (setf (.master *audio*) *master-module*))
+        (setf (.master *audio*) *master-module*)
+        (loop for module in modules
+              do (resized module)))
       (progn
         (setf *sequencer-module*
               (make-instance 'sequencer-module))
