@@ -182,8 +182,8 @@
    (in-buffer :accessor .in-buffer
               :initform (make-array (* *frames-per-buffer* 4)
                                     :element-type '(unsigned-byte 8)))
-   (left-buffer :initform (make-buffer) :accessor .left-buffer)
-   (right-buffer :initform (make-buffer)  :accessor .right-buffer)
+   (left-buffer :accessor .left-buffer)
+   (right-buffer :accessor .right-buffer)
    (plugin-state :accessor .plugin-state)
    (params :initform nil :accessor .params)
    (in-params :initform nil :accessor .in-para)

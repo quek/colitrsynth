@@ -62,7 +62,24 @@
 
 (defmethod route ((self model) left right)
   (loop for connection in (.out self)
-        do (process (.dest connection) connection left right)))
+        do (route-connection connection
+                             (.src connection)
+                             (.dest connection)
+                             left
+                             right)))
+
+(defmethod route-connection (connection src dest left right)
+  (process dest connection left right))
+
+(defmethod route-connection ((connection audio-connection)
+                             (src plugin-model)
+                             dest
+                             left right)
+  (let ((bus (.src-bus connection)))
+    (process dest
+             connection
+             (aref left bus)
+             (aref right bus))))
 
 (defmethod close ((self model) &key abort)
   (declare (ignore abort)))
@@ -522,17 +539,22 @@
     (sb-thread:with-mutex ((.mutex self))
       (write-sequence out io :end (1+ i))
       (force-output io)
-      (loop for buffer in (list left-buffer right-buffer)
-            do (let ((position (read-sequence in io)))
-                 (declare (ignore position))
-                 (loop for i fixnum below *frames-per-buffer*
-                       do (setf (aref (the (simple-array double-float (*)) buffer) i)
-                                (coerce (ieee-floats:decode-float32
-                                         (+ (aref in (* 4 i))
-                                            (ash (aref in (+ (* 4 i) 1)) 8)
-                                            (ash (aref in (+ (* 4 i) 2)) 16)
-                                            (ash (aref in (+ (* 4 i) 3)) 24)))
-                                        'double-float))))))
+
+      (loop for bus fixnum below (.output-nbuses self)
+            do (loop for buffer in (list (aref left-buffer bus)
+                                         (aref right-buffer bus))
+                     do (read-sequence in io)
+                        (loop for j below *frames-per-buffer*
+                              with i fixnum = -1
+                              do (setf (aref buffer j)
+                                       (coerce (ieee-floats:decode-float32
+                                                (let ((value 0))
+                                                  (setf (ldb (byte 8 0) value) (aref in (incf i)))
+                                                  (setf (ldb (byte 8 8) value) (aref in (incf i)))
+                                                  (setf (ldb (byte 8 16) value) (aref in (incf i)))
+                                                  (setf (ldb (byte 8 24) value) (aref in (incf i)))
+                                                  value))
+                                               'double-float))))))
     (route self left-buffer right-buffer)))
 
 (defmethod process ((self effect-plugin-model)
@@ -578,12 +600,13 @@
         (write-sequence out io)
         (force-output io)
 
-        (loop for bus below (.output-nbuses self)
-              do (loop for buffer in (list left-buffer right-buffer)
+        (loop for bus fixnum below (.output-nbuses self)
+              do (loop for buffer in (list (aref left-buffer bus)
+                                           (aref right-buffer bus))
                        do (read-sequence in io)
                           (loop for j below *frames-per-buffer*
-                                with i = -1
-                                do (incf (aref buffer j)
+                                with i fixnum = -1
+                                do (setf (aref buffer j)
                                          (coerce (ieee-floats:decode-float32
                                                   (let ((value 0))
                                                     (setf (ldb (byte 8 0) value) (aref in (incf i)))
@@ -592,11 +615,10 @@
                                                     (setf (ldb (byte 8 24) value) (aref in (incf i)))
                                                     value))
                                                  'double-float))))))
+      
       (route self left-buffer right-buffer)
       (setf (.in-count self) 0)
-      (clear-array out 0)
-      (clear-array left-buffer 0.0d0)
-      (clear-array right-buffer 0.0d0))))
+      (clear-array out 0))))
 
 (defmethod print-object ((self plugin-model) stream)
     (print-unreadable-object (self stream :type t)
@@ -723,7 +745,12 @@
                   collect (make-plugin-parameter :index (nth 0 param)
                                                  :name (nth 1 param)
                                                  :value (nth 2 param)
-                                                 :value-as-text (nth 3 param)))))))
+                                                 :value-as-text (nth 3 param))))))
+  (setf (.left-buffer self) (make-array (.output-nbuses self)))
+  (setf (.right-buffer self) (make-array (.output-nbuses self)))
+  (loop for i below (.output-nbuses self)
+        do (setf (aref (.left-buffer self) i) (make-buffer))
+           (setf (aref (.right-buffer self) i) (make-buffer))))
 
 (defmethod set-param ((self plugin-model) param value)
   (let ((io (.host-io self))
