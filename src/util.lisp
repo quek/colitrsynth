@@ -19,4 +19,6 @@
         (setf time (get-internal-real-time)))
       value)))
 
-
+(defun clear-array (array value)
+  (loop for i below (length array)
+        do (setf (aref array i) value)))

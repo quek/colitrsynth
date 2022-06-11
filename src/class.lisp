@@ -56,7 +56,8 @@
    (dest :initarg :dest :accessor .dest)))
 
 (defclass audio-connection (connection)
-  ((dest-channel :initarg :dest-channel :accessor .dest-channel)))
+  ((src-bus :initarg :src-bus :initform 0 :accessor .src-bus)
+   (dest-bus :initarg :dest-bus :initform 0 :accessor .dest-bus)))
 
 (defclass midi-connection (connection)
   ())
@@ -173,13 +174,14 @@
    (last-right :initform 0.0d0 :accessor .last-right)))
 
 (defclass plugin-model (model)
-  ((plugin-description :initarg :plugin-description :accessor .plugin-description)
+  ((in-count :initform 0 :accessor .in-count :type fixnum)
+   (plugin-description :initarg :plugin-description :accessor .plugin-description)
    (host-process :accessor .host-process)
    (host-io :accessor .host-io)
-   (out-buffer :accessor .out-buffer
-               :initform (make-array (* *frames-per-buffer* 9) :element-type '(unsigned-byte 8)))
+   (out-buffer :accessor .out-buffer)
    (in-buffer :accessor .in-buffer
-              :initform (make-array (* *frames-per-buffer* 4) :element-type '(unsigned-byte 8)))
+              :initform (make-array (* *frames-per-buffer* 4)
+                                    :element-type '(unsigned-byte 8)))
    (left-buffer :initform (make-buffer) :accessor .left-buffer)
    (right-buffer :initform (make-buffer)  :accessor .right-buffer)
    (plugin-state :accessor .plugin-state)
