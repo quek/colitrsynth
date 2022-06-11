@@ -25,7 +25,7 @@
         (setf it nil))))
   (:method :after (self (button (eql sdl2-ffi:+sdl-button-right+))
             state clicks x y)
-    (setf (.from-connector *app*) nil)))
+    (setf (.cable-src *app*) nil)))
 
 (defgeneric mousebuttonup (self button state clicks x y)
   (:method (self button state clicks x y)
@@ -61,7 +61,7 @@
 (defgeneric keydown (self value scancode mod-value)
   (:method (self value scancode mod-value)
     (cond ((sdl2:scancode= scancode :scancode-escape)
-           (setf (.from-connector *app*) nil))
+           (setf (.cable-src *app*) nil))
           ((sdl2:scancode= scancode :scancode-scrolllock)
            (setf *pattern-scroll-lock* (not *pattern-scroll-lock*)))
           ((sdl2:scancode= scancode :scancode-space)
@@ -499,25 +499,29 @@
 (defmethod click ((self connector)
                   (button (eql sdl2-ffi:+sdl-button-left+))
                   x y)
-  (let ((from-connector (.from-connector *app*)))
-    (cond ((null from-connector)
-           (setf (.from-connector *app*) self))
-          ((eq self from-connector))
+  (let ((cable-src (.cable-src *app*)))
+    (cond ((null cable-src)
+           (let ((available-cables (available-cables-src (.module self))))
+            (if (ctrl-key-p)
+                (open-output-menu available-cables)
+                (setf (.cable-src *app*) (car available-cables)))))
+          ((eq (.module self) (.src cable-src)))
           (t
-           (let* ((src (.module from-connector))
+           (let* ((src (.src cable-src))
                   (dest (.module self))
-                  (available-connections (available-connections src dest)))
+                  (available-connections (available-connections src dest cable-src)))
              (if (ctrl-key-p)
                  (open-connector-menu available-connections)
                  (let ((connection (car available-connections)))
                    (if (connected-p connection)
                        (disconnect connection)
                        (connect connection))))
-             (setf (.from-connector *app*) nil)))))
+             (setf (.cable-src *app*) nil)))))
   t)
 
 (defmethod render-connection ((self connector) renderer)
-  (when (eq self (.from-connector *app*))
+  (when (eq (.module self) (aif (.cable-src *app*)
+                                (.src it)))
     (apply #'sdl2:set-render-draw-color renderer *connection-line-color*)
     (multiple-value-bind (x y) (sdl2:mouse-state)
       (sdl2:render-draw-line renderer
@@ -1925,187 +1929,3 @@
 (defmethod serialize ((self master-module))
   `((setf (.volume x) ,(.volume self))
     ,@(call-next-method)))
-
-
-
-(defmethod initialize-instance :around ((self menu-view) &key)
-  (call-next-method)
-  (setf (.buttons self) (sort (.buttons self) #'string<
-                              :key (lambda (x) (string-downcase (.label x))))))
-
-(defun open-menu (class &rest args)
-  (multiple-value-bind (window-width window-height)
-      (sdl2:get-window-size (.win *app*))
-    (multiple-value-bind (mouse-x mouse-y) (sdl2:mouse-state)
-      (let* ((width 400)
-             (height 300)
-             (x (round (max 0 (min (- mouse-x (/ width 2)) (- window-width width)))))
-             (y (round (max 0 (min (- mouse-y (/ height 2)) (- window-height height)))))
-             (module (apply #'make-instance class
-                            :x x :y y
-                            :width width :height height
-                            args)))
-        (addend-view module)
-        (setf (.selected-module *app*) module)))))
-
-(defgeneric available-connections (src dest)
-  (:method (src (dest module))
-    (list (make-instance 'audio-connection :src src :dest dest)))
-  (:method (src (dest osc-module-mixin))
-    (list (make-instance 'midi-connection :src src :dest dest)))
-  (:method (src (dest adsr-module))
-    (list (make-instance 'midi-connection :src src :dest dest)))
-  (:method (src (dest plugin-module))
-    (loop for param in (.params dest)
-          collect (make-instance 'param-connection
-                                 :src src :dest dest
-                                 :param param)))
-  (:method (src (dest instrument-plugin-model))
-    (cons (make-instance 'midi-connection :src src :dest dest)
-          (call-next-method)))
-  (:method (src (dest effect-plugin-model))
-    (append
-     (loop for i below (.input-nbuses dest)
-           collect (make-instance 'audio-connection
-                                  :src src :dest dest
-                                  :dest-bus i))
-     (call-next-method))))
-
-(defmethod initialize-instance :after ((self connector-menu-view) &key)
-  (mapc (lambda (connection)
-          (let ((button (make-instance
-                         'menu-button
-                         :label (.name connection)
-                         :onclick (lambda ()
-                                    (if (connected-p connection)
-                                        (disconnect connection)
-                                        (connect connection))))))
-            (add-child self button)
-            (push button (.buttons self))))
-        (.available-connections self)))
-
-(defun open-connector-menu (available-connections)
-  (open-menu 'connector-menu-view :available-connections available-connections))
-
-
-
-(defmethod initialize-instance :after ((self module-menu-view) &key)
-  (let ((button (make-instance 'button :label "Manage Plugins")))
-    (add-child self button)
-    (push button (.buttons self))
-    (defmethod click ((button (eql button)) btn x y)
-      (sb-ext:run-program *plugin-host-exe* nil :wait nil)
-      (close self)))
-  (loop for (name class . initargs)
-          in `(("Pattern" pattern-module)
-               ("Sin" sin-osc-module)
-               ("Saw" saw-osc-module)
-               ("Adsr" adsr-module)
-               ("Lfo" lfo-module)
-               ("Op Add" op-add-module)
-               ("Op Multi" op-multi-module)
-               ("Gain" gain-module))
-        do (let ((button (make-instance 'menu-builtin-button
-                                        :label name
-                                        :class class
-                                        :initargs initargs)))
-             (add-child self button)
-             (push button (.buttons self))))
-  (loop for plugin-description in (load-known-plugins)
-        do (let ((button (make-instance 'menu-plugin-button
-                                        :label (.name plugin-description)
-                                        :plugin-description plugin-description)))
-             (add-child self button)
-             (push button (.buttons self)))))
-
-#+TODO-delete
-(defmethod render :before ((self module-menu-view) renderer)
-  (sdl2:set-render-draw-color renderer 0 0 0 #xff)
-  (sdl2:render-fill-rect renderer (sdl2:make-rect (.render-x self)
-                                                  (.render-y self)
-                                                  (.width self)
-                                                  (.height self))))
-
-;; text 幅が renderer がないとわからないためのハック
-(defmethod render :after ((self menu-view) renderer)
-  (when (null (.filter self))
-    (setf (.filter self) "")))
-
-(defmethod (setf .filter) :around (value (self menu-view))
-  (when (not (equal (.filter self) value))
-    (call-next-method)
-    (let ((regex (ppcre:create-scanner
-                  (format nil ".*~{~c~^.*~}" (coerce value 'list))
-                  :case-insensitive-mode t)))
-      (loop for button in (.buttons self)
-            with i = 0
-            with x = *layout-space*
-            with y = *layout-space*
-            if (ppcre:scan regex (.label button))
-              do (when (< (.width self) (+ x (.width button) *layout-space*))
-                   (setf x *layout-space*)
-                   (incf y (+ (.height button) *layout-space*)))
-                 (setf (.x button) x)
-                 (setf (.y button) y)
-                 (incf x (+ (.width button) *layout-space*))
-                 (if (< (.height self) (+ y (.height button)))
-                     (remove-child self button)    
-                     (add-child self button))
-            else
-              do (remove-child self button)))))
-
-(defmethod keydown ((self menu-view) value scancode mod-value)
-  (cond ((sdl2:scancode= scancode :scancode-escape)
-         (close self))
-        ((sdl2:scancode= scancode :scancode-return)
-         (awhen (car (.children self))
-           (click it sdl2-ffi:+sdl-button-left+ 0 0)))
-        ((= value #x08)
-         (setf (.filter self)
-               (subseq (.filter self) 0 (max 0 (1- (length (.filter self)))))))
-        ((<= value 127)
-         (setf (.filter self) (format nil "~a~a" (.filter self) (code-char value))))))
-
-(defmethod close ((self menu-view) &key abort)
-  (declare (ignore abort))
-  (when (eq self (.selected-module *app*))
-    (setf (.selected-module *app*) nil))
-  (remove-view self)
-  (call-next-method))
-
-
-
-(defmethod click ((self menu-button) button x y)
-  (funcall (.onclick self))
-  (close (.root-parent self)))
-
-
-
-(defmethod click ((self menu-builtin-button) (button (eql 1)) x y)
-  (let ((module (apply #'make-instance (.class self)
-                    :name (.label self)
-                    :x (- (.mouse-x *app*) 10)
-                    :y (- (.mouse-y *app*) 10)
-                    (.initargs self))))
-    (addend-view module)
-    (setf (.selected-module *app*) module))
-  (close (.root-parent self)))
-
-
-
-(defmethod click ((self menu-plugin-button) (button (eql 1)) x y)
-  (let* ((plugin-description (.plugin-description self))
-         (class (if (.is-instrument plugin-description)
-                    'instrument-plugin-module
-                    'effect-plugin-module))
-         (module (make-instance class
-                                :name (.name plugin-description)
-                                :x (- (.mouse-x *app*) 10)
-                                :y (- (.mouse-y *app*) 10)
-                                :plugin-description plugin-description)))
-    (addend-view module)
-    (setf (.selected-module *app*) module)
-    (close (.root-parent self))))
-
-(defun open-module-menu ()
-  (open-menu 'module-menu-view))

@@ -148,7 +148,7 @@
   (sdl2:render-clear renderer)
   (sdl2:set-render-draw-color renderer #xcc #xcc #xcc *transparency*)
 
-  (if (.from-connector *app*)
+  (if (.cable-src *app*)
       ;; パッチングしているときは線を前面描画したい
       (progn
         (loop for view in (.views *app*)

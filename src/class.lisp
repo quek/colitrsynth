@@ -232,7 +232,7 @@
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (dragging :initform nil :accessor .dragging)
    (drag-state :initform nil :accessor .drag-state)
-   (from-connector :initform nil :accessor .from-connector)
+   (cable-src :initform nil :accessor .cable-src)
    (song-file :initform nil :accessor .song-file)
    (shift-key-p :initform nil :accessor .shift-key-p)
    (ctrl-key-p :initform nil :accessor .ctrl-key-p)
@@ -430,6 +430,9 @@
 (defclass connector-menu-view (menu-view)
   ((available-connections :initarg :available-connections
                           :accessor .available-connections)))
+
+(defclass connector-output-view (menu-view)
+  ((cables :initarg :cables :accessor .cables)))
 
 (defclass module-menu-view (menu-view)
   ())

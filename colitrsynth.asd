@@ -21,6 +21,7 @@
    
    (:file "class")
    (:file "connection")
+   (:file "menu")
    
    (:file "audio")
    (:file "model")
