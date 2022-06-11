@@ -635,6 +635,10 @@
 (defmethod serialize ((self connection))
   nil)
 
+(defmethod serialize ((self audio-connection))
+  `((setf (.src-bus x) ,(.src-bus self))
+    (setf (.dest-bus x) ,(.dest-bus self))))
+
 (defmethod serialize ((self param-connection))
   `((setf (.param x) ,(.param self))))
 
