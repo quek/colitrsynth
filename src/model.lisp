@@ -487,6 +487,29 @@
       (force-output io))))
 
 
+(declaim (inline receive-from-plugin))
+(defun receive-from-plugin (nbuses io in left-buffer right-buffer)
+  (declare (optimize (speed 3) (safety 0))
+           ((simple-array (unsigned-byte 8) (*)) out in)
+           (simple-vector left-buffer right-buffer))
+  (loop for bus fixnum below nbuses
+        do (loop for buffer in (list (aref left-buffer bus)
+                                     (aref right-buffer bus))
+                 do (read-sequence in io)
+                    (locally
+                        (declare ((SIMPLE-ARRAY DOUBLE-FLOAT (*)) buffer))
+                      (loop for j fixnum below *frames-per-buffer*
+                            with i fixnum = -1
+                            do (setf (aref buffer j)
+                                     (coerce (ieee-floats:decode-float32
+                                              (let ((value 0))
+                                                (setf (ldb (byte 8 0) value) (aref in (incf i)))
+                                                (setf (ldb (byte 8 8) value) (aref in (incf i)))
+                                                (setf (ldb (byte 8 16) value) (aref in (incf i)))
+                                                (setf (ldb (byte 8 24) value) (aref in (incf i)))
+                                                value))
+                                             'double-float)))))))
+
 (defmethod process ((self instrument-plugin-model)
                     (connection midi-connection)
                     midi-events frame)
@@ -499,7 +522,8 @@
         (left-buffer (.left-buffer self))
         (right-buffer (.right-buffer self)))
     (declare (fixnum i)
-             ((simple-array (unsigned-byte 8) (*)) out in))
+             ((simple-array (unsigned-byte 8) (*)) out in)
+             (simple-vector left-buffer right-buffer))
     (setf (aref out (incf i)) +plugin-command-instrument+)
     (let ((bpm
             (locally (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
@@ -539,46 +563,45 @@
     (sb-thread:with-mutex ((.mutex self))
       (write-sequence out io :end (1+ i))
       (force-output io)
-
-      (loop for bus fixnum below (.output-nbuses self)
-            do (loop for buffer in (list (aref left-buffer bus)
-                                         (aref right-buffer bus))
-                     do (read-sequence in io)
-                        (loop for j below *frames-per-buffer*
-                              with i fixnum = -1
-                              do (setf (aref buffer j)
-                                       (coerce (ieee-floats:decode-float32
-                                                (let ((value 0))
-                                                  (setf (ldb (byte 8 0) value) (aref in (incf i)))
-                                                  (setf (ldb (byte 8 8) value) (aref in (incf i)))
-                                                  (setf (ldb (byte 8 16) value) (aref in (incf i)))
-                                                  (setf (ldb (byte 8 24) value) (aref in (incf i)))
-                                                  value))
-                                               'double-float))))))
+      (receive-from-plugin (.output-nbuses self) io in left-buffer right-buffer))
     (route self left-buffer right-buffer)))
 
 (defmethod process ((self effect-plugin-model)
                     (connection audio-connection)
                     left right)
+  (declare (optimize (speed 3) (safety 0)))
   (let ((out (.out-buffer self))
         (in (.in-buffer self))
         (io (.host-io self))
         (left-buffer (.left-buffer self))
         (right-buffer (.right-buffer self)))
-    (loop with j = (1- (* (.dest-bus connection) *frames-per-buffer* 4 2))
+    (declare ((simple-array (unsigned-byte 8) (*)) out in))
+    (loop with j fixnum = (1- (the fixnum
+                                   (* (the fixnum
+                                           (* (the fixnum (.dest-bus connection))
+                                              (the fixnum *frames-per-buffer*)))
+                                      4 2)))
           for lr in (list left right)
-          do (loop for i below *frames-per-buffer*
-                   for n = (ieee-floats:encode-float32 (aref lr i))
-                   do (setf (aref out (incf j)) (ldb (byte 8 0) n))
+          do (loop for i fixnum below *frames-per-buffer*
+                   for n = (locally (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
+                             (ieee-floats:encode-float32
+                              (the double-float
+                                   (aref (the (simple-array double-float (*)) lr) i))))
+                   do (setf (aref out (incf j))
+                            (ldb (byte 8 0) n))
                       (setf (aref out (incf j)) (ldb (byte 8 8) n))
                       (setf (aref out (incf j)) (ldb (byte 8 16) n))
                       (setf (aref out (incf j)) (ldb (byte 8 24) n))))
-    (when (<= (length (.in self))
-              (incf (.in-count self)))
+    (when (<= (the fixnum (length (the list (.in self))))
+              (the fixnum (incf (the fixnum (.in-count self)))))
       (sb-thread:with-mutex ((.mutex self))
         (write-byte +plugin-command-effect+ io)
-        (let ((bpm (ieee-floats:encode-float64 (.bpm (.sequencer *audio*))))
+        (let ((bpm
+                (locally (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
+                  (ieee-floats:encode-float64
+                   (the double-float (.bpm (.sequencer *audio*))))))
               (nframes (current-frame (.sequencer *audio*))))
+          (declare (fixnum nframes))
           (write-byte (if (playing) 1 0) io)
           (write-byte (mod bpm #x100) io)
           (write-byte (mod (ash bpm -8) #x100) io)
@@ -599,23 +622,7 @@
         (force-output io)
         (write-sequence out io)
         (force-output io)
-
-        (loop for bus fixnum below (.output-nbuses self)
-              do (loop for buffer in (list (aref left-buffer bus)
-                                           (aref right-buffer bus))
-                       do (read-sequence in io)
-                          (loop for j below *frames-per-buffer*
-                                with i fixnum = -1
-                                do (setf (aref buffer j)
-                                         (coerce (ieee-floats:decode-float32
-                                                  (let ((value 0))
-                                                    (setf (ldb (byte 8 0) value) (aref in (incf i)))
-                                                    (setf (ldb (byte 8 8) value) (aref in (incf i)))
-                                                    (setf (ldb (byte 8 16) value) (aref in (incf i)))
-                                                    (setf (ldb (byte 8 24) value) (aref in (incf i)))
-                                                    value))
-                                                 'double-float))))))
-      
+        (receive-from-plugin (.output-nbuses self) io in left-buffer right-buffer))
       (route self left-buffer right-buffer)
       (setf (.in-count self) 0)
       (clear-array out 0))))
