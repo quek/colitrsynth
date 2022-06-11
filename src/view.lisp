@@ -331,11 +331,11 @@
                    (translate-child-y self it y))))
 
 (defmethod click ((self view) button x y)
-  (call-next-method)
-  (awhen (child-view-at self x y)
-    (click it button
-           (translate-child-x self it x)
-           (translate-child-y self it y))))
+  (or (call-next-method)
+      (awhen (child-view-at self x y)
+        (click it button
+               (translate-child-x self it x)
+               (translate-child-y self it y)))))
 
 (defmethod double-click ((self view) button x y)
   (call-next-method)
@@ -513,7 +513,8 @@
                    (if (connected-p connection)
                        (disconnect connection)
                        (connect connection))))
-             (setf (.from-connector *app*) nil))))))
+             (setf (.from-connector *app*) nil)))))
+  t)
 
 (defmethod render-connection ((self connector) renderer)
   (when (eq self (.from-connector *app*))
@@ -1060,10 +1061,12 @@
   (multiple-value-bind (x1 y1 x2 y2) (.children-bounds self)
     (declare (ignore x1 y1))
     (if (.shift-key-p *app*)
-        (setf (.offset-x self)
-              (max 0 (min
-                      (- (.offset-x self) (* 5 delta))
-                      (- x2 (+ (.render-x self) (.width self))))))        
+        (progn
+          (setf (.offset-x self)
+               (max 0 (min
+                       (- (.offset-x self) (* 5 delta))
+                       (- x2 (+ (.render-x self) (.width self))))))
+          (resized self))               ;connector の位置調整
         (setf (.offset-y self)
               (max 0 (min
                       (- (.offset-y self) (* 5 delta))
@@ -1377,7 +1380,13 @@
     (setf (.width self) (max (.width parent) (* (+ 16 (.end sequencer-module))
                                                 *pixcel-per-line*)))
     (setf (.width timeline) (.width self)))
-  (call-next-method))
+  (call-next-method)
+  (let ((connector (.connector self)))
+    (setf (.x connector)
+          (let ((partial-view (.parent-by-class self 'sequencer-partial-view)))
+            (round (+ (/ (.width partial-view) 2)
+                      (.offset-x partial-view)))))
+    (setf (.y connector) (- (.height self) (.height connector)))))
 
 (defun pixcel-to-line (pixcel)
   ;; 16 ラインにグリッド
@@ -1389,16 +1398,17 @@
 (defmethod click ((self track-view)
                   (button (eql sdl2-ffi:+sdl-button-left+))
                   x y)
-  (let ((module (.selected-pattern *app*)))
-    (if (typep module 'pattern-module)
-        (let* ((start (pixcel-to-line x))
-               (end (+ start (.length module))))
-          (when (every (lambda (x)
-                         (or (<= end (.start x))
-                             (<= (.end x) start)))
-                       (.pattern-positions self))
-            (add-pattern self module start end)))))
-  (call-next-method))
+  (or (call-next-method)
+      (let ((module (.selected-pattern *app*)))
+        (if (typep module 'pattern-module)
+            (let* ((start (pixcel-to-line x))
+                   (end (+ start (.length module))))
+              (when (every (lambda (x)
+                             (or (<= end (.start x))
+                                 (<= (.end x) start)))
+                           (.pattern-positions self))
+                (add-pattern self module start end)))))
+      t))
 
 (defmethod serialize ((self track-view))
   `((setf (.pattern-positions x) ,(serialize (.pattern-positions self)))
