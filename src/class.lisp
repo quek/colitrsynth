@@ -261,7 +261,8 @@
 (defclass render-border-mixin () ())
 
 (defclass connector (render-border-mixin view)
-  ((module :initarg :module :accessor .module)))
+  ((module :initarg :module :accessor .module))
+  (:default-initargs :color *connection-line-color*))
 
 (defclass connector-mixin ()
   ((connector :initarg :connector :accessor .connector)))
