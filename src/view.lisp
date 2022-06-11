@@ -620,6 +620,7 @@
 
 (defmethod serialize ((self model))
   `((setf (.name x) ,(.name self)
+          ;; TODO 選択中のモジュールをコピー対象にすればいいかもしれない
           ,@(when *serialize-table* `((.in x) ,(serialize (.in self))))
           ,@(when *serialize-table* `((.out x) ,(serialize (.out self)))))
     ,@(call-next-method)))

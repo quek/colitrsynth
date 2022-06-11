@@ -185,6 +185,10 @@
    (plugin-state :accessor .plugin-state)
    (params :initform nil :accessor .params)
    (in-params :initform nil :accessor .in-para)
+   (latency :initform 0 :accessor .latency)
+   (input-nchannels :initform 0 :accessor .input-nchannels)
+   (output-nchannels :initform 0 :accessor .output-nchannels)
+   (sidechain-nchannels :initform 0 :accessor .sidechain-nchannels)
    (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
 
 (defclass instrument-plugin-model (plugin-model) ())
