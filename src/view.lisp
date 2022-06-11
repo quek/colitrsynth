@@ -773,6 +773,20 @@
                 (cons x2 y2))
           (values xs ys xe ye))))))
 
+(defmethod cable-color ((self connection))
+  *connection-line-color*)
+
+(defmethod cable-color ((self audio-connection))
+  (if (= (.dest-bus self) 0)
+      *connection-line-color*
+      *cable-color-audio-aux*))
+
+(defmethod cable-color ((self midi-connection))
+  *cable-color-midi*)
+
+(defmethod cable-color ((self param-connection))
+  *cable-color-param*)
+
 (defmethod render-connection ((self connector-mixin) r)
   (loop for connection in (.out self)
         do (multiple-value-bind (xs ys xe ye)
@@ -787,7 +801,7 @@
                    (setf ys (min (max ys (.render-y partial-view))
                                  (+ (.render-y partial-view)
                                     (.height partial-view))))))
-               (apply #'sdl2:set-render-draw-color r *connection-line-color*)
+               (apply #'sdl2:set-render-draw-color r (cable-color connection))
                (sdl2:render-draw-line r xs ys xe ye)
                (when (and (= xs original-xs) (= ys original-ys))
                  (apply #'sdl2:set-render-draw-color r *connection-point-color*)

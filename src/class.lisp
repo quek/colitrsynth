@@ -374,7 +374,8 @@
                    :initform (make-instance 'pattern-editor))))
 
 (defclass lfo-module (lfo module)
-  ((frequency-slider :initarg :frequency-slide :accessor .frequency-slider)))
+  ((frequency-slider :initarg :frequency-slide :accessor .frequency-slider))
+  (:default-initargs :height 45))
 
 (defclass osc-module-mixin ()
   ()
