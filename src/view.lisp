@@ -583,12 +583,20 @@
 (defmethod mousebuttondown :before ((self null) button state clicks x y)
   (setf (.selected-module *app*) nil))
 
-(defmethod mousebuttondown :before ((self module) button state clicks x y)
+(defmethod mousebuttondown :before ((self module)
+                                    (button (eql sdl2-ffi:+sdl-button-left+))
+                                    state clicks x y)
   (setf (.selected-module *app*) self)
   (setf (.views *app*)
-        (stable-sort (.views *app*) (lambda (x y)
-                                      (declare (ignore y))
-                                      (not (eql x self))))))
+        (print (append (delete self (.views *app*)) (list self)))))
+
+(defmethod mousebuttondown :after ((self module)
+                                   (button (eql sdl2-ffi:+sdl-button-right+))
+                                   state clicks x y)
+  (setf (.selected-module *app*) nil)
+  (setf (.views *app*)
+        (print (cons self (delete self (.views *app*))))))
+
 
 (defmethod render :before (self renderer)
   "選択中のモジュールを見やすくする"
@@ -1442,7 +1450,6 @@
 (defmethod click ((self pattern-position-view)
                   (button (eql sdl2-ffi:+sdl-button-right+))
                   x y)
-  (print "dletetetetee")
   (remove-pattern (.parent-by-class self 'track-view) self)
   (call-next-method))
 
