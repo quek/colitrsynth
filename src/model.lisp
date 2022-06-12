@@ -256,20 +256,6 @@
                                    (< (.event a) (.event b))
                                    (< (.frame a) (.frame b)))))))
 
-
-
-(defmethod process((self lfo) connection left right)
-  (loop for i below *frames-per-buffer*
-        for value = (let ((value (sin (* (/ (* 2 pi (.frequency self)) *sample-rate*)
-                                         (.phase self)))))
-                      (if (.unipolar-p self)
-                          (/ (1+ value) 2)
-                          value))
-        do (setf (aref (.buffer self) i) value)
-           (incf (.phase self)))
-  (route self (.buffer self) (.buffer self)))
-
-
 (defmethod process ((self osc) (connection midi-connection) midi-events frame)
   (flet ((midi-event (i on-or-off)
            (loop for x in midi-events
@@ -358,36 +344,6 @@
     (route self buffer buffer)))
 
 
-
-(defmethod process ((self operand) (conection audio-connection) left right)
-  (loop for i below *frames-per-buffer*
-        do (setf (aref (.left self) i)
-                 (operate self
-                          (aref (.left self) i)
-                          (aref left i)))
-           (setf (aref (.right self) i)
-                 (operate self
-                          (aref (.right self) i)
-                          (aref right i))))
-  (when (<= (length (.in self))
-            (incf (.in-count self)))
-    (route self (.left self) (.right self))
-    (setf (.in-count self) 0)
-    (loop for i below *frames-per-buffer*
-          with value = (.initial-value self)
-          do (setf (aref (.left self) i) value
-                   (aref (.right self) i) value))))
-
-
-
-(defmethod operate ((self op-add) x y)
-  (+ x y))
-
-
-(defmethod operate ((self op-multi) x y)
-  (* x y))
-
-
 (defmethod process ((self gain) (connection audio-connection) left right)
   (loop for i below *frames-per-buffer*
         with volume = (.volume self)
@@ -397,13 +353,6 @@
   (loop for i below *frames-per-buffer*
         do (setf (aref (.left self) i) 0.0d0
                  (aref (.right self) i) 0.0d0)))
-
-(defmethod process ((self gain) (connection param-connection) left right)
-    ;; TODO すべての .in を待つ処理は全モジュールに実装してもいいんじゃないだろうか
-  (funcall (fdefinition `(setf ,(builtin-parameter-accessor (.param connection))))
-           (aref left 0) self)
-  )
-
 
 (defmethod process ((self master) (connection audio-connection) left right)
   (loop for i below *frames-per-buffer*

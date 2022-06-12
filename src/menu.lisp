@@ -95,7 +95,8 @@
                ("Lfo" lfo-module)
                ("Op Add" op-add-module)
                ("Op Multi" op-multi-module)
-               ("Gain" gain-module))
+               ("Gain" gain-module)
+               ("Constant" constant-module))
         do (let ((button (make-instance 'menu-builtin-button
                                         :label name
                                         :class class

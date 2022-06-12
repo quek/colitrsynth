@@ -418,6 +418,12 @@
   ()
   (:default-initargs :width 70 :height 25))
 
+(defclass constant-module (left-right-buffer-mixin model module)
+  ((value :initarg :value :initform 0.0d0 :accessor .value)
+   (buffer :initform (make-buffer) :accessor .buffer)
+   (value-slider :initarg :value-slide :accessor .value-slider))
+  (:default-initargs :height 45))
+
 (defclass volume-controller-mixin ()
   ((volume-slider :initarg :volume-slide :accessor .volume-slider)))
 

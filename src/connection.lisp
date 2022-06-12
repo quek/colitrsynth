@@ -11,3 +11,8 @@
 
 (defmethod .name ((self plugin-param-connection))
   (plugin-parameter-name (.param self)))
+
+(defmethod process (self (connection builtin-param-connection) left right)
+  (funcall (fdefinition `(setf ,(builtin-parameter-accessor (.param connection))))
+           ;; TODO 先頭の値でいい？ 平均とかの方がいい？
+           (aref left 0) self))

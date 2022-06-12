@@ -588,14 +588,14 @@
                                     state clicks x y)
   (setf (.selected-module *app*) self)
   (setf (.views *app*)
-        (print (append (delete self (.views *app*)) (list self)))))
+        (append (delete self (.views *app*)) (list self))))
 
 (defmethod mousebuttondown :after ((self module)
                                    (button (eql sdl2-ffi:+sdl-button-right+))
                                    state clicks x y)
   (setf (.selected-module *app*) nil)
   (setf (.views *app*)
-        (print (cons self (delete self (.views *app*))))))
+        (cons self (delete self (.views *app*)))))
 
 
 (defmethod render :before (self renderer)
@@ -1786,31 +1786,6 @@
   `(make-instance 'column
                   :note ,(.note self)
                   :velocity ,(.velocity self)))
-
-
-(defmethod initialize-instance :after ((self lfo-module) &key)
-  (add-child self
-             (setf (.frequency-slider self)
-                   (make-instance 'slider
-                                  :max 2000.0d0
-                                  :compute-function #'compute-expt
-                                  :value (lambda () (.frequency self))
-                                  :onchange (lambda (x) (setf (.frequency self) x)))))
-  (resized self))
-
-(defmethod resized ((self lfo-module))
-  (let ((slider (.frequency-slider self))
-        (x *layout-space*)
-        (y (+ *font-size* (* *layout-space* 2)))
-        (width (- (.width self) (* 2 *layout-space*)))
-        (height (+ *font-size* (round (/ *layout-space* 2)))))
-    (setf (.x slider) x)
-    (setf (.y slider) y)
-    (setf (.width slider) width)
-    (setf (.height slider) height)
-    (call-next-method)))
-
-
 
 (defmethod initialize-instance :after ((self osc-module-mixin) &key)
   (let ((value-text (make-instance 'label
