@@ -7,18 +7,18 @@
                                   :max 2000.0d0
                                   :compute-function #'compute-expt
                                   :value (lambda () (.frequency self))
-                                  :onchange (lambda (x) (setf (.frequency self) x)))))
+                                  :onchange (lambda (x)
+                                              (setf (.frequency self) x)))))
   (resized self))
 
 (defmethod process-out ((self lfo))
   (loop for i below *frames-per-buffer*
-        for value = (let ((value (sin (* (/ (* 2 pi (.frequency self)) *sample-rate*)
-                                         (.phase self)))))
+        for value = (let ((value (sin (incf (.phase self)
+                                            (/ (* 2 pi (.frequency self)) *sample-rate*)))))
                       (if (.unipolar-p self)
                           (/ (1+ value) 2)
                           value))
-        do (setf (aref (.buffer self) i) value)
-           (incf (.phase self)))
+        do (setf (aref (.buffer self) i) value))
   (route self (.buffer self) (.buffer self)))
 
 (defmethod resized ((self lfo-module))

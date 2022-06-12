@@ -128,7 +128,7 @@
   ((buffer :initform (make-buffer) :accessor .buffer)
    (frequency :initarg :frequency :initform 1.0d0 :accessor .frequency)
    (phase :initform 0.0d0 :accessor .phase :type double-float)
-   (unipolar-p :initarg :unipolar-p :initform t :accessor .unipolar-p) ))
+   (unipolar-p :initarg :unipolar-p :initform t :accessor .unipolar-p)))
 
 (defclass osc (midi-input-mixin model)
   ((note :initarg :note :initform off :accessor .note)
