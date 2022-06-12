@@ -22,6 +22,7 @@
    (:file "class")
    (:file "connection")
    (:file "constant-module")
+   (:file "effect-plugin-module")
    (:file "lfo-module")
    (:file "operand-module")
    (:file "menu")
