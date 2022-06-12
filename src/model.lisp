@@ -91,7 +91,6 @@
                                   (midi-events-at-line-frame pattern-position
                                                              start-line start-frame
                                                              (- end-line start) end-frame))))))))
-    #+nil
     (when midi-events
       (print midi-events))
     (route track midi-events start-frame)))
@@ -200,8 +199,7 @@
                    for note = (.note column)
                    for last-note = (aref (.last-notes pattern-position) i)
                    if (or (and (<= c0 note)
-                               (<= c0 last-note)
-                               (/= note last-note))
+                               (<= c0 last-note))
                           (and (= note off) (<= c0 last-note)))
                      do (push (make-instance 'midi-event :event +midi-event-off+
                                                          :note last-note
