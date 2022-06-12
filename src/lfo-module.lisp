@@ -10,7 +10,7 @@
                                   :onchange (lambda (x) (setf (.frequency self) x)))))
   (resized self))
 
-(defmethod process((self lfo) connection left right)
+(defmethod process-out ((self lfo))
   (loop for i below *frames-per-buffer*
         for value = (let ((value (sin (* (/ (* 2 pi (.frequency self)) *sample-rate*)
                                          (.phase self)))))

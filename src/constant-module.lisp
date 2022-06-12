@@ -11,11 +11,11 @@
                                   :onchange (lambda (x) (setf (.value self) x)))))
   (resized self))
 
-(defmethod process ((self constant-module) connection left right)
+(defmethod process-ouit ((self constant-module))
   (let ((buffer (.buffer self)))
-   (loop for i below *frames-per-buffer*
-         for value = (.value self)
-         do (setf (aref buffer i) value))
+    (loop for i below *frames-per-buffer*
+          for value = (.value self)
+          do (setf (aref buffer i) value))
     (route self buffer buffer)))
 
 (defmethod resized ((self constant-module))

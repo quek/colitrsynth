@@ -73,7 +73,14 @@
 
 (defclass model (name-mixin)
   ((in :initarg :in :accessor .in :initform nil)
+   (in-count :initform 0 :accessor .in-count :type fixnum)
    (out :initarg :out :accessor .out :initform nil)))
+
+(defclass midi-input-mixin ()
+  ((midi-events :initarg :midi-events :initform nil
+                :accessor .midi-events)
+   (midi-frame :initarg :midi-frame :initform nil
+               :accessor .midi-frame)))
 
 (defclass pattern-position ()
   ((pattern :initarg :pattern :accessor .pattern)
@@ -123,7 +130,7 @@
    (phase :initform 0.0d0 :accessor .phase :type double-float)
    (unipolar-p :initarg :unipolar-p :initform t :accessor .unipolar-p) ))
 
-(defclass osc (model)
+(defclass osc (midi-input-mixin model)
   ((note :initarg :note :initform off :accessor .note)
    (buffer :initform (make-buffer) :accessor .buffer)
    (value :initform 0.0d0 :accessor .value :type double-float)
@@ -137,7 +144,7 @@
   ()
   (:default-initargs :name "Saw"))
 
-(defclass adsr (model)
+(defclass adsr (midi-input-mixin model)
   ((a :initarg :a :initform 0.003d0 :accessor .a)
    (d :initarg :d :initform 0.05d0 :accessor .d)
    (s :initarg :s :initform 0.3d0 :accessor .s)
@@ -152,8 +159,7 @@
 (defclass operand (model)
   ((left :initarg :left :accessor .left)
    (right :initarg :right :accessor .right)
-   (initial-value :initarg :initial-value :accessor .initial-value)
-   (in-count :initform 0 :accessor .in-count :type fixnum)))
+   (initial-value :initarg :initial-value :accessor .initial-value)))
 
 (defclass op-add (operand)
   ()
@@ -180,11 +186,11 @@
    (last-right :initform 0.0d0 :accessor .last-right)))
 
 (defclass plugin-model (model)
-  ((in-count :initform 0 :accessor .in-count :type fixnum)
-   (plugin-description :initarg :plugin-description :accessor .plugin-description)
+  ((plugin-description :initarg :plugin-description :accessor .plugin-description)
    (host-process :accessor .host-process)
    (host-io :accessor .host-io)
    (out-buffer :accessor .out-buffer)
+   (out-length :initform 0 :accessor .out-length)
    (in-buffer :accessor .in-buffer
               :initform (make-array (* *frames-per-buffer* 4)
                                     :element-type '(unsigned-byte 8)))
@@ -201,7 +207,8 @@
    (sidechain-nchannels :initform 0 :accessor .sidechain-nchannels)
    (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
 
-(defclass instrument-plugin-model (plugin-model) ())
+(defclass instrument-plugin-model (midi-input-mixin plugin-model)
+  ((midi-events :initform nil :accessor .midi-events)))
 
 (defclass effect-plugin-model (plugin-model) ())
 
