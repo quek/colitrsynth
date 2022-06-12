@@ -210,7 +210,8 @@
 (defclass instrument-plugin-model (midi-input-mixin plugin-model)
   ((midi-events :initform nil :accessor .midi-events)))
 
-(defclass effect-plugin-model (plugin-model) ())
+(defclass effect-plugin-model (plugin-model)
+  ((mix-buffer :accessor .mix-buffer)))
 
 (defclass plugin-description ()
   ((name :initarg :name :accessor .name)
