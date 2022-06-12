@@ -23,8 +23,6 @@
 
 (defmethod process ((self model) connection left right)
   (declare (optimize (speed 3) (safety 0)))
-  (when (typep self 'effect-plugin-module)
-    (print connection))
   (process-in self connection left right)
   (when (<= (the fixnum (length (the list (.in self))))
             (the fixnum (incf (the fixnum (.in-count self)))))

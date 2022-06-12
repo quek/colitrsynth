@@ -728,7 +728,7 @@
   (disconnect-all self))
 
 
-(defun compute-connection-points (from to)
+(defun compute-connection-points (from to offset)
   (flet ((intersec (ax ay bx by cx cy dx dy)
            (let* ((deno (- (* (- bx ax) (- dy cy))
                            (* (- by ay) (- dx cx)))))
@@ -752,8 +752,8 @@
                        nil
                        (cons (round (+ ax (* p (- bx ax))))
                              (round (+ ay (* p (- by ay)))))))))))
-    (let* ((x1 (.screen-center-x from))
-           (y1 (.screen-center-y from))
+    (let* ((x1 (+ (.screen-center-x from) offset))
+           (y1 (- (.screen-center-y from) offset))
            (x2 (.screen-center-x to))
            (y2 (.screen-center-y to))
            (xs1 (.screen-x from))
@@ -801,9 +801,12 @@
   *cable-color-param*)
 
 (defmethod render-connection ((self connector-mixin) r)
-  (loop for connection in (.out self)
+  (loop with map = (make-hash-table)
+        for connection in (.out self)
+        ;; TODO 角度によっては線が重なっちゃう
+        for offset = (* (incf (gethash (.dest connection) map -1)) 10)
         do (multiple-value-bind (xs ys xe ye)
-               (compute-connection-points self (.dest connection))
+               (compute-connection-points self (.dest connection) offset)
              (let ((original-xs xs)
                    (original-ys ys))
                (when (typep self 'track-view)
