@@ -396,11 +396,11 @@
   ()
   (:default-initargs :height 50))
 
-(defclass sin-osc-module (sin-osc module osc-module-mixin)
+(defclass sin-osc-module (sin-osc osc-module-mixin module)
   ()
   (:default-initargs :name "Sin"))
 
-(defclass saw-osc-module (saw-osc module osc-module-mixin)
+(defclass saw-osc-module (saw-osc osc-module-mixin module)
   ()
   (:default-initargs :name "Saw"))
 

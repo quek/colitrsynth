@@ -31,7 +31,6 @@
                                  0.0d0
                                  (osc-frame-value self))))
           do (setf (aref (.buffer self) i) value)
-             (setf (.value self) value)
-             (incf (.phase self))))
+             (setf (.value self) value)))
   (route self (.buffer self) (.buffer self)))
 
