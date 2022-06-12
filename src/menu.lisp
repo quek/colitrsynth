@@ -41,7 +41,7 @@
     (list (make-instance 'midi-connection :src src :dest dest)))
   (:method (src (dest plugin-module) cable-src)
     (loop for param in (.params dest)
-          collect (make-instance 'param-connection
+          collect (make-instance 'plugin-param-connection
                                  :src src :dest dest
                                  :param param)))
   (:method (src (dest instrument-plugin-model) cable-src)
@@ -59,7 +59,7 @@
 (defmethod available-connections (src (dest gain-module) cable-src)
   (append (call-next-method)
           (list (make-instance
-                 'param-connection
+                 'builtin-param-connection
                  :src src :dest dest
                  :param (make-builtin-parameter :name "Gain"
                                                 :accessor '.volume)))))

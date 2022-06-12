@@ -65,6 +65,12 @@
 (defclass param-connection (connection)
   ((param :initarg :param :accessor .param)))
 
+(defclass builtin-param-connection (param-connection)
+  ())
+
+(defclass plugin-param-connection (param-connection)
+  ())
+
 (defclass model (name-mixin)
   ((in :initarg :in :accessor .in :initform nil)
    (out :initarg :out :accessor .out :initform nil)))

@@ -6,11 +6,8 @@
 (defmethod .name ((self audio-connection))
   (format nil "In ~d" (.dest-bus self)))
 
-(defmethod .param-name ((self builtin-parameter))
-  (builtin-parameter-name self))
+(defmethod .name ((self builtin-param-connection))
+  (builtin-parameter-name (.param self)))
 
-(defmethod .param-name ((self plugin-parameter))
-  (plugin-parameter-name self))
-
-(defmethod .name ((self param-connection))
-  (.param-name (.param self)))
+(defmethod .name ((self plugin-param-connection))
+  (plugin-parameter-name (.param self)))

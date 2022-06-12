@@ -29,17 +29,13 @@
        (= (.dest-bus a)
           (.dest-bus b))))
 
-(defmethod parameter-eql ((a builtin-parameter) (b builtin-parameter))
-  (eql (builtin-parameter-accessor a)
-       (builtin-parameter-accessor b)))
+(defmethod connection-eql ((a builtin-param-connection) (b builtin-param-connection))
+  (eql (builtin-parameter-accessor (.param a))
+       (builtin-parameter-accessor (.param b))))
 
-(defmethod parameter-eql ((a plugin-parameter) (b plugin-parameter))
+(defmethod connection-eql ((a plugin-param-connection) (b plugin-param-connection))
   (= (plugin-parameter-index (.param a))
      (plugin-parameter-index (.param b))))
-
-(defmethod connection-eql ((a param-connection) (b param-connection))
-  (and (call-next-method)
-       (parameter-eql (.param a) (.param b))))
 
 (defmethod default-connection-class (src dest)
   'audio-connection)
