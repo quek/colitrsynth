@@ -160,7 +160,7 @@
               do (render-connection view renderer))
         (loop for view in (.views *app*)
               do (render view renderer))))
-  
+
   (sdl2:render-present renderer)
   (when (.request-stop *audio*)
     (stop))

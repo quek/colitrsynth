@@ -38,3 +38,21 @@
 
 (defmethod (setf .input-nbuses) :after (value (self effect-plugin-module))
   (setf (.mix-buffer self) (make-buffer :length (* *frames-per-buffer* 2 value))))
+
+
+(defmethod render :after ((self plugin-module) renderer)
+  (let* ((draw-at-x 20)
+         (draw-at-y 150)
+         (points (loop for left across (aref (.left-buffer self) 0)
+                       for rigth across (aref (.right-buffer self) 0)
+                       for value = (+ left rigth)
+                       for i to 500
+                       for x = (+ draw-at-x i)
+                       for y-i-1 = draw-at-y then y
+                       for y = (round (+ draw-at-y (* value 20)))
+                       nconc (cons
+                              (sdl2:make-point x y)
+                              (loop for i from (min y y-i-1) below (max y y-i-1)
+                                    collect (sdl2:make-point x i))))))
+    (multiple-value-bind (points num) (apply #'sdl2:points* points)
+      (sdl2:render-draw-points renderer points num))))
