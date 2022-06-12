@@ -11,7 +11,7 @@
                                   :onchange (lambda (x) (setf (.value self) x)))))
   (resized self))
 
-(defmethod process-ouit ((self constant-module))
+(defmethod process-out ((self constant-module))
   (let ((buffer (.buffer self)))
     (loop for i below *frames-per-buffer*
           for value = (.value self)

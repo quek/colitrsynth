@@ -62,7 +62,7 @@
 (defclass midi-connection (connection)
   ())
 
-(defclass param-connection (connection)
+ (defclass param-connection (connection)
   ((param :initarg :param :accessor .param)))
 
 (defclass builtin-param-connection (param-connection)

@@ -26,6 +26,7 @@
 (defmethod process-in ((self plugin-model)
                        (connection plugin-param-connection)
                        value _)
+  (print 'process-in--plugin-param-connection)
   (set-param self (.param connection) (aref value 0)))
 
 (defmethod process-out ((self plugin-model))

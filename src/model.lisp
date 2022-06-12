@@ -17,15 +17,21 @@
 (defgeneric route (self left right))
 (defgeneric prepare-save (model))
 
-(defmethod process ((self model) (connection null) left right))
+
+(defmethod process ((self sequencer-module) (connection null) left right))
+(defmethod process ((self pattern-module) (connection null) left right))
 
 (defmethod process ((self model) connection left right)
   (declare (optimize (speed 3) (safety 0)))
+  (when (typep self 'effect-plugin-module)
+    (print connection))
   (process-in self connection left right)
   (when (<= (the fixnum (length (the list (.in self))))
             (the fixnum (incf (the fixnum (.in-count self)))))
     (process-out self)
     (setf (.in-count self) 0)))
+
+(defmethod process-in ((self model) (connection null) left right))
 
 (defmethod route ((self model) left right)
   (declare (optimize (speed 3) (safety 0)))
