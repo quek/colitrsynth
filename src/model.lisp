@@ -29,10 +29,17 @@
        (= (.dest-bus a)
           (.dest-bus b))))
 
+(defmethod parameter-eql ((a builtin-parameter) (b builtin-parameter))
+  (eql (builtin-parameter-accessor a)
+       (builtin-parameter-accessor b)))
+
+(defmethod parameter-eql ((a plugin-parameter) (b plugin-parameter))
+  (= (plugin-parameter-index (.param a))
+     (plugin-parameter-index (.param b))))
+
 (defmethod connection-eql ((a param-connection) (b param-connection))
   (and (call-next-method)
-       (= (plugin-parameter-index (.param a))
-          (plugin-parameter-index (.param b)))))
+       (parameter-eql (.param a) (.param b))))
 
 (defmethod default-connection-class (src dest)
   'audio-connection)
@@ -395,6 +402,13 @@
         do (setf (aref (.left self) i) 0.0d0
                  (aref (.right self) i) 0.0d0)))
 
+(defmethod process ((self gain) (connection param-connection) left right)
+    ;; TODO すべての .in を待つ処理は全モジュールに実装してもいいんじゃないだろうか
+  (funcall (fdefinition `(setf ,(builtin-parameter-accessor (.param connection))))
+           (aref left 0) self)
+  )
+
+
 (defmethod process ((self master) (connection audio-connection) left right)
   (loop for i below *frames-per-buffer*
         do (incf (aref (.left self) i) (aref left i))
@@ -667,12 +681,6 @@
                                               (equal (.name x) (.name y))))
                              plugin-descriptions))
             collect x)))
-
-(defstruct plugin-parameter
-  index
-  name
-  value
-  value-as-text)
 
 (defmethod get-params ((self plugin-model))
   (let ((io (.host-io self))

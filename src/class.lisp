@@ -448,3 +448,13 @@
 (defclass menu-plugin-button (button)
   ((plugin-description :initarg :plugin-description
                        :accessor .plugin-description)))
+
+(defstruct builtin-parameter
+  name
+  accessor)
+
+(defstruct plugin-parameter
+  index
+  name
+  value
+  value-as-text)

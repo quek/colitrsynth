@@ -56,6 +56,14 @@
                                   :dest-bus i))
      (call-next-method))))
 
+(defmethod available-connections (src (dest gain-module) cable-src)
+  (append (call-next-method)
+          (list (make-instance
+                 'param-connection
+                 :src src :dest dest
+                 :param (make-builtin-parameter :name "Gain"
+                                                :accessor '.volume)))))
+
 (defmethod initialize-instance :after ((self connector-menu-view) &key)
   (mapc (lambda (connection)
           (let ((button (make-instance
