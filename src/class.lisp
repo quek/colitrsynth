@@ -281,8 +281,7 @@
 (defclass connector-mixin ()
   ((connector :initarg :connector :accessor .connector)))
 
-(defclass module (connector-mixin
-                  drag-resize-mixin
+(defclass module (drag-resize-mixin
                   drag-move-mixin
                   render-border-mixin
                   view)
@@ -388,7 +387,7 @@
   ((pattern-editor :accessor .pattern-editor
                    :initform (make-instance 'pattern-editor))))
 
-(defclass lfo-module (lfo module)
+(defclass lfo-module (lfo connector-mixin module)
   ((frequency-slider :initarg :frequency-slide :accessor .frequency-slider))
   (:default-initargs :height 45))
 
@@ -396,19 +395,19 @@
   ()
   (:default-initargs :height 50))
 
-(defclass sin-osc-module (sin-osc osc-module-mixin module)
+(defclass sin-osc-module (sin-osc osc-module-mixin connector-mixin module)
   ()
   (:default-initargs :name "Sin"))
 
-(defclass saw-osc-module (saw-osc osc-module-mixin module)
+(defclass saw-osc-module (saw-osc osc-module-mixin connector-mixin module)
   ()
   (:default-initargs :name "Saw"))
 
-(defclass adsr-module (adsr module)
+(defclass adsr-module (adsr connector-mixin module)
   ()
   (:default-initargs :name "Adsr" :height 100))
 
-(defclass plugin-module (module)
+(defclass plugin-module (connector-mixin module)
   ()
   (:default-initargs :height 48))
 
@@ -418,15 +417,15 @@
 (defclass effect-plugin-module (effect-plugin-model plugin-module)
   ())
 
-(defclass op-add-module (op-add module)
+(defclass op-add-module (op-add connector-mixin module)
   ()
   (:default-initargs :width 55 :height 25))
 
-(defclass op-multi-module (op-multi module)
+(defclass op-multi-module (op-multi connector-mixin module)
   ()
   (:default-initargs :width 70 :height 25))
 
-(defclass constant-module (left-right-buffer-mixin model module)
+(defclass constant-module (left-right-buffer-mixin connector-mixin model module)
   ((value :initarg :value :initform 0.0d0 :accessor .value)
    (buffer :initform (make-buffer) :accessor .buffer)
    (value-slider :initarg :value-slide :accessor .value-slider))
@@ -435,11 +434,11 @@
 (defclass volume-controller-mixin ()
   ((volume-slider :initarg :volume-slide :accessor .volume-slider)))
 
-(defclass gain-module (gain volume-controller-mixin module)
+(defclass gain-module (gain volume-controller-mixin connector-mixin module)
   ()
   (:default-initargs :height 45))
 
-(defclass master-module (master volume-controller-mixin module)
+(defclass master-module (master volume-controller-mixin connector-mixin module)
   ()
   (:default-initargs  :name "Master" :x 695 :y 515
                       :color (list #xff #xa5 #x00 *transparency*)))

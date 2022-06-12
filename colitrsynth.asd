@@ -31,9 +31,11 @@
    (:file "sin-osc-module")
    (:file "saw-osc-module")
    (:file "master-module")
+   (:file "pattern-module")
    (:file "plugin-module")
    (:file "effect-plugin-module")
    (:file "instrument-plugin-module")
+   (:file "sequencer-module")
 
    (:file "menu")
    (:file "audio")
