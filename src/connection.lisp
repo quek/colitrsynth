@@ -105,6 +105,7 @@
 (defmethod draw-cable (renderer
                        connection
                        x1 y1 x2 y2)
+  (declare (optimize (speed 3) (safety 0)))
   (multiple-value-bind (left-buffer right-buffer)
       (cable-buffer (.src connection) connection)
     (if left-buffer
