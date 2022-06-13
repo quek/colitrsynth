@@ -40,7 +40,8 @@
         (io (.host-io self))
         (left-buffer (.left-buffer self))
         (right-buffer (.right-buffer self)))
-    (declare ((simple-array (unsigned-byte 8) (*)) out in))
+    (declare ((simple-array (unsigned-byte 8) (*)) out)
+             ((simple-array single-float (*)) in))
     (sb-thread:with-mutex ((.mutex self))
       (write-byte (process-out-plugin-command self) io)
       (let ((bpm
@@ -76,25 +77,32 @@
 (declaim (inline receive-from-plugin))
 (defun receive-from-plugin (nbuses io in left-buffer right-buffer)
   (declare (optimize (speed 3) (safety 0))
-           ((simple-array (unsigned-byte 8) (*)) out in)
+           ((simple-array (unsigned-byte 8) (*)) out)
+           ((simple-array single-float (*)) in)
            (simple-vector left-buffer right-buffer))
   (loop for bus fixnum below nbuses
         do (loop for buffer in (list (aref left-buffer bus)
                                      (aref right-buffer bus))
-                 do (read-sequence in io)
+                 do (locally (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
+                      (cffi:with-foreign-object (bytes-read '(:pointer :unsigned-long))
+                        (sb-sys:with-pinned-objects (in)
+                          (sb-win32:read-file (sb-sys:fd-stream-fd io)
+                                              (sb-sys:vector-sap in)
+                                              (the fixnum (* (the fixnum *frames-per-buffer*) 4))
+                                              bytes-read
+                                              (cffi:null-pointer))
+                          ;; (cffi:mem-aref bytes-read :unsigned-long 0)
+                          ;; これ動かない
+                          ;; (sb-posix:read (sb-sys:fd-stream-fd io)
+                          ;;                (sb-sys:vector-sap xxx)
+                          ;;                (* *frames-per-buffer* 4))
+                          )))
                     (locally
                         (declare ((SIMPLE-ARRAY DOUBLE-FLOAT (*)) buffer))
                       (loop for j fixnum below *frames-per-buffer*
                             with i fixnum = -1
                             do (setf (aref buffer j)
-                                     (coerce (ieee-floats:decode-float32
-                                              (let ((value 0))
-                                                (setf (ldb (byte 8 0) value) (aref in (incf i)))
-                                                (setf (ldb (byte 8 8) value) (aref in (incf i)))
-                                                (setf (ldb (byte 8 16) value) (aref in (incf i)))
-                                                (setf (ldb (byte 8 24) value) (aref in (incf i)))
-                                                value))
-                                             'double-float)))))))
+                                     (coerce (aref in j) 'double-float)))))))
 
 (defmethod set-plugin-state ((self plugin-model))
   (let* ((io (.host-io self))

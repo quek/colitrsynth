@@ -192,8 +192,7 @@
    (out-buffer :accessor .out-buffer)
    (out-length :initform 0 :accessor .out-length)
    (in-buffer :accessor .in-buffer
-              :initform (make-array (* *frames-per-buffer* 4)
-                                    :element-type '(unsigned-byte 8)))
+              :initform (make-array *frames-per-buffer* :element-type 'single-float))
    (left-buffer :accessor .left-buffer)
    (right-buffer :accessor .right-buffer)
    (plugin-state :accessor .plugin-state)
