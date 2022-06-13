@@ -28,6 +28,10 @@
                                       :width width :height height
                                       :onchange (lambda (x) (setf (.r self) x))))))
 
+(defmethod cable-buffer ((module adsr-module) (connection audio-connection))
+  (values (.buffer module)
+          nil))
+
 (defmethod process-out ((self adsr))
   (flet ((midi-event (i on-or-off)
            (loop for x in (.midi-events self)

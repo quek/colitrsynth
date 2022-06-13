@@ -5,9 +5,6 @@
 (defgeneric render (self renderer)
   (:method (self renderer)))
 
-(defgeneric render-connection (self r)
-  (:method (self r)))
-
 (defgeneric resized (self)
   (:method (self)))
 
@@ -437,11 +434,6 @@
         do (render child renderer))
   (call-next-method))
 
-(defmethod render-connection ((self view) r)
-  (loop for child in (.children self)
-        do (render-connection child r))
-  (call-next-method))
-
 (defmethod resize :after ((self view) xrel yrel)
   (resized self))
 
@@ -513,17 +505,6 @@
                        (connect connection))))
              (setf (.cable-src *app*) nil)))))
   t)
-
-(defmethod render-connection ((self connector) renderer)
-  (when (eq (.module self) (aif (.cable-src *app*)
-                                (.src it)))
-    (apply #'sdl2:set-render-draw-color renderer *connection-line-color*)
-    (multiple-value-bind (x y) (sdl2:mouse-state)
-      (sdl2:render-draw-line renderer
-                             (.screen-center-x self)
-                             (.screen-center-y self)
-                             x y)))
-  (call-next-method))
 
 (defmethod resized ((self connector))
   (let ((module (.module self)))
@@ -798,34 +779,6 @@
 
 (defmethod cable-color ((self param-connection))
   *cable-color-param*)
-
-(defmethod render-connection ((self connector-mixin) r)
-  (loop with map = (make-hash-table)
-        for connection in (.out self)
-        for offset = (let ((count (incf (gethash (.dest connection) map -1))))
-                       (if (evenp count)
-                           (* (/ count 2) -8)
-                           (* (ceiling (/ count 2)) 8)))
-        do (multiple-value-bind (xs ys xe ye)
-               (compute-connection-points self (.dest connection) offset)
-             (let ((original-xs xs)
-                   (original-ys ys))
-               (when (typep self 'track-view)
-                 (let ((partial-view (.parent self)))
-                   (setf xs (min (max xs (.render-x partial-view))
-                                 (+ (.render-x partial-view)
-                                    (.width partial-view))))
-                   (setf ys (min (max ys (.render-y partial-view))
-                                 (+ (.render-y partial-view)
-                                    (.height partial-view))))))
-               (apply #'sdl2:set-render-draw-color r (cable-color connection))
-               (sdl2:render-draw-line r xs ys xe ye)
-               (when (and (= xs original-xs) (= ys original-ys))
-                 (apply #'sdl2:set-render-draw-color r *connection-point-color*)
-                 (sdl2:render-fill-rect r
-                                        (sdl2:make-rect (- xs 3) (- ys 3) 7 7))))))
-  (call-next-method))
-
 
 (defmethod initialize-instance :after ((self label) &key)
   (setf (.last-color self) (.color self)))

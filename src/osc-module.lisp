@@ -10,6 +10,10 @@
                                               (format nil "~,5f" (funcall f)))))))
     (add-child self value-text)))
 
+(defmethod cable-buffer ((module osc-module-mixin) (connection audio-connection))
+  (values (.buffer module)
+          nil))
+
 (defmethod process-out ((self osc))
   (flet ((midi-event (i on-or-off)
            (loop for x in (.midi-events self)

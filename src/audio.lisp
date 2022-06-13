@@ -21,11 +21,6 @@
 (defun frames-per-line ()
   (/ (sec-per-line) (sec-per-frame)))
 
-(defun make-buffer (&key (length *frames-per-buffer*)
-                      (initial-element 0.0d0)
-                      (element-type 'double-float))
-  (make-array length :initial-element initial-element :element-type element-type))
-
 (defun start-audio ()
   (unless (.processing *audio*)
     (setf (.processing *audio*) t)

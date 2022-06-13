@@ -23,6 +23,11 @@
   (when (slot-boundp self 'plugin-state)
     (set-plugin-state self)))
 
+(defmethod cable-buffer ((module plugin-module) (connection audio-connection))
+  (let* ((bus (.src-bus connection)))
+    (values (aref (.left-buffer module) bus)
+            (aref (.right-buffer module) bus))))
+
 (defmethod process-in ((self plugin-model)
                        (connection plugin-param-connection)
                        value _)

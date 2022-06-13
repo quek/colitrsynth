@@ -1,22 +1,29 @@
 (in-package :colitrsynth)
 
+(defmethod cable-buffer ((module operand) connection)
+  (values (.left module)
+          (.right module)))
+
 (defmethod process-in ((self operand) (conection audio-connection) left right)
-  (loop for i below *frames-per-buffer*
-        do (setf (aref (.left self) i)
-                 (operate self
-                          (aref (.left self) i)
-                          (aref left i)))
-           (setf (aref (.right self) i)
-                 (operate self
-                          (aref (.right self) i)
-                          (aref right i)))))
+  (macrolet ((m (left-lhs right-lhs)
+               `(loop for i below *frames-per-buffer*
+                     do (setf (aref (.left self) i)
+                              (operate self
+                                       ,left-lhs
+                                       (aref left i)))
+                        (setf (aref (.right self) i)
+                              (operate self
+                                       ,right-lhs
+                                       (aref right i))))))
+
+    (if (zerop (.in-count self))
+        (m (.initial-value self)
+           (.initial-value self))
+        (m (aref (.left self) i)
+           (aref (.right self) i)))))
 
 (defmethod process-out ((self operand))
-  (route self (.left self) (.right self))
-  (loop for i below *frames-per-buffer*
-        with value = (.initial-value self)
-        do (setf (aref (.left self) i) value
-                 (aref (.right self) i) value)))
+  (route self (.left self) (.right self)))
 
 (defmethod operate ((self op-add) x y)
   (+ x y))
