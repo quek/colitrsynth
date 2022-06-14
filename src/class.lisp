@@ -44,7 +44,24 @@
     :accessor .output-channels)
    (buffer :accessor .buffer)
    (sequencer :initarg :sequencer :accessor .sequencer)
-   (master :accessor .master)))
+   (master :accessor .master)
+   (statistic-enter-time :initform (get-internal-real-time)
+                         :accessor .statistic-enter-time)
+   (statistic-leave-time :initform (get-internal-real-time)
+                         :accessor .statistic-leave-time)
+   (statistic-count :initform 0 :accessor .statistic-count)
+   (statistic-total-process-time :initform 0
+                                 :accessor .statistic-total-process-time)
+   (statistic-min-process-time :initform most-positive-fixnum
+                               :accessor .statistic-min-process-time)
+   (statistic-max-process-time :initform 0
+                               :accessor .statistic-max-process-time)
+   (statistic-total-interval-time :initform 0
+                                  :accessor .statistic-total-interval-time)
+   (statistic-min-interval-time :initform most-positive-fixnum
+                                :accessor .statistic-min-interval-time)
+   (statistic-max-interval-time :initform 0
+                                :accessor .statistic-max-interval-time)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; from model.lisp
