@@ -1,10 +1,10 @@
 (in-package :colitrsynth)
 
 (defun midino-to-freq (midino)
-  (* 440.0d0
-     (expt 2.0d0
+  (* 440.0
+     (expt 2.0
            (/ (the fixnum (- midino 69))
-              12.0d0))))
+              12.0))))
 
 (define-compiler-macro midino-to-freq (&whole form midino)
   (if (constantp midino)

@@ -1,5 +1,9 @@
 (in-package :colitrsynth)
 
+(defmethod get-params :after ((self instrument-plugin-model))
+  (setf (.out-buffer self)
+        (make-array (.out-length self) :element-type '(unsigned-byte 8))))
+
 (defmethod process-out ((self instrument-plugin-model))
   (let* ((midi-events (sort (.midi-events self)
                             (lambda (a b)
@@ -29,3 +33,16 @@
 
 (defmethod process-out-plugin-command ((self instrument-plugin-module))
   +plugin-command-instrument+)
+
+(defmethod write-out-buffer-to-plugin ((self instrument-plugin-module))
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((out-buffer (.out-buffer self)))
+    (declare ((simple-array (unsigned-byte 8) (*)) out))
+    (locally (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
+      (cffi:with-foreign-object (bytes-written '(:pointer :unsigned-long))
+        (sb-sys:with-pinned-objects (out-buffer)
+          (sb-win32:write-file (sb-sys:fd-stream-fd (.host-io self))
+                               (sb-sys:vector-sap out-buffer)
+                               (.out-length self)
+                               bytes-written
+                               (cffi:null-pointer)))))))

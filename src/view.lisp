@@ -1051,7 +1051,7 @@
   (add-child self
              (setf (.volume-slider self)
                    (make-instance 'slider
-                                  :max 2.0d0
+                                  :max 2.0
                                   :value (lambda () (.volume self))
                                   :onchange (lambda (x) (setf (.volume self) x)))))
   (resized self))

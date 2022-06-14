@@ -41,7 +41,7 @@
                                          (= (.note x) +midi-cc-all-notes-off+)))
                                 (= (.frame x) (mod (+ (.midi-frame self) i) *frames-per-buffer*))
                                 x))))
-    (loop with sec-per-frame = (/ 1.0d0 *sample-rate*)
+    (loop with sec-per-frame = (/ 1.0 *sample-rate*)
           for i below *frames-per-buffer*
           for off-event = (midi-event i +midi-event-off+)
           for on-event = (midi-event i +midi-event-on+) 
@@ -55,9 +55,9 @@
                               (progn
                                 (setf (.release-time self) nil)
                                 (cond ((< current (.a self))
-                                       (* (/ 1.0d0 (.a self)) current))
+                                       (* (/ 1.0 (.a self)) current))
                                       ((< current (+ (.a self) (.d self)))
-                                       (- 1.0d0 (* (/ (- 1.0d0 (.s self)) (.d self))
+                                       (- 1.0 (* (/ (- 1.0 (.s self)) (.d self))
                                                    (- current (.a self)))))
                                       (t (.s self))))
                               (progn
@@ -67,9 +67,9 @@
                                 (let ((elapsed (- current (.release-time self))))
                                   (if (< elapsed (.r self))
                                       (max (* (.release-value self)
-                                              (- 1.0d0 (/ elapsed (.r self))))
-                                           0.0d0)
-                                      0.0d0))))))
+                                              (- 1.0 (/ elapsed (.r self))))
+                                           0.0)
+                                      0.0))))))
                (setf (aref (.buffer self) i) value)
                (incf (.frame self))
                (setf (.last-gate self) gate)

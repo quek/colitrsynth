@@ -15,9 +15,9 @@
   (output-buffer-dac-time pa::pa-time))
 
 (defun sec-per-line ()
-  (/ 60.0d0 (.bpm (.sequencer *audio*)) (.lpb (.sequencer *audio*))))
+  (/ 60.0 (.bpm (.sequencer *audio*)) (.lpb (.sequencer *audio*))))
 (defun sec-per-frame ()
-  (/ 1.0d0 *sample-rate*))
+  (/ 1.0 *sample-rate*))
 (defun frames-per-line ()
   (/ (sec-per-line) (sec-per-frame)))
 
@@ -62,19 +62,17 @@
 
 (defun write-master-buffer ()
   (flet ((limit (value)
-           (coerce
-            (cond ((< 1.0d0 value)
-                   (warn "音大きすぎ ~a" value)
-                   1.0d0)
-                  ((< value -1.0d0)
-                   (warn "音大きすぎ ~a" value)
-                   -1.0d0)
-                  (t value))
-            'single-float)))
+           (cond ((< 1.0 value)
+                  (warn "音大きすぎ ~a" value)
+                  1.0)
+                 ((< value -1.0)
+                  (warn "音大きすぎ ~a" value)
+                  -1.0)
+                 (t value))))
     (let* ((master (.master *audio*))
            (volume (.volume master))
-           (last-left 0.0d0)
-           (last-right 0.0d0))
+           (last-left 0.0)
+           (last-right 0.0))
       (loop for i below *frames-per-buffer*
             do (setf last-left
                      (max (abs (setf (cffi:mem-aref (.buffer *audio*) :float (* i 2))
@@ -84,8 +82,8 @@
                      (max (abs (setf  (cffi:mem-aref (.buffer *audio*) :float (1+ (* i 2)))
                                       (limit (* (aref (.right master) i) volume))))
                           last-right))
-               (setf (aref (.left master) i) 0.0d0
-                     (aref (.right master) i) 0.0d0))
+               (setf (aref (.left master) i) 0.0
+                     (aref (.right master) i) 0.0))
       (setf (.last-left master) last-left)
       (setf (.last-right master) last-right))))
 
@@ -159,11 +157,11 @@
                              internal-time-units-per-second))
             (interval-min (/ (.statistic-min-interval-time *audio*) internal-time-units-per-second))
             (interval-max (/ (.statistic-max-interval-time *audio*) internal-time-units-per-second)))
-        (format t "~&AUDIO ~fs CPU ~f% PROCESS ~fs ~fs ~fs INTERVAL ~fs ~fs ~fs"
-                (/ *frames-per-buffer* *sample-rate*)
+        (format t "~&AUDIO CPU ~f% PROCESS ~fs ~fs ~fs INTERVAL ~fs ~fs ~fs FRAME ~,4fs "
                 cpu
                 process-avg process-min process-max
-                interval-avg interval-min interval-max))
+                interval-avg interval-min interval-max
+                (/ *frames-per-buffer* *sample-rate*)))
       (setf (.statistic-total-process-time *audio*) 0)
       (setf (.statistic-min-process-time *audio*) most-positive-fixnum)
       (setf (.statistic-max-process-time *audio*) 0)
@@ -197,7 +195,7 @@
                           handle
                           nil
                           output-parameters
-                          *sample-rate*
+                          (coerce *sample-rate* 'double-float)
                           (.frames-per-buffer *audio*)
                           0
                           (cffi:callback audio-callback)

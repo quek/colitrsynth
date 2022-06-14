@@ -4,8 +4,8 @@
   (add-child self
              (setf (.value-slider self)
                    (make-instance 'slider
-                                  :max 4.0d0
-                                  :min -4.0d0
+                                  :max 4.0
+                                  :min -4.0
                                   :compute-function #'compute-linear
                                   :value (lambda () (.value self))
                                   :onchange (lambda (x) (setf (.value self) x)))))

@@ -15,7 +15,7 @@
    (sample-rate
     :initarg :sample-rate
     :initform *sample-rate*
-    :type double-float
+    :type single-float
     :accessor .sample-rate)
    (frames-per-buffer
     :initarg frames-per-buffer
@@ -112,8 +112,8 @@
            :initform (make-buffer :initial-element nil :element-type t))))
 
 (defclass sequencer (model)
-  ((bpm :initarg :bpm :initform 140.0d0 :accessor .bpm
-        :type double-float)
+  ((bpm :initarg :bpm :initform 140.0 :accessor .bpm
+        :type single-float)
    (lpb :initarg :lpb :initform 4 :accessor .lpb)
    (tracks :initarg :tracks :accessor .tracks :initform nil)
    (end :initform 0 :accessor .end)
@@ -143,15 +143,15 @@
 
 (defclass lfo (model)
   ((buffer :initform (make-buffer) :accessor .buffer)
-   (frequency :initarg :frequency :initform 1.0d0 :accessor .frequency)
-   (phase :initform 0.0d0 :accessor .phase :type double-float)
+   (frequency :initarg :frequency :initform 1.0 :accessor .frequency)
+   (phase :initform 0.0 :accessor .phase :type single-float)
    (unipolar-p :initarg :unipolar-p :initform t :accessor .unipolar-p)))
 
 (defclass osc (midi-input-mixin model)
   ((note :initarg :note :initform off :accessor .note)
    (buffer :initform (make-buffer) :accessor .buffer)
-   (value :initform 0.0d0 :accessor .value :type double-float)
-   (phase :initform 0.0d0 :accessor .phase :type double-float)))
+   (value :initform 0.0 :accessor .value :type single-float)
+   (phase :initform 0.0 :accessor .phase :type single-float)))
 
 (defclass sin-osc (osc)
   ()
@@ -162,16 +162,16 @@
   (:default-initargs :name "Saw"))
 
 (defclass adsr (midi-input-mixin model)
-  ((a :initarg :a :initform 0.003d0 :accessor .a)
-   (d :initarg :d :initform 0.05d0 :accessor .d)
-   (s :initarg :s :initform 0.3d0 :accessor .s)
-   (r :initarg :r :initform 0.1d0 :accessor .r)
+  ((a :initarg :a :initform 0.003 :accessor .a)
+   (d :initarg :d :initform 0.05 :accessor .d)
+   (s :initarg :s :initform 0.3 :accessor .s)
+   (r :initarg :r :initform 0.1 :accessor .r)
    (buffer :initform (make-buffer) :accessor .buffer)
    (last-gate :initform nil :accessor .last-gate)
    (last-value :initform nil :accessor .last-value)
    (frame :initform 0 :accessor .frame :type fixnum)
-   (release-time :initform 0.0d0 :accessor .release-time)
-   (release-value :initform 0.0d0 :accessor .release-value)))
+   (release-time :initform 0.0 :accessor .release-time)
+   (release-value :initform 0.0 :accessor .release-value)))
 
 (defclass operand (model)
   ((left :initarg :left :accessor .left)
@@ -180,27 +180,27 @@
 
 (defclass op-add (operand)
   ()
-  (:default-initargs :left (make-buffer :initial-element 0.0d0)
-                     :right (make-buffer :initial-element 0.0d0)
-                     :initial-value 0.0d0))
+  (:default-initargs :left (make-buffer :initial-element 0.0)
+                     :right (make-buffer :initial-element 0.0)
+                     :initial-value 0.0))
 
 (defclass op-multi (operand)
   ()
-  (:default-initargs :left (make-buffer :initial-element 1.0d0)
-                     :right (make-buffer :initial-element 1.0d0)
-                     :initial-value 1.0d0))
+  (:default-initargs :left (make-buffer :initial-element 1.0)
+                     :right (make-buffer :initial-element 1.0)
+                     :initial-value 1.0))
 
 (defclass left-right-buffer-mixin ()
   ((left :initform (make-buffer) :accessor .left)
    (right :initform (make-buffer) :accessor .right)))
 
 (defclass gain (left-right-buffer-mixin model)
-  ((volume :initarg :volume :initform 1.0d0 :accessor .volume)))
+  ((volume :initarg :volume :initform 1.0 :accessor .volume)))
 
 (defclass master (left-right-buffer-mixin model)
-  ((volume :initform 0.6d0 :accessor .volume)
-   (last-left :initform 0.0d0 :accessor .last-left)
-   (last-right :initform 0.0d0 :accessor .last-right)))
+  ((volume :initform 0.6 :accessor .volume)
+   (last-left :initform 0.0 :accessor .last-left)
+   (last-right :initform 0.0 :accessor .last-right)))
 
 (defclass plugin-model (model)
   ((plugin-description :initarg :plugin-description :accessor .plugin-description)
@@ -277,7 +277,7 @@
    (dragging :initform nil :accessor .dragging)))
 
 (defclass function-value-mixin ()
-  ((value :initarg :value :initform 0.0d0)))
+  ((value :initarg :value :initform 0.0)))
 
 (defclass view ()
   ((color :initarg :color :initform *default-color* :accessor .color)
@@ -343,8 +343,8 @@
 (defclass slider (onchange-mixin
                   function-value-mixin drag-mixin
                   render-border-mixin view)
-  ((min :initarg :min :initform 0.0d0 :accessor .min)
-   (max :initarg :max :initform 1.0d0 :accessor .max)
+  ((min :initarg :min :initform 0.0 :accessor .min)
+   (max :initarg :max :initform 1.0 :accessor .max)
    (compute-function :initarg :compute-function
                      :initform #'compute-linear
                      :accessor .compute-function)))
@@ -442,7 +442,7 @@
   (:default-initargs :width 70 :height 25))
 
 (defclass constant-module (left-right-buffer-mixin connector-mixin model module)
-  ((value :initarg :value :initform 0.0d0 :accessor .value)
+  ((value :initarg :value :initform 0.0 :accessor .value)
    (buffer :initform (make-buffer) :accessor .buffer)
    (value-slider :initarg :value-slide :accessor .value-slider))
   (:default-initargs :height 45))

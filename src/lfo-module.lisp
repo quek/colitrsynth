@@ -4,7 +4,7 @@
   (add-child self
              (setf (.frequency-slider self)
                    (make-instance 'slider
-                                  :max 2000.0d0
+                                  :max 2000.0
                                   :compute-function #'compute-expt
                                   :value (lambda () (.frequency self))
                                   :onchange (lambda (x)

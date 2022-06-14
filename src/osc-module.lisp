@@ -29,10 +29,10 @@
                              (osc-frame-value self))
                             (off-event
                              (setf (.note self) off)
-                             0.0d0)
+                             0.0)
                             (t
                              (if (= off (.note self))
-                                 0.0d0
+                                 0.0
                                  (osc-frame-value self))))
           do (setf (aref (.buffer self) i) value)
              (setf (.value self) value)))

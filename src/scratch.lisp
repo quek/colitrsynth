@@ -1,24 +1,6 @@
 (in-package :colitrsynth)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; 最適化も考えないと
-(defun f (a)
-  (declare (double-float a))
-  (+ a 0.2d0))
-
-(disassemble #'f)
-
-(with-open-file (out "/tmp/a.txt" :direction :output :if-exists :supersede
-                                  :element-type '(unsigned-byte 64))
-  (write-byte (ieee-floats:encode-float64 0.123d0) out))
-;;⇒ 4593527504729830064
-
-(with-open-file (out "/tmp/a.txt" :direction :input 
-                                  :element-type '(unsigned-byte 64))
-  (ieee-floats:decode-float64 (read-byte out)))
-;;⇒ 0.123d0
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 波線
 (defparameter *x* 0)
 

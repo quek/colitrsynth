@@ -15,9 +15,9 @@
   ((:file "package")
    (:file "ffi")
    (:file "prelude")
+   (:file "parameter")
    (:file "util")
    (:file "midi")
-   (:file "parameter")
    
    (:file "class")
    (:file "model")

@@ -35,19 +35,18 @@
 
 (defmethod process-out ((self plugin-model))
   (declare (optimize (speed 3) (safety 0)))
-  (let ((out (.out-buffer self))
-        (in (.in-buffer self))
+  (let ((in (.in-buffer self))
         (io (.host-io self))
         (left-buffer (.left-buffer self))
         (right-buffer (.right-buffer self)))
-    (declare ((simple-array (unsigned-byte 8) (*)) out)
-             ((simple-array single-float (*)) in))
+    (declare ((simple-array single-float (*)) in))
     (sb-thread:with-mutex ((.mutex self))
       (write-byte (process-out-plugin-command self) io)
       (let ((bpm
               (locally (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
                 (ieee-floats:encode-float64
-                 (the double-float (.bpm (.sequencer *audio*))))))
+                 ;; TODO
+                 (coerce (.bpm (.sequencer *audio*)) 'double-float))))
             (nframes (current-frame (.sequencer *audio*))))
         (declare (fixnum nframes))
         (write-byte (if (playing) 1 0) io)
@@ -68,16 +67,16 @@
         (write-byte (mod (ash nframes -48) #x100) io)
         (write-byte (mod (ash nframes -56) #x100) io))
       (force-output io)
-      (write-sequence out io :end (.out-length self))
-      (force-output io)
+
+      ;; (write-sequence out io :end (.out-length self))
+      (write-out-buffer-to-plugin self)
+
       (receive-from-plugin (.output-nbuses self) io in left-buffer right-buffer))
-    (route self left-buffer right-buffer)
-    (clear-array out 0)))
+    (route self left-buffer right-buffer)))
 
 (declaim (inline receive-from-plugin))
 (defun receive-from-plugin (nbuses io in left-buffer right-buffer)
   (declare (optimize (speed 3) (safety 0))
-           ((simple-array (unsigned-byte 8) (*)) out)
            ((simple-array single-float (*)) in)
            (simple-vector left-buffer right-buffer))
   (loop for bus fixnum below nbuses
@@ -88,7 +87,7 @@
                         (sb-sys:with-pinned-objects (in)
                           (sb-win32:read-file (sb-sys:fd-stream-fd io)
                                               (sb-sys:vector-sap in)
-                                              (the fixnum (* (the fixnum *frames-per-buffer*) 4))
+                                              (the fixnum (* (the fixnum *frames-per-buffer*) 8))
                                               bytes-read
                                               (cffi:null-pointer))
                           ;; (cffi:mem-aref bytes-read :unsigned-long 0)
@@ -97,12 +96,10 @@
                           ;;                (sb-sys:vector-sap xxx)
                           ;;                (* *frames-per-buffer* 4))
                           )))
-                    (locally
-                        (declare ((SIMPLE-ARRAY DOUBLE-FLOAT (*)) buffer))
+                    (locally (declare ((simple-array single-float (*)) buffer))
                       (loop for j fixnum below *frames-per-buffer*
                             with i fixnum = -1
-                            do (setf (aref buffer j)
-                                     (coerce (aref in j) 'double-float)))))))
+                            do (setf (aref buffer j) (aref in j)))))))
 
 (defmethod set-plugin-state ((self plugin-model))
   (let* ((io (.host-io self))
@@ -194,11 +191,8 @@
             (if (zerop input-nbuses)
                 ;; MIDI のみの場合サイズ適当
                 4096
-                ;; 4 sizeof(float) 2 left+right
+                ;; 4 is sizeof(float). 2 is left+right
                 (* *frames-per-buffer* 4 2 input-nbuses)))
-      (setf (.out-buffer self)
-            (make-array (.out-length self)
-                        :element-type '(unsigned-byte 8)))
       (read-sequence buffer io)
       (setf (ldb (byte 8 0) output-nbuses) (aref buffer 0))
       (setf (ldb (byte 8 8) output-nbuses) (aref buffer 1))

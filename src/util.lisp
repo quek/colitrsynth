@@ -4,11 +4,11 @@
   (loop for i below (length array)
         do (setf (aref array i) value)))
 
-(defun compute-expt (value delta &optional (k 1000.0d0))
+(defun compute-expt (value delta &optional (k 1000.0))
   (let ((x (+ (sqrt (* value k)) delta)))
     (values (/ (expt x 2) k) x)))
 
-(defun compute-linear (value delta &optional (k 200.0d0))
+(defun compute-linear (value delta &optional (k 200.0))
   (let ((x (+ (* value k) delta)))
     (values (/ x k) x)))
 
@@ -27,8 +27,8 @@
       value)))
 
 (defun make-buffer (&key (length *frames-per-buffer*)
-                      (initial-element 0.0d0)
-                      (element-type 'double-float))
+                      (initial-element 0.0)
+                      (element-type 'single-float))
   (make-array length :initial-element initial-element :element-type element-type))
 
 (defun radian (x1 y1 x2 y2)
