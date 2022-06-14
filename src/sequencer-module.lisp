@@ -291,10 +291,15 @@
   track-view)
 
 (defmethod serialize ((self sequencer-module))
-  `((setf (.tracks x) ,(serialize (.tracks self))
-          (.bpm x) ,(.bpm self)
+  `((setf (.bpm x) ,(.bpm self)
           (.lpb x) ,(.lpb self)
           (.looping x) ,(.looping self))
+    ,@(loop for track in (.tracks self)
+            collect `(setf (gethash ,(ref-id track) *serialize-table*)
+                           ,(serialize track)))
+    (s (setf (.tracks x)
+             (list ,@(loop for track in (.tracks self)
+                           collect `(r ,(ref-id track))))))
     ,@(call-next-method)))
 
 (defmethod (setf .tracks) :after (tracks (self sequencer-module))
