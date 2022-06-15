@@ -361,7 +361,11 @@
    (cursor-y :initform 0 :accessor .cursor-y)
    (octave :initform 4 :accessor .octave)
    (edit-step :initform 0 :accessor .edit-step)
-   (shifting-p :initform nil :accessor .shifting-p)))
+   (shifting-p :initform nil :accessor .shifting-p)
+   (selection-start :initform nil :accessor .selection-start)
+   (selection-end :initform nil :accessor .selection-end)
+   (selection-mode :initform nil :accessor .selection-mode
+                :type (member nil :line :block))))
 
 (defclass pattern-editor-line (label)
   ((line :initarg :line :accessor .line)))

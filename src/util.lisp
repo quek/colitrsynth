@@ -33,3 +33,12 @@
 
 (defun radian (x1 y1 x2 y2)
   (atan (- y2 y1) (- x2 x1)))
+
+(defmacro with-benchmark (&body body)
+  (let ((time (gensym)))
+    `(let ((,time (get-internal-real-time)))
+       (prog1
+           (progn ,@body)
+         (format t "~&with-benchmark ~fs"
+                 (/ (- (get-internal-real-time) ,time)
+                    internal-time-units-per-second))))))

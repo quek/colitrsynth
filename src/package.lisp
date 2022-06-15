@@ -5,4 +5,5 @@
 
 (defpackage :colitrsynth
   (:use :cl :anaphora :colitrsynth.ffi)
+  (:shadow #:pi)
   (:export #:main))

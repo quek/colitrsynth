@@ -243,6 +243,9 @@
             ((and (sdl2:scancode= scancode :scancode-delete)
                   (or (not shift-p) (not ctrl-p)))
              (set-note none))
+            ((gethash (print (list scancode ctrl-p shift-p)) *pattern-editor-keymap*)
+             (funcall (gethash (list scancode ctrl-p shift-p) *pattern-editor-keymap*)
+                      self))
             (t
              (call-next-method)
              ;; TODO ちょっとわけわからんことになっているので何とかしたいです
@@ -306,7 +309,18 @@
                           *char-width*))
             (cursor-h *char-height*))
         (sdl2:render-fill-rect
-         renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))))
+         renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))
+    ;; selection
+    (when (= (.cursor-y parent) position)
+      (case (.selection-mode parent)
+        (:line
+         (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
+         (let ((cursor-x (* *char-width* (+ (.cursor-x parent) 3)))
+               (cursor-y (.render-y self))
+               (cursor-w (* *char-width* 7))
+               (cursor-h *char-height*))
+           (sdl2:render-fill-rect
+            renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))))))
 
 (defmethod close ((self pattern-module) &key abort)
   (declare (ignore abort))

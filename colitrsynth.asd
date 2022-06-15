@@ -31,6 +31,7 @@
    (:file "sin-osc-module")
    (:file "saw-osc-module")
    (:file "master-module")
+   (:file "pe")
    (:file "pattern-module")
    (:file "plugin-module")
    (:file "effect-plugin-module")

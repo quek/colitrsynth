@@ -28,3 +28,5 @@
 (defparameter *layout-space* 5)
 
 (defparameter *track-height* 30)        ;TODO 固定長で妥協
+
+(defparameter *pattern-editor-keymap* (make-hash-table :test #'equal))
