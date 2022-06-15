@@ -45,6 +45,10 @@
    (sequencer :initarg :sequencer :accessor .sequencer)
    (master :accessor .master)
    (process-thread :initform nil :accessor .process-thread)
+   (process-thread-mailbox :accessor .process-thread-mailbox
+                           :initform (sb-concurrency:make-mailbox))
+   (audio-mailbox :accessor .audio-mailbox
+                  :initform (sb-concurrency:make-mailbox))
    (statistic-enter-time :initform (get-internal-real-time)
                          :accessor .statistic-enter-time)
    (statistic-leave-time :initform (get-internal-real-time)
