@@ -30,7 +30,10 @@
 (defun stop-audio ()
   (when (.processing *audio*)
     (setf (.processing *audio*) nil)
-    (pa::stop-stream (.stream *audio*))))
+    (pa::stop-stream (.stream *audio*)))
+  (swhen (.process-thread *audio*)
+    (sb-thread:terminate-thread it)
+    (setf it nil)))
 
 (defun play-from-start ()
   (%play (make-play-position :line 0 :line-frame 0)))
