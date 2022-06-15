@@ -42,3 +42,10 @@
          (format t "~&with-benchmark ~fs"
                  (/ (- (get-internal-real-time) ,time)
                     internal-time-units-per-second))))))
+
+(defmacro with-serialize-context ((out &optional serialize-table) &body body)
+  `(with-standard-io-syntax
+     (let ((*package* (find-package :colitrsynth))
+           (*serialize-table* ,serialize-table))
+       (with-output-to-string (,out)
+         ,@body))))

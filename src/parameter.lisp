@@ -4,8 +4,9 @@
 (defparameter *sample-rate* 44100.0)
 
 (defparameter *transparency* #xc0)
-(defparameter *cursor-color* (list #x00 #x00 #xcc *transparency*))
 (defparameter *default-color* (list #xdd #xdd #xdd *transparency*))
+(defparameter *cursor-color* (list #x00 #x00 #xcc *transparency*))
+(defparameter *selection-color* (list #x00 #x44 #x77 *transparency*))
 (defparameter *background-color* (list #x00 #x00 #x00 *transparency*))
 (defparameter *play-position-color* (list #x00 #x80 #x00 *transparency*))
 
@@ -28,5 +29,3 @@
 (defparameter *layout-space* 5)
 
 (defparameter *track-height* 30)        ;TODO 固定長で妥協
-
-(defparameter *pattern-editor-keymap* (make-hash-table :test #'equal))
