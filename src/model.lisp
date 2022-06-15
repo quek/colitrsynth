@@ -91,6 +91,7 @@
                                   (midi-events-at-line-frame pattern-position
                                                              start-line start-frame
                                                              (- end-line start) end-frame))))))))
+    #+nil
     (when midi-events
       (print midi-events))
     (route track midi-events start-frame)))
@@ -160,8 +161,7 @@
   ;; LFO など入力なしでも動くモジュール
   (loop for model in (.modules *app*)
         if (null (.in model))
-          do (process model nil nil nil))
-  (write-master-buffer))
+          do (process model nil nil nil)))
 
 
 (defmethod initialize-instance :after ((self pattern) &key)

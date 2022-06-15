@@ -42,7 +42,6 @@
     :initform 2
     :type fixnum
     :accessor .output-channels)
-   (buffer :accessor .buffer)
    (sequencer :initarg :sequencer :accessor .sequencer)
    (master :accessor .master)
    (statistic-enter-time :initform (get-internal-real-time)
