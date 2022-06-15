@@ -44,6 +44,7 @@
     :accessor .output-channels)
    (sequencer :initarg :sequencer :accessor .sequencer)
    (master :accessor .master)
+   (process-thread :initform nil :accessor .process-thread)
    (statistic-enter-time :initform (get-internal-real-time)
                          :accessor .statistic-enter-time)
    (statistic-leave-time :initform (get-internal-real-time)
@@ -117,8 +118,10 @@
    (tracks :initarg :tracks :accessor .tracks :initform nil)
    (end :initform 0 :accessor .end)
    (looping :initform t :accessor .looping)
-   (loop-start-line :initform 0 :accessor .loop-start-line)
-   (loop-end-line :initform 0 :accessor .loop-end-line)
+   (loop-start-line :initform 0 :accessor .loop-start-line
+                    :type fixnum)
+   (loop-end-line :initform 0 :accessor .loop-end-line
+                  :type fixnum)
    (play-position :initform (make-play-position)
                   :accessor .play-position)
    (last-play-position :initform (make-play-position)
