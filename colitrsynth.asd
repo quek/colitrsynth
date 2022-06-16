@@ -31,7 +31,6 @@
    (:file "sin-osc-module")
    (:file "saw-osc-module")
    (:file "master-module")
-   (:file "pe")
    (:file "pattern-editor")
    (:file "pattern-module")
    (:file "plugin-module")
@@ -42,4 +41,11 @@
    (:file "menu")
    (:file "audio")
    (:file "view")
-   (:file "main")))
+   (:file "main")
+
+   (:module "cmd"
+    :serial t
+    :pathname "cmd"
+    :components
+    ((:file "cmd")
+     (:file "pattern-editor")))))

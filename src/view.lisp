@@ -1,5 +1,16 @@
 (in-package :colitrsynth)
 
+(defun to-bind-mod-value (mod-value)
+  (+ (if (plusp (logand mod-value sdl2-ffi:+kmod-ctrl+))
+         +ctrl+
+         0)
+     (if (plusp (logand mod-value sdl2-ffi:+kmod-alt+))
+         +alt+
+         0)
+     (if (plusp (logand mod-value sdl2-ffi:+kmod-shift+))
+         +shift+
+         0)))
+
 (defgeneric initialize (module))
 
 (defgeneric render (self renderer)

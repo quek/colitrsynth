@@ -9,6 +9,10 @@
 
 (sb-ext:defglobal *plugin-processes* nil)
 
+(defconstant +ctrl+  #b0001)
+(defconstant +alt+   #b0010)
+(defconstant +shift+ #b0100)
+
 (defvar *pattern-editor-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-yank-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-selection-block-keymap* (make-hash-table :test #'equal))

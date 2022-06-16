@@ -62,7 +62,7 @@
                        (+ (logand (.velocity column) #xf0)
                           velocity)))
                (step-next self)))
-      (cond ((awhen (gethash (print (list scancode ctrl-p shift-p))
+      (cond ((awhen (gethash (list scancode (to-bind-mod-value mod-value))
                              (.keymap self))
                (funcall it self)
                t))
