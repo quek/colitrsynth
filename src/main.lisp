@@ -72,7 +72,6 @@
   (let ((value (sdl2:sym-value keysym))
         (scancode (sdl2:scancode-value keysym))
         (mod-value (sdl2:mod-value keysym)))
-    #+nil
     (format t "Key sym: ~a, code: ~a, mod: ~a~%"
             (sdl2:sym-value keysym)
             scancode

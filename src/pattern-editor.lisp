@@ -5,6 +5,9 @@
 
 (defconstant +column-width+ 7)
 
+(defmethod at-note-column-p ((self pattern-editor))
+  (zerop (mod (.cursor-x self) +column-width+)))
+
 (defmethod .current-line ((self pattern-editor))
   (aref (.lines (.pattern self)) (.cursor-y self)))
 
@@ -227,6 +230,12 @@
                                            (.render-y self)
                                            (.width self)
                                            (.height self)))))
+
+(defmethod set-note ((self pattern-editor) note)
+  (when (at-note-column-p self)
+    (setf (.note (aref (.columns (.current-line self))
+                       (floor (/ (.cursor-x self) +column-width+))))
+          (+ note (* 12 (.octave self))))))
 
 (defmethod step-next ((self pattern-editor))
   (setf (.cursor-y self) (mod (+ (.cursor-y self) (.edit-step self))
