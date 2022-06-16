@@ -18,6 +18,7 @@
    (:file "parameter")
    (:file "util")
    (:file "midi")
+   (:file "keymap")
    
    (:file "class")
    (:file "model")

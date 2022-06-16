@@ -1,5 +1,41 @@
 (in-package :colitrsynth)
 
+(defcmd cmd::cursor-down (self)
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-j+))
+  (when (< (max-cursor-y self) (incf (.cursor-y self)))
+    (setf (.cursor-y self) 0)))
+
+(defcmd cmd::cursor-left (self)
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-h+))
+  (let ((value (- (.cursor-x self)
+                  (case (mod (.cursor-x self) +column-width+)
+                    (0 2)
+                    (4 4)
+                    (5 1)
+                    (t 0)))))
+    (setf (.cursor-x self)
+          (if (<= 0 value)
+              value
+              (max-cursor-x self)))))
+
+(defcmd cmd::cursor-right (self)
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-l+))
+  (let* ((value (+ (.cursor-x self)
+                   (case (mod (.cursor-x self) +column-width+)
+                     (0 4)
+                     (4 1)
+                     (5 2)
+                     (t 0)))))
+    (setf (.cursor-x self)
+          (if (<= value (max-cursor-x self))
+              value
+              0))))
+
+(defcmd cmd::cursor-up (self)
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-k+))
+  (when (minusp (decf (.cursor-y self)))
+    (setf (.cursor-y self) (max-cursor-y self))))
+
 (defcmd cmd::escape (self)
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-escape+))
   (cond ((eq :insert (.mode self))
@@ -42,7 +78,8 @@
      (write (serialize (.current-line self)) :stream out))))
 
 (defcmd cmd::yank-selection-lines (self)
-    (:bind (*pattern-editor-selection-line-keymap* sdl2-ffi:+sdl-scancode-y+))
+    (:bind (*pattern-editor-selection-line-keymap* sdl2-ffi:+sdl-scancode-y+)
+      :next-keymap *pattern-editor-keymap*)
   (let* ((start  (.cursor-y self))
          (end (.selection-start self))
          (lines (loop for i from (min start end) to (max start end)
@@ -50,7 +87,6 @@
     (sdl2-ffi.functions:sdl-set-clipboard-text
      (with-serialize-context (out)
        (write (serialize lines) :stream out))))
-  (setf (.keymap self) *pattern-editor-keymap*)
   (setf (.selection-mode self) nil)
   ;; TODO カーソル位置を選択開始位置に戻すべき？ vim は戻している
   )
