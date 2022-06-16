@@ -1,7 +1,8 @@
 (in-package :colitrsynth)
 
 (defparameter *frames-per-buffer* 2048)
-(defparameter *sample-rate* 44100.0)
+(defparameter *sample-rate* 48000.0)
+;; (defparameter *sample-rate* 44100.0)
 
 (defparameter *transparency* #xc0)
 (defparameter *default-color* (list #xdd #xdd #xdd *transparency*))
