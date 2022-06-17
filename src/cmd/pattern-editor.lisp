@@ -180,6 +180,14 @@
       do (setf (gethash (list i 0) *pattern-editor-insert-velocity-keymap*)
                'cmd::insert-velociy))
 
+(defcmd cmd::octave-down (self)
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f1+))
+  (setf (.octave self) (mod (1- (.octave self)) 10)))
+
+(defcmd cmd::octave-up (self)
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f2+))
+  (setf (.octave self) (mod (1+ (.octave self)) 10)))
+
 (defcmd cmd::paste (self)
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-p+))
   (awhen (deserialize (sdl2-ffi.functions:sdl-get-clipboard-text))

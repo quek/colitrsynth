@@ -31,8 +31,9 @@
                                                :src src :dest nil
                                                :src-bus i))))
       (when (produces-midi-p src)
-        (push (make-instance 'midi-connection :src src :dest nil)
-              cables))
+        (setf cables (append cables
+                             (list (make-instance 'midi-connection
+                                                  :src src :dest nil)))))
       cables)))
 
 (defgeneric available-connections (src dest cable-src)
