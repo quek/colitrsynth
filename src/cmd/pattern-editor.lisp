@@ -188,6 +188,14 @@
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f2+))
   (setf (.octave self) (mod (1+ (.octave self)) 10)))
 
+(defcmd cmd::edit-step-double (self)
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f4+))
+  (setf (.edit-step self) (max 1 (* (.edit-step self) 2))))
+
+(defcmd cmd::edit-step-half (self)
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f3+))
+  (setf (.edit-step self) (floor (/ (.edit-step self) 2))))
+
 (defcmd cmd::paste (self)
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-p+))
   (awhen (deserialize (sdl2-ffi.functions:sdl-get-clipboard-text))
