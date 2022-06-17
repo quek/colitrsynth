@@ -44,39 +44,51 @@
          (setf (.selection-mode self) nil))))
 
 (defcmd cmd::escape-insert-mode (self)
-    (:bind (*pattern-editor-insert-keymap* sdl2-ffi:+sdl-scancode-escape+)
-      :next-keymap *pattern-editor-keymap*)
+    (:next-keymap *pattern-editor-keymap*)
   (setf (.mode self) :command))
 
+(setf (gethash (list sdl2-ffi:+sdl-scancode-escape+ 0) *pattern-editor-insert-note-keymap*)
+      'cmd::escape-insert-mode)
+(setf (gethash (list sdl2-ffi:+sdl-scancode-escape+ 0) *pattern-editor-insert-velocity-keymap*)
+      'cmd::escape-insert-mode)
+(setf (gethash (list sdl2-ffi:+sdl-scancode-escape+ 0) *pattern-editor-insert-fx-keymap*)
+      'cmd::escape-insert-mode)
+
 (defcmd cmd::insert-mode (self)
-    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-i+)
-      :next-keymap *pattern-editor-insert-keymap*)
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-i+))
   ;; TODO mode 必要？
-  (setf (.mode self) :insert))
+  (setf (.mode self) :insert)
+  (setf (.keymap self)
+        (cond ((at-note-column-p self)
+               *pattern-editor-insert-note-keymap*)
+              ((at-velocity-column-p self)
+               *pattern-editor-insert-velocity-keymap*)
+              (t
+               *pattern-editor-insert-fx-keymap*))))
 
 (macrolet ((m (note key)
              (let ((name (intern (format nil "INSERT-NOTE-~a" note) :cmd)))
                `(progn
                   (defcmd ,name (self)
-                      (:bind (*pattern-editor-insert-keymap* ,key))
+                      (:bind (*pattern-editor-insert-note-keymap* ,key))
                     (set-note self ,(intern (format nil "~a0" note))))
-                  (setf (gethash (list ,key +shift+) *pattern-editor-insert-keymap*)
+                  (setf (gethash (list ,key +shift+) *pattern-editor-insert-note-keymap*)
                         ',name))))
            (m+1 (note key)
              (let ((name (intern (format nil "INSERT-NOTE-~a+1" note) :cmd)))
                `(progn
                   (defcmd ,name (self)
-                      (:bind (*pattern-editor-insert-keymap* ,key))
+                      (:bind (*pattern-editor-insert-note-keymap* ,key))
                     (set-note self ,(intern (format nil "~a1" note))))
-                  (setf (gethash (list ,key +shift+) *pattern-editor-insert-keymap*)
+                  (setf (gethash (list ,key +shift+) *pattern-editor-insert-note-keymap*)
                         ',name))))
            (m+2 (note key)
              (let ((name (intern (format nil "INSERT-NOTE-~a+2" note) :cmd)))
                `(progn
                   (defcmd ,name (self)
-                      (:bind (*pattern-editor-insert-keymap* ,key))
+                      (:bind (*pattern-editor-insert-note-keymap* ,key))
                     (set-note self ,(intern (format nil "~a2" note))))
-                  (setf (gethash (list ,key +shift+) *pattern-editor-insert-keymap*)
+                  (setf (gethash (list ,key +shift+) *pattern-editor-insert-note-keymap*)
                         ',name)))))
   ;; http://sdl2referencejp.osdn.jp/SDLScancodeLookup.html
   (m c sdl2-ffi:+sdl-scancode-z+)
@@ -121,16 +133,58 @@
   (m+2 g# sdl2-ffi:+sdl-scancode-international3+) ;\
   )
 
+(defcmd cmd::insert-velociy (self) ()
+  (let ((value (case (car *current-key*)
+                 (#.sdl2-ffi:+sdl-scancode-0+ 0)
+                 (#.sdl2-ffi:+sdl-scancode-1+ 1)
+                 (#.sdl2-ffi:+sdl-scancode-2+ 2)
+                 (#.sdl2-ffi:+sdl-scancode-3+ 3)
+                 (#.sdl2-ffi:+sdl-scancode-4+ 4)
+                 (#.sdl2-ffi:+sdl-scancode-5+ 5)
+                 (#.sdl2-ffi:+sdl-scancode-6+ 6)
+                 (#.sdl2-ffi:+sdl-scancode-7+ 7)
+                 (#.sdl2-ffi:+sdl-scancode-8+ 8)
+                 (#.sdl2-ffi:+sdl-scancode-9+ 9)
+                 (#.sdl2-ffi:+sdl-scancode-a+ #xa)
+                 (#.sdl2-ffi:+sdl-scancode-b+ #xb)
+                 (#.sdl2-ffi:+sdl-scancode-c+ #xc)
+                 (#.sdl2-ffi:+sdl-scancode-d+ #xd)
+                 (#.sdl2-ffi:+sdl-scancode-e+ #xe)
+                 (#.sdl2-ffi:+sdl-scancode-f+ #xf)
+                 (t nil))))
+    (print (.velocity (current-column self)))
+    (cond ((and (at-velocity-#x0-p self)
+                (<= value 8))
+           (setf (ldb (byte 4 4) (.velocity (current-column self)))
+                 value))
+          ((at-velocity-#0x-p self)
+           (setf (ldb (byte 4 0) (.velocity (current-column self)))
+                 value)))))
 
-(defcmd cmd::insert-note-c (self)
-    (:bind (*pattern-editor-insert-keymap* sdl2-ffi:+sdl-scancode-z+))
-  (set-note self c0))
+(loop for i in (list sdl2-ffi:+sdl-scancode-0+
+                     sdl2-ffi:+sdl-scancode-1+
+                     sdl2-ffi:+sdl-scancode-2+
+                     sdl2-ffi:+sdl-scancode-3+
+                     sdl2-ffi:+sdl-scancode-4+
+                     sdl2-ffi:+sdl-scancode-5+
+                     sdl2-ffi:+sdl-scancode-6+
+                     sdl2-ffi:+sdl-scancode-7+
+                     sdl2-ffi:+sdl-scancode-8+
+                     sdl2-ffi:+sdl-scancode-9+
+                     sdl2-ffi:+sdl-scancode-a+
+                     sdl2-ffi:+sdl-scancode-b+
+                     sdl2-ffi:+sdl-scancode-c+
+                     sdl2-ffi:+sdl-scancode-d+
+                     sdl2-ffi:+sdl-scancode-e+
+                     sdl2-ffi:+sdl-scancode-f+)
+      do (setf (gethash (list i 0) *pattern-editor-insert-velocity-keymap*)
+               'cmd::insert-velociy))
 
 (defcmd cmd::paste (self)
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-p+))
   (awhen (deserialize (sdl2-ffi.functions:sdl-get-clipboard-text))
     (cond ((typep it 'line)
-           (setf (.current-line self) it))
+           (setf (current-line self) it))
           ((and (typep it 'cons)
                 (typep (car it) 'line))
            (loop for i from (.cursor-y self) below (.length (.pattern self))
@@ -158,7 +212,7 @@
       :next-keymap *pattern-editor-keymap*)
   (sdl2-ffi.functions:sdl-set-clipboard-text
    (with-serialize-context (out)
-     (write (serialize (.current-line self)) :stream out))))
+     (write (serialize (current-line self)) :stream out))))
 
 (defcmd cmd::yank-selection-lines (self)
     (:bind (*pattern-editor-selection-line-keymap* sdl2-ffi:+sdl-scancode-y+)

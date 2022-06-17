@@ -5,10 +5,14 @@
 (defconstant +shift+ #b0100)
 
 (defvar *pattern-editor-keymap* (make-hash-table :test #'equal))
-(defvar *pattern-editor-insert-keymap* (make-hash-table :test #'equal))
+(defvar *pattern-editor-insert-note-keymap* (make-hash-table :test #'equal))
+(defvar *pattern-editor-insert-velocity-keymap* (make-hash-table :test #'equal))
+(defvar *pattern-editor-insert-fx-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-yank-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-selection-block-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-selection-line-keymap* (make-hash-table :test #'equal))
+
+(defvar *current-key* nil)
 
 (defmacro defcmd (name args (&key bind next-keymap) &body body)
   `(progn
