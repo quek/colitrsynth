@@ -34,6 +34,37 @@
 (defmethod process-out-plugin-command ((self instrument-plugin-module))
   +plugin-command-instrument+)
 
+(defmethod receive-from-plugin ((self instrument-plugin-module))
+  (declare (optimize (speed 3) (safety 0)))
+  (call-next-method)
+  (when (produces-midi-p self)
+    (let ((fd (sb-sys:fd-stream-fd (.host-io self)))
+          (nevents 0)
+          (buffer (.out-buffer self)))   ;MIDI データ用を流用
+      (declare ((simple-array (unsigned-byte 8) (*)) buffer)
+               ((unsigned-byte 32) fd))
+      (read-fd fd buffer 2)
+      (setf (ldb (byte 4 0) nevents) (aref buffer 0))
+      (setf (ldb (byte 4 4) nevents) (aref buffer 1))
+      (setf (.output-midi-events self)
+            (when (plusp nevents)
+              (read-fd fd buffer (* 6 nevents))
+              (loop repeat nevents
+                    with index fixnum = -1
+                    collect (let ((event (aref buffer (incf index)))
+                                  (channel (aref buffer (incf index)))
+                                  (note (aref buffer (incf index)))
+                                  (velocity (aref buffer (incf index)))
+                                  (frame 0))
+                              (setf (ldb (byte 4 0) frame) (aref buffer (incf index)))
+                              (setf (ldb (byte 4 4) frame) (aref buffer (incf index)))
+                              (make-instance 'midi-event
+                                             :event event
+                                             :channel channel
+                                             :note note
+                                             :velocity velocity
+                                             :frame frame))))))))
+
 (defmethod write-out-buffer-to-plugin ((self instrument-plugin-module))
   (declare (optimize (speed 3) (safety 0)))
   (let ((out-buffer (.out-buffer self)))

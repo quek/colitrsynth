@@ -53,6 +53,13 @@
              (aref left bus)
              (aref right bus))))
 
+;; TODO tracker の MIDI 出力も統一したい
+(defmethod route-connection ((connection midi-connection)
+                             (src instrument-plugin-model)
+                             dest
+                             left right)
+  (process dest connection (.output-midi-events src) nil))
+
 (defmethod close ((self model) &key abort)
   (declare (ignore abort)))
 

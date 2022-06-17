@@ -34,6 +34,24 @@
 (defun radian (x1 y1 x2 y2)
   (atan (- y2 y1) (- x2 x1)))
 
+(declaim (inline read-fd))
+(defun read-fd (fd buffer buffer-size)
+  (declare (optimize (speed 3) (safety 0)))
+  (locally (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
+    (cffi:with-foreign-object (bytes-read '(:pointer :unsigned-long))
+      (sb-sys:with-pinned-objects (buffer)
+        (sb-win32:read-file fd
+                            (sb-sys:vector-sap buffer)
+                            buffer-size
+                            bytes-read
+                            (cffi:null-pointer))
+        ;; (cffi:mem-aref bytes-read :unsigned-long 0)
+        ;; これ動かない
+        ;; (sb-posix:read (sb-sys:fd-stream-fd io)
+        ;;                (sb-sys:vector-sap xxx)
+        ;;                (* *frames-per-buffer* 4))
+        ))))
+
 (defmacro with-benchmark (&body body)
   (let ((time (gensym)))
     `(let ((,time (get-internal-real-time)))

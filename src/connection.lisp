@@ -6,6 +6,12 @@
 (defmethod .name ((self audio-connection))
   (format nil "In ~d" (.dest-bus self)))
 
+(defmethod .name-as-src ((self midi-connection))
+  "Out MIDI")
+
+(defmethod .name-as-src ((self audio-connection))
+  (format nil "Out ~d" (.src-bus self)))
+
 (defmethod .name ((self builtin-param-connection))
   (builtin-parameter-name (.param self)))
 

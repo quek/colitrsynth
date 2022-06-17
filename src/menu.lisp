@@ -26,10 +26,14 @@
   (:method ((src track-view))
     (list (make-instance 'midi-connection :src src :dest nil)))
   (:method ((src plugin-module))
-    (loop for i below (.output-nbuses src)
-          collect (make-instance 'audio-connection
-                                 :src src :dest nil
-                                 :src-bus i))))
+    (let ((cables (loop for i below (.output-nbuses src)
+                        collect (make-instance 'audio-connection
+                                               :src src :dest nil
+                                               :src-bus i))))
+      (when (produces-midi-p src)
+        (push (make-instance 'midi-connection :src src :dest nil)
+              cables))
+      cables)))
 
 (defgeneric available-connections (src dest cable-src)
   (:method (src (dest module) cable-src)
@@ -117,7 +121,7 @@
   (dolist (cable (.cables self))
     (let ((button (make-instance
                    'menu-button
-                   :label (format nil "Out ~d" (.src-bus cable))
+                   :label (.name-as-src cable)
                    :onclick (lambda ()
                               (setf (.cable-src *app*) cable)))))
       (add-child self button)

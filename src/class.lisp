@@ -229,10 +229,14 @@
    (input-nchannels :initform 0 :accessor .input-nchannels)
    (output-nchannels :initform 0 :accessor .output-nchannels)
    (sidechain-nchannels :initform 0 :accessor .sidechain-nchannels)
+   (accepts-midi-p :initform nil :accessor accepts-midi-p)
+   (produces-midi-p :initform nil :accessor produces-midi-p)
+   (midi-effect-p :initform nil :accessor midi-effect-p)
    (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
 
 (defclass instrument-plugin-model (midi-input-mixin plugin-model)
-  ((midi-events :initform nil :accessor .midi-events)))
+  ((midi-events :initform nil :accessor .midi-events)
+   (output-midi-events :initform nil :accessor .output-midi-events)))
 
 (defclass effect-plugin-model (plugin-model)
   ((mix-buffer :accessor .mix-buffer)))
