@@ -34,39 +34,15 @@
                   (/ (.height self) 2)))))
 
 (defmethod keydown ((self pattern-editor) value scancode mod-value)
-  (unless (.focused self)
-    (return-from keydown 'call-next-method))
-  (let* ((shift-p (not (zerop (logand mod-value sdl2-ffi:+kmod-shift+))))
-         (ctrl-p (not (zerop (logand mod-value sdl2-ffi:+kmod-ctrl+))))
-         (lines (.lines (.pattern self)))
-         (line (aref lines (.cursor-y self)))
-         (*current-key* (list scancode (to-bind-mod-value mod-value))))
-    (cond ((awhen (gethash *current-key* (.keymap self))
-             (funcall it self)
-             t))
-          ((sdl2:scancode= scancode :scancode-f9)
-           (setf (.cursor-y self) 0))
-          ((sdl2:scancode= scancode :scancode-f10)
-           (setf (.cursor-y self) (floor (* (.length (.pattern self)) 1/4))))
-          ((sdl2:scancode= scancode :scancode-f11)
-           (setf (.cursor-y self) (floor (* (.length (.pattern self)) 2/4))))
-          ((sdl2:scancode= scancode :scancode-f12)
-           (setf (.cursor-y self) (floor (* (.length (.pattern self)) 3/4))))
-          ((and (or (sdl2:scancode= scancode :scancode-left)
-                    (sdl2:scancode= scancode :scancode-h))
-                ctrl-p shift-p)
-           (loop with length = (max 1 (1- (.length line)))
-                 for line across lines
-                 do (setf (.length line) length)))
-          ((and (or (sdl2:scancode= scancode :scancode-right)
-                    (sdl2:scancode= scancode :scancode-l))
-                ctrl-p shift-p)
-           (extend-column (.pattern self)))
-          (t
-           (call-next-method)
-           ;; TODO ちょっとわけわからんことになっているので何とかしたいです
-           ;; ohandle-sdl2-keydown-event から (.focused-view *app*) で直に来ているから
-           'call-next-method))))
+  ;; (unless (.focused self)
+  ;;   (return-from keydown 'call-next-method))
+  (let ((*current-key* (list scancode (to-bind-mod-value mod-value))))
+    (aif (or (gethash *current-key* (.keymap self))
+               (gethash *current-key* *pattern-editor-keymap*))
+        (progn
+          (funcall it self)
+          t)
+        (call-next-method))))
 
 (defmethod keyup ((self pattern-editor) value scancode mod-value)
   (cond ((and (.shifting-p self)
@@ -107,16 +83,6 @@
 
 (defmethod max-cursor-y ((self pattern-editor))
   (1- (length (.lines (.pattern self)))))
-
-(defmethod render ((self pattern-editor) renderer)
-  (call-next-method)
-  (when (.focused self)
-    (apply #'sdl2:set-render-draw-color renderer *focused-color*)
-    (sdl2:render-draw-rect renderer
-                           (sdl2:make-rect (.render-x self)
-                                           (.render-y self)
-                                           (.width self)
-                                           (.height self)))))
 
 (defmethod set-note ((self pattern-editor) note)
   (when (at-note-column-p self)

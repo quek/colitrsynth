@@ -187,6 +187,11 @@
         for line across lines
         do (setf (.length line) length)))
 
+(defmethod shrink-column ((self pattern))
+  (loop with length = (max 1 (1- (.length (current-line self))))
+        for line across (.lines self)
+        do (setf (.length line) length)))
+
 (defun midi-events-at-line-frame (pattern-position start-line start-frame end-line end-frame)
   (declare (ignore end-frame))
   (setf (.current-line (.pattern pattern-position)) start-line)

@@ -605,10 +605,10 @@
       (sdl2:destroy-texture texture))))
 
 (defmethod render :after ((self module) renderer)
-  (let ((color (cond ((eq self (.selected-pattern *app*))
-                      *selected-pattern-color*)
-                     ((eq self (.selected-module *app*))
-                      *selected-module-color*))))
+  (let ((color (cond ((eq self (.selected-module *app*))
+                      *selected-module-color*)
+                     ((eq self (.selected-pattern *app*))
+                      *selected-pattern-color*))))
     (when color
       (apply #'sdl2:set-render-draw-color renderer color)
       (sdl2:render-draw-rect

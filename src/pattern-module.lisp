@@ -70,8 +70,7 @@
            (sdl2:render-fill-rect
             renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))))
     ;; cursor
-    (when (and (.focused editor)
-               (= (.cursor-y editor) position))
+    (when (= (.cursor-y editor) position)
       (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
       (let ((cursor-x (+ (* *char-width* (+ (.cursor-x editor) 3)) 2))
             (cursor-y (.render-y self))
@@ -95,9 +94,7 @@
   (setf (.selected-pattern *app*) self))
 
 (defmethod keydown ((self pattern-module) value scancode mod-value)
-  ;; TODO pattern-editor にフォーカスしている場合の pattern-editor の keydown をコールする
-  (when (eq 'call-next-method
-            (keydown (.pattern-editor self) value scancode mod-value))
+  (unless (keydown (.pattern-editor self) value scancode mod-value)
     (call-next-method)))
 
 (defmethod (setf .width) :after (value (self pattern-module))

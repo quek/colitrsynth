@@ -5,12 +5,12 @@
 (defconstant +shift+ #b0100)
 
 (defvar *pattern-editor-keymap* (make-hash-table :test #'equal))
+(defvar *pattern-editor-command-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-insert-note-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-insert-velocity-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-insert-fx-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-yank-keymap* (make-hash-table :test #'equal))
-(defvar *pattern-editor-selection-block-keymap* (make-hash-table :test #'equal))
-(defvar *pattern-editor-selection-line-keymap* (make-hash-table :test #'equal))
+(defvar *pattern-editor-visual-keymap* (make-hash-table :test #'equal))
 
 (defvar *current-key* nil)
 
@@ -21,6 +21,9 @@
        ,@(when next-keymap
            `((setf (.keymap self) ,next-keymap))))
      ,@(when bind
-         `((setf (gethash (list ,(cadr bind) (+ ,@(cddr bind)))
-                          ,(car bind))
-                 ',name)))))
+         (loop for (keymap scancode . mod) in (if (consp (car bind))
+                                                  bind
+                                                  (list bind))
+               collect `(setf (gethash (list ,scancode (+ ,@mod))
+                                       ,keymap)
+                              ',name)))))

@@ -374,7 +374,7 @@
    (octave :initform 4 :accessor .octave)
    (edit-step :initform 0 :accessor .edit-step)
    (shifting-p :initform nil :accessor .shifting-p)
-   (keymap :initform *pattern-editor-keymap* :accessor .keymap)
+   (keymap :initform *pattern-editor-command-keymap* :accessor .keymap)
    (selection-start :initform nil :accessor .selection-start)
    (selection-end :initform nil :accessor .selection-end)
    (mode :initform :command :accessor .mode
