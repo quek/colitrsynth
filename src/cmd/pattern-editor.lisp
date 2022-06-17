@@ -133,6 +133,10 @@
   (m+2 g# sdl2-ffi:+sdl-scancode-international3+) ;\
   )
 
+(defcmd cmd::insert-note-off (self)
+    (:bind (*pattern-editor-insert-note-keymap* sdl2-ffi:+sdl-scancode-a+))
+  (set-note self off))
+
 (defcmd cmd::insert-velociy (self) ()
   (let ((value (case (car *current-key*)
                  (#.sdl2-ffi:+sdl-scancode-0+ 0)
