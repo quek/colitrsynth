@@ -71,7 +71,8 @@
                `(progn
                   (defcmd ,name (self)
                       (:bind (*pattern-editor-insert-note-keymap* ,key))
-                    (set-note self ,(intern (format nil "~a0" note))))
+                    (set-note self (+ ,(intern (format nil "~a0" note))
+                                      (* 12 (.octave self)))))
                   (setf (gethash (list ,key +shift+) *pattern-editor-insert-note-keymap*)
                         ',name))))
            (m+1 (note key)
@@ -79,7 +80,8 @@
                `(progn
                   (defcmd ,name (self)
                       (:bind (*pattern-editor-insert-note-keymap* ,key))
-                    (set-note self ,(intern (format nil "~a1" note))))
+                    (set-note self (+ ,(intern (format nil "~a1" note))
+                                      (* 12 (.octave self)))))
                   (setf (gethash (list ,key +shift+) *pattern-editor-insert-note-keymap*)
                         ',name))))
            (m+2 (note key)
@@ -87,7 +89,8 @@
                `(progn
                   (defcmd ,name (self)
                       (:bind (*pattern-editor-insert-note-keymap* ,key))
-                    (set-note self ,(intern (format nil "~a2" note))))
+                    (set-note self (+ ,(intern (format nil "~a2" note))
+                                      (* 12 (.octave self)))))
                   (setf (gethash (list ,key +shift+) *pattern-editor-insert-note-keymap*)
                         ',name)))))
   ;; http://sdl2referencejp.osdn.jp/SDLScancodeLookup.html

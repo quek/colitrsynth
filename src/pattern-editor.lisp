@@ -122,9 +122,7 @@
   (when (at-note-column-p self)
     (setf (.note (aref (.columns (current-line self))
                        (floor (/ (.cursor-x self) +column-width+))))
-          (+ note (if (= note off)
-                      0
-                      (* 12 (.octave self)))))))
+          note)))
 
 (defmethod set-note :after ((self pattern-editor) note)
   (if (shift-key-p)
