@@ -22,11 +22,13 @@
    
    (:file "class")
    (:file "model")
+   (:file "column")
    (:file "connection")
    (:file "adsr-module")
    (:file "constant-module")
    (:file "gain-module")
    (:file "lfo-module")
+   (:file "line")
    (:file "operand-module")
    (:file "osc-module")
    (:file "sin-osc-module")

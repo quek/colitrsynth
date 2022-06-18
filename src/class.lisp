@@ -135,7 +135,14 @@
 
 (defclass column ()
   ((note :initarg :note :initform none :accessor .note)
-   (velocity :initarg :velocity :initform 100 :accessor .velocity)))
+   (velocity :initarg :velocity :initform *default-velocity*
+             :accessor .velocity :type (unsigned-byte 8))
+   (velocity-enable-p :initarg :velocity-enable-p :initform nil
+                      :type boolean :accessor velocity-enable-p)
+   (delay :initarg :delay :initform 0 :accessor .delay
+          :type (unsigned-byte 8))
+   (delay-enable-p :initarg :delay-enable-p :initform nil
+                   :type boolean :accessor delay-enable-p)))
 
 (defclass line ()
   ((columns :initarg :columns :accessor .columns

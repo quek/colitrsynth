@@ -188,7 +188,7 @@
         do (setf (.length line) length)))
 
 (defmethod shrink-column ((self pattern))
-  (loop with length = (max 1 (1- (.length (current-line self))))
+  (loop with length = (max 1 (1- (.length (aref (.lines self) 0))))
         for line across (.lines self)
         do (setf (.length line) length)))
 

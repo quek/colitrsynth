@@ -3,24 +3,31 @@
 ;;;; 処理の都合上必要なこ
 (defvar *pattern-scroll-lock* nil)
 
-(defconstant +column-width+ 7)
+(defmethod at-note-column-p ((self pattern-editor) index)
+  (at-note-column-p (current-line self) index))
 
-(defmethod at-note-column-p ((self pattern-editor))
-  (zerop (mod (.cursor-x self) +column-width+)))
+(defmethod at-delay-column-p ((self pattern-editor) index)
+  (or (at-delay-#x0-p self index)
+      (at-delay-#0x-p self index)))
 
-(defmethod at-velocity-column-p ((self pattern-editor))
-  (or (at-velocity-#x0-p self)
-      (at-velocity-#0x-p self)))
+(defmethod at-delay-#x0-p ((self pattern-editor) index)
+  (at-delay-#x0-p (current-line self) index))
 
-(defmethod at-velocity-#x0-p ((self pattern-editor))
-  (= 4 (mod (.cursor-x self) +column-width+)))
+(defmethod at-delay-#0x-p ((self pattern-editor) index)
+  (at-delay-#0x-p (current-line self) index))
 
-(defmethod at-velocity-#0x-p ((self pattern-editor))
-  (= 5 (mod (.cursor-x self) +column-width+)))
+(defmethod at-velocity-column-p ((self pattern-editor) index)
+  (or (at-velocity-#x0-p self index)
+      (at-velocity-#0x-p self index)))
+
+(defmethod at-velocity-#x0-p ((self pattern-editor) index)
+  (at-velocity-#x0-p (current-line self) index))
+
+(defmethod at-velocity-#0x-p ((self pattern-editor) index)
+  (at-velocity-#0x-p (current-line self) index))
 
 (defmethod current-column ((self pattern-editor))
-  (aref (.columns (aref (.lines (.pattern self)) (.cursor-y self)))
-        (floor (/ (.cursor-x self) +column-width+))))
+  (column-at (current-line self) (.cursor-x self)))
 
 (defmethod current-line ((self pattern-editor))
   (aref (.lines (.pattern self)) (.cursor-y self)))
@@ -78,33 +85,36 @@
               do (setf (.line pattern-editor-line) pattern-line)))))
 
 (defmethod max-cursor-x ((self pattern-editor))
-  (- (* +column-width+ (.length (aref (.lines (.pattern self)) 0)))
-     2))
+  "2 引くのは cursor-x が 0 オリジンと column の最後のスペース"
+  (- (nchars (current-line self)) 2))
 
 (defmethod max-cursor-y ((self pattern-editor))
   (1- (length (.lines (.pattern self)))))
 
 (defmethod set-note ((self pattern-editor) note)
-  (when (at-note-column-p self)
-    (setf (.note (aref (.columns (current-line self))
-                       (floor (/ (.cursor-x self) +column-width+))))
+  (when (at-note-column-p self (.cursor-x self))
+    (setf (.note (current-column self))
           note)))
 
 (defmethod set-note :after ((self pattern-editor) note)
   (if (shift-key-p)
-      (let* ((new-column (1+ (floor (.cursor-x self) +column-width+)))
-             (max-line-length 16)
-             (line (current-line self)))
-        (setf (.shifting-p self) t)
-        (when (< new-column max-line-length)
-          (when (<= (.length line) new-column)
-            (extend-column (.pattern self)))
-          (setf (.cursor-x self) (* new-column +column-width+))
-          (let ((root (.root-parent self)))
-            (setf (.width root) (max (.width root)
-                                     (* *char-width*
-                                        (+ (* new-column +column-width+)
-                                           12))))))) ;12は適当
+      (let ((line (current-line))
+            (max-line-length 16))
+        (multiple-value-bind (column x i) (current-column self)
+          (setf (.shifting-p self) t)
+          (let ((new-column (1+ i)))
+           (when (< new-column max-line-length)
+             (when (<= (.length line) new-column)
+               (extend-column (.pattern self)))
+             (setf (.cursor-x self)
+                   (loop for i below new-column
+                         sum (nchars (aref (.columns line) i))))
+             (let ((root (.root-parent self)))
+               (setf (.width root) (max (.width root)
+                                        (* *char-width*
+                                           (+ (.cursor-x self)
+                                              (nchars (aref (.columns line) new-column))
+                                              3)))))))))
       (step-next self)))
 
 (defmethod step-next ((self pattern-editor))

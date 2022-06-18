@@ -4,6 +4,8 @@
 (defparameter *sample-rate* 48000.0)
 ;; (defparameter *sample-rate* 44100.0)
 
+(defparameter *default-velocity* #x64)
+
 (defparameter *transparency* #xc0)
 (defparameter *default-color* (list #xdd #xdd #xdd *transparency*))
 (defparameter *cursor-color* (list #x00 #x00 #xcc *transparency*))

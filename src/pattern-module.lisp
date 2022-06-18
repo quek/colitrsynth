@@ -32,9 +32,9 @@
                   for column across (.columns line)
                   for note = (.note column)
                   do (cond ((= note off)
-                            (write-string " OFF --" out))
+                            (write-string " OFF" out))
                            ((= note none)
-                            (write-string " --- --" out))
+                            (write-string " ---" out))
                            (t
                             (let* ((c-s-o (format nil "~a" (midino-to-note note)))
                                    (c (char c-s-o 0))
@@ -42,8 +42,16 @@
                                           #\#
                                           #\-))
                                    (o (char c-s-o (if (char= s #\#) 2 1))))
-                              (format out " ~c~c~c ~2,'0X"
-                                      c s o (.velocity column))))))))
+                              (format out " ~c~c~c" c s o))))
+                     (when (velocity-enable-p column)
+                       (if (<= c0 note)
+                           (format out " ~2,'0X" (.velocity column))
+                           (format out " --")))
+                     (when (delay-enable-p column)
+                       (if (or (<= c0 note)
+                               (= off note))
+                           (format out " ~2,'0X" (.delay column))
+                           (format out " --"))))))
     ;; play position
     (when (= (.current-line (.pattern editor)) position)
       (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
@@ -65,7 +73,7 @@
          (apply #'sdl2:set-render-draw-color renderer *selection-color*)
          (let ((cursor-x (* *char-width* 3))
                (cursor-y (.render-y self))
-               (cursor-w (* *char-width* +column-width+ (.length (.line self))))
+               (cursor-w (* *char-width* (max-cursor-x editor)))
                (cursor-h *char-height*))
            (sdl2:render-fill-rect
             renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))))
@@ -74,7 +82,7 @@
       (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
       (let ((cursor-x (+ (* *char-width* (+ (.cursor-x editor) 3)) 2))
             (cursor-y (.render-y self))
-            (cursor-w (if (zerop (mod (.cursor-x editor) +column-width+))
+            (cursor-w (if (at-note-column-p editor (.cursor-x editor))
                           (* *char-width* 3)
                           *char-width*))
             (cursor-h *char-height*))
@@ -110,13 +118,3 @@
     (setf (.octave (.pattern-editor x)) ,(.octave (.pattern-editor self))
           (.edit-step (.pattern-editor x)) ,(.edit-step (.pattern-editor self)))
     ,@(call-next-method)))
-
-(defmethod serialize ((self line))
-  `(make-instance 'line
-                  :columns ,(serialize (.columns self))
-                  :lenght ,(.length self)))
-
-(defmethod serialize ((self column))
-  `(make-instance 'column
-                  :note ,(.note self)
-                  :velocity ,(.velocity self)))
