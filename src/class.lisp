@@ -389,8 +389,13 @@
    (selection-mode :initform nil :accessor .selection-mode
                 :type (member nil :line :block))))
 
-(defclass pattern-editor-line (label)
-  ((line :initarg :line :accessor .line)))
+(defclass pattern-editor-line (view)
+  ((line :initarg :line :accessor .line)
+   (index :initarg :index :accessor .index)
+   (index-label :accessor .index-label)   
+   (note-labels :accessor .note-labels)
+   (velocity-labels :accessor .velocity-labels)
+   (delay-labels :accessor .delay-labels)))
 
 (defclass track-view (track
                       drag-mixin

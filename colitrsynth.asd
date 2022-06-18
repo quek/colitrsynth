@@ -35,6 +35,7 @@
    (:file "saw-osc-module")
    (:file "master-module")
    (:file "pattern-editor")
+   (:file "pattern-editor-line")
    (:file "pattern-module")
    (:file "plugin-module")
    (:file "effect-plugin-module")

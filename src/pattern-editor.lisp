@@ -74,8 +74,11 @@
           (setf (.lines self) nil)
           (loop for pattern-line across pattern-lines
                 for y from 2 by *char-height*
-                for line = (make-instance 'pattern-editor-line :line pattern-line
-                                                               :x 3 :y y)
+                for index from 0
+                for line = (make-instance 'pattern-editor-line
+                                          :line pattern-line
+                                          :index index
+                                          :x 3 :y y)
                 do (push line (.lines self))
                    (add-child self line))
           (setf (.lines self) (nreverse (.lines self))))
