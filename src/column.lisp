@@ -2,7 +2,7 @@
 
 (defmethod at-note-column-p ((self column) index)
   "*C*-4 64 00"
-  (<= 0 index 2))
+  (zerop index))
 
 (defmethod at-delay-#x0-p ((self column) index)
   "C-4 64 *0*0 or C-4 *0*0"

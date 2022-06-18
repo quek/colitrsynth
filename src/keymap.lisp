@@ -8,7 +8,7 @@
 (defvar *pattern-editor-command-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-insert-note-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-insert-velocity-keymap* (make-hash-table :test #'equal))
-(defvar *pattern-editor-insert-fx-keymap* (make-hash-table :test #'equal))
+(defvar *pattern-editor-insert-delay-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-yank-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-visual-keymap* (make-hash-table :test #'equal))
 
