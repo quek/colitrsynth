@@ -101,9 +101,10 @@
 
 (defmethod set-note :after ((self pattern-editor) note)
   (if (shift-key-p)
-      (let ((line (current-line))
+      (let ((line (current-line self))
             (max-line-length 16))
         (multiple-value-bind (column x i) (current-column self)
+          (declare (ignore column x))
           (setf (.shifting-p self) t)
           (let ((new-column (1+ i)))
            (when (< new-column max-line-length)

@@ -13,6 +13,10 @@
 (defparameter *background-color* (list #x00 #x00 #x00 *transparency*))
 (defparameter *play-position-color* (list #x00 #x80 #x00 *transparency*))
 
+(defparameter *note-color* (list #xee #xee #xee *transparency*))
+(defparameter *velocity-color* (list #xee #xbb #x55 *transparency*))
+(defparameter *delay-color* (list #xee #x66 #xee *transparency*))
+
 (defparameter *connection-line-color* (list #x22 #x8b #x22 *transparency*))
 (defparameter *cable-color-audio-aux* (list #x8b #x44 #x44 *transparency*))
 (defparameter *cable-color-midi* (list #x22 #xaa #xaa *transparency*))
