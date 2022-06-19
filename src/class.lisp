@@ -275,8 +275,6 @@
    (views :initarg :views :initform '() :accessor .views)
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
-   ;; TODO こっちは消す
-   (selected-module :initform nil :accessor .selected-module)
    (selected-modules :initform nil :accessor .selected-modules)
    (selected-pattern :initform nil :accessor .selected-pattern)
    (focused-view :initform nil :accessor .focused-view)

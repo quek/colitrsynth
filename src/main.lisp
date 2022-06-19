@@ -84,7 +84,7 @@
               (sdl2:scancode= scancode :scancode-rctrl))
       (setf (.ctrl-key-p *app*) t))
     (keydown (or (.focused-view *app*)
-                 (.selected-module *app*))
+                 (car (.selected-modules *app*)))
              value scancode mod-value)))
 
 (defun handle-sdl2-keyup-event (keysym)
@@ -98,7 +98,7 @@
               (sdl2:scancode= scancode :scancode-rctrl))
       (setf (.ctrl-key-p *app*) nil))
     (keyup (or (.focused-view *app*)
-               (.selected-module *app*))
+               (car (.selected-modules *app*)))
            value scancode mod-value)))
 
 (defun handle-sdl2-mousemotion-event (x y xrel yrel state)

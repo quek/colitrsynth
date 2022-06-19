@@ -181,8 +181,7 @@
 
 (defmethod close ((self menu-view) &key abort)
   (declare (ignore abort))
-  (when (eq self (.selected-module *app*))
-    (setf (.selected-module *app*) nil))
+  (setf (.selected-module *app*) (delete self (.selected-modules *app*)))
   (remove-view self)
   (call-next-method))
 

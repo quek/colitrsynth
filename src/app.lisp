@@ -1,7 +1,7 @@
 (in-package :colitrsynth)
 
 (defmethod mousebuttondown ((self app) button state clicks x y)
-  (setf (.selected-module *app*) nil)
+  (setf (.selected-modules *app*) nil)
   (call-next-method))
 
 (defmethod render ((self app) renderer)

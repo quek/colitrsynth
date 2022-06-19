@@ -96,7 +96,7 @@
             :arguments (list *app*)))
           ((and (sdl2:scancode= scancode :scancode-c)
                 (.ctrl-key-p *app*))
-           (awhen (.selected-module *app*)
+           (awhen (.selected-modules *app*)
              (sdl2-ffi.functions:sdl-set-clipboard-text
               (with-standard-io-syntax
                 (let ((*package* (find-package :colitrsynth))
@@ -570,21 +570,23 @@
 (defmethod mousebuttondown :before ((self module)
                                     (button (eql sdl2-ffi:+sdl-button-left+))
                                     state clicks x y)
-  (setf (.selected-module *app*) self)
+  (if (ctrl-key-p)
+      (pushnew self (.selected-modules *app*))
+      (setf (.selected-modules *app*) (list self)))
   (setf (.views *app*)
         (append (delete self (.views *app*)) (list self))))
 
 (defmethod mousebuttondown :after ((self module)
                                    (button (eql sdl2-ffi:+sdl-button-right+))
                                    state clicks x y)
-  (setf (.selected-module *app*) nil)
+  (setf (.selected-modules *app*) nil)
   (setf (.views *app*)
         (cons self (delete self (.views *app*)))))
 
 
 (defmethod render :before (self renderer)
   "選択中のモジュールを見やすくする"
-  (when (eq self (.selected-module *app*))
+  (when (member self (.selected-modules *app*))
     (let ((texture (sdl2:create-texture renderer :rgba8888 :target
                                         (.width self) (.height self))))
       (sdl2:set-render-target renderer texture)
