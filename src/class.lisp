@@ -373,9 +373,28 @@
    (offset-x :initarg :offset-x :initform 0 :accessor .offset-x)
    (offset-y :initarg :offset-y :initform 0 :accessor .offset-y)))
 
+(defclass pattern-editor-index-label (label)
+  ((pattern-editor :initarg :pattern-editor :accessor .pattern-editor))
+  (:default-initargs :color *index-color*))
+
+(defclass pattern-editor-note-label (label)
+  ((pattern-editor :initarg :pattern-editor :accessor .pattern-editor))
+  (:default-initargs :color *note-color*))
+
+(defclass pattern-editor-velocity-label (label)
+  ((pattern-editor :initarg :pattern-editor :accessor .pattern-editor))
+  (:default-initargs :color *velocity-color*))
+
+(defclass pattern-editor-delay-label (label)
+  ((pattern-editor :initarg :pattern-editor :accessor .pattern-editor))
+  (:default-initargs :color *delay-color*))
+
 (defclass pattern-editor (focus-mixin partial-view)
   ((pattern :accessor .pattern)
-   (lines :initform nil :accessor .lines)
+   (index-labels :initform nil :accessor .index-labels)
+   (note-labels :initform nil :accessor .note-labels)
+   (velocity-labels :initform nil :accessor .velocity-labels)
+   (delay-labels :initform nil :accessor .delay-labels)
    (cursor-x :initform 0 :accessor .cursor-x)
    (cursor-y :initform 0 :accessor .cursor-y)
    (octave :initform 4 :accessor .octave)
@@ -387,15 +406,7 @@
    (mode :initform :command :accessor .mode
          :type (member :command :insert))
    (selection-mode :initform nil :accessor .selection-mode
-                :type (member nil :line :block))))
-
-(defclass pattern-editor-line (view)
-  ((line :initarg :line :accessor .line)
-   (index :initarg :index :accessor .index)
-   (index-label :accessor .index-label)   
-   (note-labels :accessor .note-labels)
-   (velocity-labels :accessor .velocity-labels)
-   (delay-labels :accessor .delay-labels)))
+                   :type (member nil :line :block))))
 
 (defclass track-view (track
                       drag-mixin

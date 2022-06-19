@@ -13,6 +13,7 @@
 (defparameter *background-color* (list #x00 #x00 #x00 *transparency*))
 (defparameter *play-position-color* (list #x00 #x80 #x00 *transparency*))
 
+(defparameter *index-color* (list #xee #xee #xee *transparency*))
 (defparameter *note-color* (list #xee #xee #xee *transparency*))
 (defparameter *velocity-color* (list #xee #xbb #x55 *transparency*))
 (defparameter *delay-color* (list #xee #x66 #xee *transparency*))

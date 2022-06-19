@@ -82,8 +82,8 @@
   (multiple-value-bind (column x index)
       (column-at (current-line self) (.cursor-x self))
     (declare (ignore column x))
-    (loop for line in (.lines self)
-          for column = (aref (.columns (.line line)) index)
+    (loop for line across (.lines (.pattern self))
+          for column = (aref (.columns line) index)
           do (setf (delay-enable-p column)
                    (not (delay-enable-p column))))))
 
@@ -324,8 +324,8 @@
   (multiple-value-bind (column x index)
       (column-at (current-line self) (.cursor-x self))
     (declare (ignore column x))
-    (loop for line in (.lines self)
-          for column = (aref (.columns (.line line)) index)
+    (loop for line across (.lines (.pattern self))
+          for column = (aref (.columns line) index)
           do (setf (velocity-enable-p column)
                    (not (velocity-enable-p column))))))
 
