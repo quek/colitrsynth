@@ -17,3 +17,17 @@
           (sdl2:render-draw-rect renderer
                                  (sdl2:make-rect x y w h))))))
   (call-next-method))
+
+(defmethod drag-end ((self app) mouse-x mouse-y button)
+  (let* ((drag-state (.drag-state *app*))
+         (x (min mouse-x (.x drag-state)))
+         (y (min mouse-y (.y drag-state)))
+         (w (abs (- mouse-x (.x drag-state))))
+         (h (abs (- mouse-y (.y drag-state)))))
+    (setf (.selected-modules self)
+          (loop for module in (.modules self)
+                if (and (<= x (+ (.screen-x module) (.width module)))
+                        (<= (.screen-x module) (+ x w))
+                        (<= y (+ (.screen-y module) (.height module)))
+                        (<= (.screen-y module) (+ y h)))
+                  collect module))))

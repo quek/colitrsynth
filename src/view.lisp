@@ -602,7 +602,7 @@
       (sdl2:destroy-texture texture))))
 
 (defmethod render :after ((self module) renderer)
-  (let ((color (cond ((eq self (.selected-module *app*))
+  (let ((color (cond ((member self (.selected-modules *app*))
                       *selected-module-color*)
                      ((eq self (.selected-pattern *app*))
                       *selected-pattern-color*))))

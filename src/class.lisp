@@ -275,7 +275,9 @@
    (views :initarg :views :initform '() :accessor .views)
    (mouse-x :initform 0 :accessor .mouse-x)
    (mouse-y :initform 0 :accessor .mouse-y)
+   ;; TODO こっちは消す
    (selected-module :initform nil :accessor .selected-module)
+   (selected-modules :initform nil :accessor .selected-modules)
    (selected-pattern :initform nil :accessor .selected-pattern)
    (focused-view :initform nil :accessor .focused-view)
    (click-target-module :initform (make-array +mouse-button-count+))
@@ -439,8 +441,7 @@
 
 (defclass sequencer-module (sequencer module)
   ((partial-view :accessor .partial-view))
-  (:default-initargs :color (list #x00 #xff #xff *transparency*)
-                     :x 5 :y 5 :width 700 :height 200))
+  (:default-initargs :x 5 :y 5 :width 700 :height 200))
 
 (defclass pattern-module (pattern module)
   ((pattern-editor :accessor .pattern-editor
