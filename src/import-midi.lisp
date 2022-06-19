@@ -22,10 +22,11 @@
                                     (typep x 'midi:note-off-message))
                                collect x)))
          (lpb (.lpb (.sequencer *audio*)))
+         (time-per-line (/ division lpb))
          (max-time (loop for event in events
                          maximize (midi:message-time event)))
          ;; 0 オリジンなので 1+
-         (nlines (1+ (ceiling (* (/ max-time division) lpb))))
+         (nlines (1+ (ceiling (/ max-time time-per-line))))
          (module (make-instance 'pattern-module
                                 :length nlines
                                 :x (- (.mouse-x *app*) 10)
@@ -35,13 +36,14 @@
     (print (list max-time division lpb nlines))
     ;; TODO トラック名を取り出してパターン名にする
     (loop for event in events
-          ;; TODO delay を計算する
           with column = 0
           with last-midi-event = 0
           with last-note = (make-array 16 :initial-element none)
           for last-line = -1 then line
-          for line = (floor (* (/ (midi:message-time event) division)
-                               lpb))
+          for line = (floor (/ (midi:message-time event) time-per-line))
+          for delay = (round (* (/ (mod (midi:message-time event) time-per-line)
+                                   time-per-line)
+                                #x100))
           do (if (typep event 'midi:note-off-message)
                  (progn
                    (if (and (= last-midi-event +midi-event-off+)
@@ -63,9 +65,13 @@
                    (setf (aref last-note column) (midi:message-key event))
                    (let ((column (aref (.columns (aref lines line)) column)))
                      (setf (.note column) (midi:message-key event))
-                     (setf (.velocity column) (midi:message-velocity event))))))
+                     (setf (.velocity column) (midi:message-velocity event))
+                     (setf (.delay column) delay)))))
     (loop for line across (.lines module)
-          do (setf (.length line) (1+ max-column)))
+          do (setf (.length line) (1+ max-column))
+             (loop  for column across (.columns line)
+                    do (setf (velocity-enable-p column) t)
+                       (setf (delay-enable-p column) t)))
     (multiple-value-bind (window-width window-height)
         (sdl2:get-window-size (.win *app*))
       (multiple-value-bind (mouse-x mouse-y) (sdl2:mouse-state)
