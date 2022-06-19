@@ -149,7 +149,7 @@
   ((columns :initarg :columns :accessor .columns
             :initform (make-array 16 :initial-contents
                                   (loop repeat 16 collect (make-instance 'column))))
-   (length :initarg :lenght :initform 1 :accessor .length)))
+   (length :initarg :length :initform 1 :accessor .length)))
 
 (defclass pattern (model)
   ((length :initarg :length :initform #x40 :accessor .length)

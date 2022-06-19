@@ -215,7 +215,8 @@
                                                       :velocity-enable-p  velocity-enable-p
                                                       :delay-enable-p delay-enable-p))))))
         (setf (.lines self) new-lines)))
-    (setf (.length self) new-length)))
+    (setf (.length self) new-length)
+    (setf (.cursor-y (.pattern-editor self)) (1- new-length))))
 
 (defmethod shrink-column ((self pattern))
   (loop with length = (max 1 (1- (.length (aref (.lines self) 0))))
