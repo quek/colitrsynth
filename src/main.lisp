@@ -166,9 +166,7 @@
     (stop))
   (awhen (sb-concurrency:receive-message-no-hang (.mbox *app*))
     (funcall it))
-  (idle-delay)
-  ;; (sdl2:delay #.(floor (/ 1000 60.0)))
-  )   ;ms
+  (idle-delay))
 
 (let ((count 0)
       (last 0)
