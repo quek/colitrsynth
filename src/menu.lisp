@@ -86,12 +86,22 @@
   (open-menu 'connector-menu-view :available-connections available-connections))
 
 (defmethod initialize-instance :after ((self module-menu-view) &key)
-  (let ((button (make-instance 'button :label "Manage Plugins")))
+  (let ((button (make-instance
+                 'menu-button
+                 :label "Manage Plugins"
+                 :onclick (lambda ()
+                            (sb-ext:run-program *plugin-host-exe* nil :wait nil)
+                            (close self)))))
     (add-child self button)
-    (push button (.buttons self))
-    (defmethod click ((button (eql button)) btn x y)
-      (sb-ext:run-program *plugin-host-exe* nil :wait nil)
-      (close self)))
+    (push button (.buttons self)))
+  (let ((button (make-instance
+                 'menu-button
+                 :label "Import MIDI"
+                 :onclick (lambda ()
+                            (import-midi)
+                            (close self)))))
+    (add-child self button)
+    (push button (.buttons self)))
   (loop for (name class . initargs)
           in `(("Pattern" pattern-module)
                ("Sin" sin-osc-module)

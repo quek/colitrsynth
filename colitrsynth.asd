@@ -8,6 +8,7 @@
                :cxml :cxml-stp :xpath
                :sb-concurrency
                :alexandria
+               :midi
                :anaphora)
   :pathname "src"
   :serial t
@@ -42,6 +43,7 @@
    (:file "instrument-plugin-module")
    (:file "sequencer-module")
 
+   (:file "import-midi")
    (:file "menu")
    (:file "audio")
    (:file "view")

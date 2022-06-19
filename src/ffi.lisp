@@ -50,13 +50,16 @@
 (cffi:defcfun ("GetSaveFileNameA" %get-save-file-name) BOOL
   (param (:pointer (:struct open-file-name))))
 
-(defun get-open-file-name ()
+(defun get-open-file-name (&key (filter '("lisp" "lisp")))
   (cffi:with-foreign-objects ((param '(:struct open-file-name)))
     (loop for i below (cffi:foreign-type-size '(:struct open-file-name))
           do (setf (cffi:mem-aref param :int8) 0))
     (cffi:with-foreign-strings ((file (make-string 1024))
-                                (filter (format nil "lisp~c*.lisp~cAll~c*.*~c"
-                                                #\null #\null #\null #\null))
+                                (filter (with-output-to-string (out)
+                                          (format out "~a~c~{*.~a~^;~}~c"
+                                                  (car filter) #\null
+                                                  (cdr filter) #\null)
+                                          (format out "All~c*.*~c" #\null #\null)))
                                 (title "select file")) 
       (cffi:with-foreign-slots ((lStructSize hwndOwner lpstrFile nMaxFile lpstrFilter nFilterIndex
                                              lpstrFileTitle flags)
