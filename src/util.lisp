@@ -12,8 +12,16 @@
   (let ((x (+ (* value k) delta)))
     (values (/ x k) x)))
 
+(declaim (ftype (function (fixnum fixnum fixnum fixnum)
+                          (values single-float  &optional)) distance))
+(declaim (inline distance))
 (defun distance (x1 y1 x2 y2)
-  (sqrt (+ (expt (- x2 x1) 2) (expt (- y2 y1) 2))))
+  (declare (optimize (speed 3) (safety 0))
+           (fixnum x1 y1 x2 y2))
+  (sqrt
+   (the fixnum
+        (+ (the fixnum (expt (- x2 x1) 2))
+                  (the fixnum (expt (- y2 y1) 2))))))
 
 (defun interval-upadate-value (value-function interval)
   (let ((time (get-internal-real-time))
@@ -31,8 +39,14 @@
                       (element-type 'single-float))
   (make-array length :initial-element initial-element :element-type element-type))
 
+(declaim (ftype (function (fixnum fixnum fixnum fixnum)
+                          (values single-float  &optional)) radian))
+(declaim (inline radian))
 (defun radian (x1 y1 x2 y2)
-  (atan (- y2 y1) (- x2 x1)))
+  (declare (optimize (speed 3) (safety 0))
+           (fixnum x1 y1 x2 y2))
+  (atan (the fixnum (- y2 y1))
+        (the fixnum (- x2 x1))))
 
 (declaim (inline read-fd))
 (defun read-fd (fd buffer buffer-size)

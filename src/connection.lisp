@@ -111,33 +111,37 @@
 (defmethod draw-cable (renderer
                        connection
                        x1 y1 x2 y2)
-  (declare (optimize (speed 3) (safety 0)))
+  (declare (optimize (speed 3) (safety 0))
+           (fixnum x1 y1 x2 y2))
   (multiple-value-bind (left-buffer right-buffer)
       (cable-buffer (.src connection) connection)
+    (declare ((or null (simple-array single-float (*)))
+              left-buffer right-buffer))
     (if left-buffer
         (let* ((distance (distance x1 y1 x2 y2))
-               (buffer-length (min distance (length left-buffer)))
+               (buffer-length (min distance (float (length left-buffer))))
                (scale (/ distance buffer-length))
                (aux-points nil)
                (points (loop for i from 0 below buffer-length
-                             for left = (aref left-buffer i)
-                             for right = (if right-buffer (aref right-buffer i) 0)
-                             for value = (+ left right)
-                             for x = i
-                             for y-i-1 = 0 then y
-                             for y = (* value 10)
+                             for left single-float  = (aref left-buffer i)
+                             for right single-float = (if right-buffer (aref right-buffer i) 0.0)
+                             for value single-float = (+ left right)
+                             for x single-float = (float i)
+                             for y-i-1 single-float = 0.0 then y
+                             for y single-float = (* value 10)
                              nconc (cons
                                     (cons (* x scale) y)
                                     (loop for i from (min y y-i-1) below (max y y-i-1)
                                           collect (cons (* x scale) i)))
                              finally (setf aux-points
                                            (if x
-                                               (loop for i from (min y 0) to (max y 0)
+                                               (loop for i from (min y 0.0) to (max y 0)
                                                      collect (cons (* x scale) i))))))
                (points (append aux-points points))
                (rad (radian x1 y1 x2 y2))
                (points (loop for (x . y) in points
-                             for x% = (- (* x (cos rad)) (* y (sin rad)))
+                             for x% = (- (* (the single-float x) (cos rad))
+                                         (* (the single-float y) (sin rad)))
                              for y% = (+ (* x (sin rad)) (* y (cos rad)))
                              collect (cons (round (+ x% x1)) (round (+ y% y1)))))
                (points (loop for (x . y) in points
@@ -148,3 +152,21 @@
 
 (defmethod cable-buffer (module connection)
   (values nil nil))
+
+(defmethod serialize :around ((self connection))
+  `(let ((x (make-instance ',(class-name (class-of self)))))
+     (setf (.src x) ,(serialize-ref (.src self) :accessor '.src))
+     (setf (.dest x) ,(serialize-ref (.dest self) :accessor '.dest))
+     ,@(call-next-method)
+     x))
+
+(defmethod serialize ((self connection))
+  nil)
+
+(defmethod serialize ((self audio-connection))
+  `((setf (.src-bus x) ,(.src-bus self))
+    (setf (.dest-bus x) ,(.dest-bus self))))
+
+(defmethod serialize ((self param-connection))
+  `((setf (.param x) ,(.param self))))
+

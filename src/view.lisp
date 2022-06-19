@@ -615,24 +615,6 @@
           ,@(when *serialize-table* `((.out x) ,(serialize (.out self)))))
     ,@(call-next-method)))
 
-(defmethod serialize :around ((self connection))
-  `(let ((x (make-instance ',(class-name (class-of self)))))
-     (setf (.src x) ,(serialize-ref (.src self) :accessor '.src))
-     (setf (.dest x) ,(serialize-ref (.dest self) :accessor '.dest))
-     ,@(call-next-method)
-     x))
-
-(defmethod serialize ((self connection))
-  nil)
-
-(defmethod serialize ((self audio-connection))
-  `((setf (.src-bus x) ,(.src-bus self))
-    (setf (.dest-bus x) ,(.dest-bus self))))
-
-(defmethod serialize ((self param-connection))
-  `((setf (.param x) ,(.param self))))
-
-
 (defmethod mousebuttondown ((self drag-mixin) button state clicks x y)
   (setf (.drag-state *app*)
         (make-instance 'drag-state :target self :button button
