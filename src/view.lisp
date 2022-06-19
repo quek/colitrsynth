@@ -567,15 +567,6 @@
         (close self))
       (call-next-method)))
 
-(defmethod mousebuttondown :before ((self module)
-                                    (button (eql sdl2-ffi:+sdl-button-left+))
-                                    state clicks x y)
-  (if (ctrl-key-p)
-      (pushnew self (.selected-modules *app*))
-      (setf (.selected-modules *app*) (list self)))
-  (setf (.views *app*)
-        (append (delete self (.views *app*)) (list self))))
-
 (defmethod mousebuttondown :after ((self module)
                                    (button (eql sdl2-ffi:+sdl-button-right+))
                                    state clicks x y)
@@ -675,10 +666,10 @@
         (call-next-method)))
   (setf (.drag-state *app*) nil))
 
-
-
 (defmethod drag ((self drag-move-mixin) xrel yrel (button (eql 1)))
-  (move self xrel yrel))
+  (loop for module in (.selected-modules *app*)
+        if (typep module 'drag-move-mixin)
+          do (move module xrel yrel)))
 
 (defmethod drag-start ((self drag-resize-mixin) x y (button (eql 1)))
   (if (and (< (.width self) (+ 10 x))
@@ -688,7 +679,9 @@
 
 (defmethod drag ((self drag-resize-mixin) xrel yrel (button (eql 1)))
   (if (eq self (.drag-resize-module *app*))
-      (resize self xrel yrel)
+      (loop for module in (.selected-modules *app*)
+            if (typep module 'drag-resize-mixin)
+              do (resize module xrel yrel))
       (call-next-method)))
 
 (defmethod drag-end ((self drag-resize-mixin) x y (button (eql 1)))

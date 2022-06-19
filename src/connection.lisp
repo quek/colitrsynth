@@ -131,8 +131,9 @@
                                     (loop for i from (min y y-i-1) below (max y y-i-1)
                                           collect (cons (* x scale) i)))
                              finally (setf aux-points
-                                           (loop for i from (min y 0) to (max y 0)
-                                                 collect (cons (* x scale) i)))))
+                                           (if x
+                                               (loop for i from (min y 0) to (max y 0)
+                                                     collect (cons (* x scale) i))))))
                (points (append aux-points points))
                (rad (radian x1 y1 x2 y2))
                (points (loop for (x . y) in points

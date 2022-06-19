@@ -1,0 +1,21 @@
+(in-package :colitrsynth)
+
+(defmethod click ((self module)
+                  (button (eql sdl2-ffi:+sdl-button-left+))
+                  x y)
+  (if (ctrl-key-p)
+      (pushnew self (.selected-modules *app*))
+      (setf (.selected-modules *app*) (list self)))
+  (move-to-front self))
+
+(defmethod move-to-front ((self module))
+  (setf (.views *app*)
+        (append (delete self (.views *app*)) (list self))))
+
+(defmethod mousebuttondown ((self module)
+                            (button (eql sdl2-ffi:+sdl-button-left+))
+                            state clicks x y)
+  (unless (member self (.selected-modules *app*))
+    (setf (.selected-modules *app*) (list self))
+    (move-to-front self))
+  (call-next-method))

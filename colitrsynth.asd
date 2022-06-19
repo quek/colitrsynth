@@ -25,6 +25,7 @@
    (:file "model")
    (:file "column")
    (:file "connection")
+   (:file "module")
    (:file "adsr-module")
    (:file "constant-module")
    (:file "gain-module")
