@@ -137,10 +137,11 @@
   ((note :initarg :note :initform none :accessor .note)
    (velocity :initarg :velocity :initform *default-velocity*
              :accessor .velocity :type (unsigned-byte 8))
-   (velocity-enable-p :initarg :velocity-enable-p :initform nil
-                      :type boolean :accessor velocity-enable-p)
    (delay :initarg :delay :initform 0 :accessor .delay
           :type (unsigned-byte 8))
+   ;; TODO ここで持つと行ごとにもっちゃうので pattern が持つべき
+   (velocity-enable-p :initarg :velocity-enable-p :initform nil
+                      :type boolean :accessor velocity-enable-p)
    (delay-enable-p :initarg :delay-enable-p :initform nil
                    :type boolean :accessor delay-enable-p)))
 

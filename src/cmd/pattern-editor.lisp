@@ -2,12 +2,12 @@
 
 (defcmd cmd::column-extend (self)
     (:bind (*pattern-editor-keymap*
-            sdl2-ffi:+sdl-scancode-right+ +ctrl+ +shift+))
+            sdl2-ffi:+sdl-scancode-right+ +alt+))
   (extend-column (.pattern self)))
 
 (defcmd cmd::column-shrink (self)
     (:bind (*pattern-editor-keymap*
-            sdl2-ffi:+sdl-scancode-left+ +ctrl+ +shift+))
+            sdl2-ffi:+sdl-scancode-left+ +alt+))
   (shrink-column (.pattern self))
   (when (< (max-cursor-x self) (.cursor-x self))
     (setf (.cursor-x self) 0)
@@ -306,6 +306,18 @@
            (loop for i from (.cursor-y self) below (.length (.pattern self))
                  for line in it
                  do (setf (aref (.lines (.pattern self)) i) line))))))
+
+(defcmd cmd::line-extend (self)
+    (:bind (*pattern-editor-keymap*
+            sdl2-ffi:+sdl-scancode-down+ +alt+))
+  (extend-line (.pattern self)))
+
+(defcmd cmd::line-shrink (self)
+    (:bind (*pattern-editor-keymap*
+            sdl2-ffi:+sdl-scancode-up+ +alt+))
+  (shrink-line (.pattern self))
+  (when (< (max-cursor-y self) (.cursor-y self))
+    (setf (.cursor-y self) (max-cursor-y self))))
 
 (defcmd cmd::selection-mode-block (self)
     (:bind (*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-v+ +ctrl+)

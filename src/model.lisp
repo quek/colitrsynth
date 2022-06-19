@@ -187,10 +187,44 @@
         for line across lines
         do (setf (.length line) length)))
 
+(defmethod extend-line ((self pattern))
+  (let* ((new-length (1+ (.length self)))
+         (old-lines (.lines self))
+         (array-length (length old-lines)))
+    (when (< array-length new-length)
+      (let ((new-lines (make-array (+ array-length 16))))
+        (loop for i below array-length
+              do (setf (aref new-lines i)
+                       (aref old-lines i)))
+        (loop for i from array-length below (length new-lines)
+              with first-line = (aref old-lines 0)
+              with length = (.length first-line)
+              with first-column = (aref (.columns first-line) 0)
+              with velocity-enable-p = (velocity-enable-p first-column)
+              with delay-enable-p = (delay-enable-p first-column)
+              do (setf (aref new-lines i)
+                       (make-instance
+                        'line
+                        :length length
+                        :columns
+                        (make-array
+                         16
+                         :initial-contents
+                         (loop repeat 16
+                               collect (make-instance 'column
+                                                      :velocity-enable-p  velocity-enable-p
+                                                      :delay-enable-p delay-enable-p))))))
+        (setf (.lines self) new-lines)))
+    (setf (.length self) new-length)))
+
 (defmethod shrink-column ((self pattern))
   (loop with length = (max 1 (1- (.length (aref (.lines self) 0))))
         for line across (.lines self)
         do (setf (.length line) length)))
+
+(defmethod shrink-line ((self pattern))
+  (when (< 1 (.length self))
+    (decf (.length self))))
 
 (defun midi-events-at-line-frame (pattern-position start-line start-frame end-line end-frame)
   (setf (.current-line (.pattern pattern-position)) start-line)

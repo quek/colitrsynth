@@ -72,7 +72,7 @@
   (- (nchars (current-line self)) 2))
 
 (defmethod max-cursor-y ((self pattern-editor))
-  (1- (length (.lines (.pattern self)))))
+  (1- (.length (.pattern self))))
 
 (defmethod set-note ((self pattern-editor) note)
   (when (at-note-column-p self (.cursor-x self))
@@ -110,6 +110,11 @@
          (pattern-length (.length pattern)))
     (when (/= (length (.index-labels self))
               pattern-length)
+      (loop for child in (append (.index-labels self)
+                                 (.note-labels self)
+                                 (.velocity-labels self)
+                                 (.delay-labels self))
+            do (remove-child self child))
       (let ((x (* *char-width* 2))
             (width (* *char-width* (max-cursor-x self)))
             (height (* *char-width* pattern-length)))
