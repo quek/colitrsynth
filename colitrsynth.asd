@@ -42,6 +42,7 @@
    (:file "effect-plugin-module")
    (:file "instrument-plugin-module")
    (:file "sequencer-module")
+   (:file "app")
 
    (:file "import-midi")
    (:file "menu")

@@ -567,9 +567,6 @@
         (close self))
       (call-next-method)))
 
-(defmethod mousebuttondown :before ((self null) button state clicks x y)
-  (setf (.selected-module *app*) nil))
-
 (defmethod mousebuttondown :before ((self module)
                                     (button (eql sdl2-ffi:+sdl-button-left+))
                                     state clicks x y)

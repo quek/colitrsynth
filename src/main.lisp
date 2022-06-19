@@ -109,7 +109,8 @@
   (setf (.mouse-y *app*) y)
   (let ((module (or (.target (.drag-state *app*))
                     (.drag-resize-module *app*)
-                    (view-at-mouse *app*))))
+                    (view-at-mouse *app*)
+                    *app*)))
     (mousemotion module
                  (- x (.render-x module)) (- y (.render-y module))
                  xrel yrel state)))
@@ -118,7 +119,7 @@
   #+nil
   (format t "Mouse button down button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (let ((module (view-at-mouse *app*)))
+  (let ((module (or (view-at-mouse *app*) *app*)))
     (mousebuttondown module
                      button state clicks
                      (- x (.render-x module)) (- y (.render-y module)))))
@@ -127,15 +128,16 @@
   #+nil
   (format t "Mouse button up button: ~a, state: ~a, clicks: ~a, x: ~a, y: ~a~%"
           button state clicks x y)
-  (awhen (or (let ((drag-state (.drag-state *app*)))
-               (and drag-state
-                    (.dragging drag-state)
-                    (.target drag-state)))
-             (and (.dragging *app*)
-                  (.drag-resize-module *app*))
-             (view-at-mouse *app*))
-    (mousebuttonup it button state clicks
-                   (- x (.render-x it)) (- y (.render-y it))))
+  (let ((module (or (let ((drag-state (.drag-state *app*)))
+                      (and drag-state
+                           (.dragging drag-state)
+                           (.target drag-state)))
+                    (and (.dragging *app*)
+                         (.drag-resize-module *app*))
+                    (view-at-mouse *app*)
+                    *app*)))
+    (mousebuttonup module button state clicks
+                   (- x (.render-x module)) (- y (.render-y module))))
   (setf (.drag-resize-module *app*) nil)
   (setf (.dragging *app*) nil)
   (setf (click-target-module button) nil))
@@ -160,6 +162,7 @@
               do (render-connection view renderer))
         (loop for view in (.views *app*)
               do (render view renderer))))
+  (render *app* renderer)
 
   (sdl2:render-present renderer)
   (when (.request-stop *audio*)

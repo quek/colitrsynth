@@ -267,7 +267,7 @@
 
 (defconstant +mouse-button-count+ 16)
 
-(defclass app ()
+(defclass app (drag-mixin view)
   ((win :initarg :win :accessor .win)
    (width :initarg :width :initform 800 :accessor .width)
    (height :initarg :height :initform 600 :accessor .height)
