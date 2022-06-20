@@ -20,9 +20,9 @@
                (cursor-y (+ (.render-y self) (* *char-height*
                                                 (min (.cursor-y pattern-editor)
                                                      (.selection-start pattern-editor)))))
-               (cursor-w (* *char-width* (max-cursor-x pattern-editor)))
-               (cursor-h (* *char-height* (abs (- (.cursor-y pattern-editor)
-                                                  (.selection-start pattern-editor))))))
+               (cursor-w (* *char-width* (1+ (max-cursor-x pattern-editor))))
+               (cursor-h (* *char-height* (1+ (abs (- (.cursor-y pattern-editor)
+                                                   (.selection-start pattern-editor)))))))
            (sdl2:render-fill-rect
             renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h)))))
       ;; cursor
