@@ -15,8 +15,8 @@
   (declare (optimize (speed 3) (safety 0))
            (fixnum midino))
   (case midino
-    (-127 'none)
-    (-1 'off)
+    (128 'none)
+    (129 'off)
 
     (0 'c0 )
     (1 'c#0)
@@ -148,8 +148,8 @@
     (118 'a#9)
     (119 'b9 )))
 
-(defconstant none -127)
-(defconstant off -1)
+(defconstant none 128)
+(defconstant off 129)
 
 (defconstant c0  0)
 (defconstant c#0 1)
@@ -280,6 +280,9 @@
 (defconstant a9  117)
 (defconstant a#9 118)
 (defconstant b9  119)
+
+(defun valid-note-p (note)
+  (<= c0 note b9))
 
 (deftype midi-event-type () 'unsigned-byte)
 (deftype midi-channel-type () 'unsigned-byte)

@@ -33,9 +33,10 @@
      (if (delay-enable-p self) 3 0)))
 
 (defmethod serialize ((self column))
-  `(make-instance 'column
-                  :note ,(.note self)
-                  :velocity ,(.velocity self)
-                  :velocity-enable-p ,(velocity-enable-p self)
-                  :delay ,(.delay self)
-                  :delay-enable-p ,(delay-enable-p self)))
+  `(make-instance
+    'column
+    ,@(when (/= (.note self) none) `(:note ,(.note self)))
+    ,@(when (/= (.velocity self) *default-velocity*) `(:velocity ,(.velocity self)))
+    ,@(when (velocity-enable-p self) `(:velocity-enable-p ,(velocity-enable-p self)))
+    ,@(when (/= (.delay self) 0) `(:delay ,(.delay self)))
+    ,@(when (delay-enable-p self) `(:delay-enable-p ,(delay-enable-p self)))))

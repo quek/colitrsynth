@@ -251,15 +251,15 @@
                                   (if (= current-line end-line)
                                       (< delay-frame end-frame)))))
                      do (let ((midi-frame (round (- delay-frame current-frame))))
-                          (when (or (and (<= c0 note)
-                                         (<= c0 last-note))
-                                    (and (= note off) (<= c0 last-note)))
+                          (when (or (and (valid-note-p note)
+                                         (valid-note-p last-note))
+                                    (and (= note off) (valid-note-p last-note)))
                             (push (make-instance 'midi-event :event +midi-event-off+
                                                              :note last-note
                                                              :velocity 0
                                                              :frame midi-frame)
                                   events))
-                          (when (<= c0 note)
+                          (when (valid-note-p note)
                             (push (make-instance 'midi-event :event +midi-event-on+
                                                              :note note
                                                              :velocity (.velocity column)

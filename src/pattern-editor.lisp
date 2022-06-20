@@ -191,7 +191,7 @@
                            repeat (.length line)
                            do (write-string "    " out)
                               (when (velocity-enable-p column)
-                                (if (<= c0 (.note column))
+                                (if (valid-note-p (.note column))
                                     (format out " ~2,'0X" (.velocity column))
                                     (write-string " --" out)))
                               (when (delay-enable-p column)
@@ -204,7 +204,7 @@
                               (when (velocity-enable-p column)
                                 (write-string "   " out))
                               (when (delay-enable-p column)
-                                (if (<= c0 (.note column))
+                                (if (valid-note-p (.note column))
                                     (format out " ~2,'0X" (.delay column))
                                     (write-string " --" out)))))))))
 
