@@ -9,8 +9,8 @@
          (sb-concurrency:send-message
           (.mbox *app*)
           (lambda ()
-            (addend-view module)
-            (setf (.selected-module *app*) module))))))
+            (append-view module)
+            (setf (.selected-modules *app*) (list module)))))))
    :arguments (list *app*)))
 
 (defun %import-midi (midi)

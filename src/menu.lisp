@@ -17,8 +17,8 @@
                             :x x :y y
                             :width width :height height
                             args)))
-        (addend-view module)
-        (setf (.selected-module *app*) module)))))
+        (append-view module)
+        (setf (.selected-modules *app*) (list module))))))
 
 (defgeneric available-cables-src (src)
   (:method (src)
@@ -181,7 +181,7 @@
 
 (defmethod close ((self menu-view) &key abort)
   (declare (ignore abort))
-  (setf (.selected-module *app*) (delete self (.selected-modules *app*)))
+  (setf (.selected-modules *app*) (delete self (.selected-modules *app*)))
   (remove-view self)
   (call-next-method))
 
@@ -199,8 +199,8 @@
                     :x (- (.mouse-x *app*) 10)
                     :y (- (.mouse-y *app*) 10)
                     (.initargs self))))
-    (addend-view module)
-    (setf (.selected-module *app*) module))
+    (append-view module)
+    (setf (.selected-modules *app*) (list module)))
   (close (.root-parent self)))
 
 
@@ -215,8 +215,8 @@
                                 :x (- (.mouse-x *app*) 10)
                                 :y (- (.mouse-y *app*) 10)
                                 :plugin-description plugin-description)))
-    (addend-view module)
-    (setf (.selected-module *app*) module)
+    (append-view module)
+    (setf (.selected-modules *app*) (list module))
     (close (.root-parent self))))
 
 (defun open-module-menu ()

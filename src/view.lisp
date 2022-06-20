@@ -253,7 +253,7 @@
 (defun add-view (view)
   (push view (.views *app*)))
 
-(defun addend-view (view)
+(defun append-view (view)
   (setf (.views *app*)
         (append (.views *app*) (list view))))
 
