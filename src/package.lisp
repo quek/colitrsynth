@@ -8,5 +8,4 @@
   (:shadow #:pi)
   (:export #:main))
 
-(defpackage :cmd
-  (:use :cl :anaphora :colitrsynth.ffi :colitrsynth))
+(defpackage :cmd)

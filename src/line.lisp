@@ -5,6 +5,10 @@
       (column-at self index)
     (at-note-column-p column index)))
 
+(defmethod at-delay-p ((self line) index)
+  (or (at-delay-#x0-p self index)
+      (at-delay-#0x-p self index)))
+
 (defmethod at-delay-#x0-p ((self line) index)
   (multiple-value-bind (column index)
       (column-at self index)
@@ -14,6 +18,10 @@
   (multiple-value-bind (column index)
       (column-at self index)
     (at-delay-#0x-p column index)))
+
+(defmethod at-velocity-p ((self line) index)
+  (or (at-velocity-#x0-p self index)
+      (at-velocity-#0x-p self index)))
 
 (defmethod at-velocity-#x0-p ((self line) index)
   (multiple-value-bind (column index)

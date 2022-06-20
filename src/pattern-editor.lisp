@@ -6,7 +6,7 @@
 (defmethod at-note-column-p ((self pattern-editor) index)
   (at-note-column-p (current-line self) index))
 
-(defmethod at-delay-column-p ((self pattern-editor) index)
+(defmethod at-delay-p ((self pattern-editor) index)
   (or (at-delay-#x0-p self index)
       (at-delay-#0x-p self index)))
 
@@ -16,7 +16,7 @@
 (defmethod at-delay-#0x-p ((self pattern-editor) index)
   (at-delay-#0x-p (current-line self) index))
 
-(defmethod at-velocity-column-p ((self pattern-editor) index)
+(defmethod at-velocity-p ((self pattern-editor) index)
   (or (at-velocity-#x0-p self index)
       (at-velocity-#0x-p self index)))
 

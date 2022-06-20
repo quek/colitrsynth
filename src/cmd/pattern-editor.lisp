@@ -87,6 +87,17 @@
           do (setf (delay-enable-p column)
                    (not (delay-enable-p column))))))
 
+(defcmd cmd::delete ((self pattern-editor))
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-delete+))
+  (multiple-value-bind (column x) (current-column self)
+    (cond ((at-note-column-p column x)
+           (setf (.note column) none))
+          ((at-velocity-p column x)
+           (setf (.velocity column) *default-velocity*))
+          ((at-delay-p column x)
+           (setf (.delay column) 0)))
+    (step-next self)))
+
 (defcmd cmd::escape ((self pattern-editor))
     (:bind ((*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-escape+))
       :next-keymap *pattern-editor-command-keymap*)
@@ -141,7 +152,7 @@
   (setf (.keymap self)
         (cond ((at-note-column-p self (.cursor-x self))
                *pattern-editor-insert-note-keymap*)
-              ((at-velocity-column-p self (.cursor-x self))
+              ((at-velocity-p self (.cursor-x self))
                *pattern-editor-insert-velocity-keymap*)
               (t
                *pattern-editor-insert-delay-keymap*))))

@@ -4,6 +4,10 @@
   "*C*-4 64 00"
   (zerop index))
 
+(defmethod at-delay-p ((self column) index)
+  (or (at-delay-#x0-p self index)
+      (at-delay-#0x-p self index)))
+
 (defmethod at-delay-#x0-p ((self column) index)
   "C-4 64 *0*0 or C-4 *0*0"
   (and (delay-enable-p self)
@@ -14,6 +18,10 @@
   "C-4 64 0*0* or C-4 0*0*"
   (and (delay-enable-p self)
        (= (if (velocity-enable-p self) 8 5) index)))
+
+(defmethod at-velocity-p ((self column) index)
+  (or (at-velocity-#x0-p self index)
+      (at-velocity-#0x-p self index)))
 
 (defmethod at-velocity-#x0-p ((self column) index)
   "C-4 *6*4 00"
