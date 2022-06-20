@@ -6,7 +6,8 @@
   (if (ctrl-key-p)
       (pushnew self (.selected-modules *app*))
       (setf (.selected-modules *app*) (list self)))
-  (move-to-front self))
+  (move-to-front self)
+  (call-next-method))
 
 (defmethod move-to-front ((self module))
   (setf (.views *app*)

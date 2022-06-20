@@ -96,20 +96,10 @@
             :arguments (list *app*)))
           ((and (sdl2:scancode= scancode :scancode-c)
                 (.ctrl-key-p *app*))
-           (awhen (.selected-modules *app*)
-             (sdl2-ffi.functions:sdl-set-clipboard-text
-              (with-standard-io-syntax
-                (let ((*package* (find-package :colitrsynth))
-                      (*serialize-table* nil))
-                  (with-output-to-string (out)
-                    (write (serialize it) :stream out)))))))
+           (cmd::yank *app*))
           ((and (sdl2:scancode= scancode :scancode-v)
                 (.ctrl-key-p *app*))
-           (awhen (deserialize (sdl2-ffi.functions:sdl-get-clipboard-text))
-             (multiple-value-bind (x y) (sdl2:mouse-state)
-               (setf (.x it) x)
-               (setf (.y it) y))
-             (add-view it))))))
+           (cmd::paste *app*)))))
 
 (defgeneric keyup (self value scancode mod-value)
   (:method (self value scancode mod-value)))
@@ -610,9 +600,14 @@
 
 (defmethod serialize ((self model))
   `((setf (.name x) ,(.name self)
-          ;; TODO 選択中のモジュールをコピー対象にすればいいかもしれない
-          ,@(when *serialize-table* `((.in x) ,(serialize (.in self))))
-          ,@(when *serialize-table* `((.out x) ,(serialize (.out self)))))
+          (.in x) ,(serialize
+                    (loop for x in (.in self)
+                          if (member (.src x) (.selected-modules *app*))
+                            collect x))
+          (.out x) ,(serialize
+                     (loop for x in (.out self)
+                           if (member (.dest x) (.selected-modules *app*))
+                             collect x)))
     ,@(call-next-method)))
 
 (defmethod mousebuttondown ((self drag-mixin) button state clicks x y)

@@ -55,5 +55,5 @@
     :serial t
     :pathname "cmd"
     :components
-    ((:file "cmd")
+    ((:file "app")
      (:file "pattern-editor")))))
