@@ -42,4 +42,4 @@
 (defmethod serialize ((self line))
   `(make-instance 'line
                   :columns ,(serialize (.columns self))
-                  :lenght ,(.length self)))
+                  :length ,(.length self)))

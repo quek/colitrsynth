@@ -3,6 +3,7 @@
 (defcmd cmd::yank ((self app)) ()
   (when (.selected-modules *app*)
     (sdl2-ffi.functions:sdl-set-clipboard-text
+     ;; TODO save-song と共通化したい
      (with-standard-io-syntax
        (let ((*package* (find-package :colitrsynth))
              (*serialize-table* (make-hash-table))
@@ -16,6 +17,7 @@
                  (.selected-modules *app*))))))))
 
 (defcmd cmd::paste ((self app)) ()
+  ;; TODO open-song と共通化したい
   (let* ((*serialize-table* (make-hash-table))
          (*serialize-refs* nil)
          (modules
