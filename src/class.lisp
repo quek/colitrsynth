@@ -138,24 +138,26 @@
    (velocity :initarg :velocity :initform *default-velocity*
              :accessor .velocity :type (unsigned-byte 8))
    (delay :initarg :delay :initform 0 :accessor .delay
-          :type (unsigned-byte 8))
-   ;; TODO ここで持つと行ごとにもっちゃうので pattern が持つべき
-   (velocity-enable-p :initarg :velocity-enable-p :initform nil
-                      :type boolean :accessor velocity-enable-p)
-   (delay-enable-p :initarg :delay-enable-p :initform nil
-                   :type boolean :accessor delay-enable-p)))
+          :type (unsigned-byte 8))))
 
 (defclass line ()
   ((columns :initarg :columns :accessor .columns
             :initform (make-array 16 :initial-contents
-                                  (loop repeat 16 collect (make-instance 'column))))
-   (length :initarg :length :initform 1 :accessor .length)))
+                                  (loop repeat 16 collect (make-instance 'column))))))
 
 (defclass pattern (model)
-  ((length :initarg :length :initform #x40 :accessor .length)
+  ((nlines :initarg :nlines :initform #x40 :accessor .nlines)
    (lines :initarg :lines :accessor .lines)
-   (current-line :initform 0 :accessor .current-line))
-  (:default-initargs :name "Pattern" :height 300))
+   (ncolumns :initarg :ncolums :initform 1 :accessor .ncolumns)
+   (current-line :initform 0 :accessor .current-line)
+   (velocity-enables :initarg :velocity-enables
+                     :accessor .velocity-enables
+                     :initform (make-array 16 :initial-element nil)
+                     :type (simple-array bool (16)))
+   (delay-enables :initarg :delay-enables
+                  :accessor .delay-enables
+                  :initform (make-array 16 :initial-element nil)
+                  :type (simple-array bool (16)))))
 
 (defclass lfo (model)
   ((buffer :initform (make-buffer) :accessor .buffer)
@@ -443,7 +445,8 @@
 
 (defclass pattern-module (pattern module)
   ((pattern-editor :accessor .pattern-editor
-                   :initform (make-instance 'pattern-editor))))
+                   :initform (make-instance 'pattern-editor)))
+  (:default-initargs :name "Pattern" :height 300))
 
 (defclass lfo-module (lfo connector-mixin module)
   ((frequency-slider :initarg :frequency-slide :accessor .frequency-slider))

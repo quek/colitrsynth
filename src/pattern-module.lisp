@@ -30,6 +30,12 @@
                               (.pattern pattern-position-view)))
                    do (remove-pattern track-view pattern-position-view))))
 
+(defmethod delay-enable-p ((self pattern-module) column)
+  (aref (.delay-enables self) column))
+
+(defmethod (setf delay-enable-p) (value (self pattern-module) column)
+  (setf (aref (.delay-enables self) column) value))
+
 (defmethod mousebuttondown :before ((self pattern-module) button state clicks x y)
   (setf (.selected-pattern *app*) self))
 
@@ -44,9 +50,18 @@
   (setf (.height (.pattern-editor self)) (- (.height self) (+ 10 *font-size*))))
 
 (defmethod serialize ((self pattern-module))
-  `((setf (.length x) ,(.length self)
+  `((setf (.nlines x) ,(.nlines self)
           (.lines x) ,(serialize (.lines self))
-          (.current-line x) 0)
+          (.current-line x) 0
+          (.ncolumns x) ,(.ncolumns self)
+          (.velocity-enables x) ,(.velocity-enables self)
+          (.delay-enables x) ,(.delay-enables self))
     (setf (.octave (.pattern-editor x)) ,(.octave (.pattern-editor self))
           (.edit-step (.pattern-editor x)) ,(.edit-step (.pattern-editor self)))
     ,@(call-next-method)))
+
+(defmethod velocity-enable-p ((self pattern-module) column)
+  (aref (.velocity-enables self) column))
+
+(defmethod (setf velocity-enable-p) (value (self pattern-module) column)
+  (setf (aref (.velocity-enables self) column) value))

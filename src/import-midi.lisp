@@ -28,7 +28,7 @@
          ;; 0 オリジンなので 1+
          (nlines (1+ (ceiling (/ max-time time-per-line))))
          (module (make-instance 'pattern-module
-                                :length nlines
+                                :nlines nlines
                                 :x (- (.mouse-x *app*) 10)
                                 :y (- (.mouse-y *app*) 10)))
          (lines (.lines module))
@@ -67,11 +67,10 @@
                      (setf (.note column) (midi:message-key event))
                      (setf (.velocity column) (midi:message-velocity event))
                      (setf (.delay column) delay)))))
-    (loop for line across (.lines module)
-          do (setf (.length line) (1+ max-column))
-             (loop  for column across (.columns line)
-                    do (setf (velocity-enable-p column) t)
-                       (setf (delay-enable-p column) t)))
+    (setf (.ncolumns module) (1+ max-column))
+    (loop  for i below (.ncolumns module)
+           do (setf (velocity-enable-p module i) t)
+              (setf (delay-enable-p module i) t))
     (multiple-value-bind (window-width window-height)
         (sdl2:get-window-size (.win *app*))
       (multiple-value-bind (mouse-x mouse-y) (sdl2:mouse-state)

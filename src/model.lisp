@@ -174,102 +174,89 @@
 (defmethod initialize-instance :after ((self pattern) &key)
   (unless (slot-boundp self 'lines)
     (setf (.lines self)
-          (make-array (.length self)
+          (make-array (.nlines self)
                       :initial-contents 
-                      (loop repeat (.length self)
+                      (loop repeat (.nlines self)
                             collect (make-instance 'line))))))
 
 (defmethod extend-column ((self pattern))
-  (loop with lines = (.lines self)
-        with line-0 = (aref lines 0)
-        with length = (min (1+ (.length line-0))
-                           (length (.columns line-0)))
-        for line across lines
-        do (setf (.length line) length)))
+  (setf (.ncolumns self)
+        (min (1+ (.ncolumns self))
+             16)))
 
 (defmethod extend-line ((self pattern))
-  (let* ((new-length (1+ (.length self)))
+  (let* ((new-nlines (1+ (.nlines self)))
          (old-lines (.lines self))
          (array-length (length old-lines)))
-    (when (< array-length new-length)
+    (when (< array-length new-nlines)
       (let ((new-lines (make-array (+ array-length 16))))
         (loop for i below array-length
               do (setf (aref new-lines i)
                        (aref old-lines i)))
         (loop for i from array-length below (length new-lines)
-              with first-line = (aref old-lines 0)
-              with length = (.length first-line)
-              with first-column = (aref (.columns first-line) 0)
-              with velocity-enable-p = (velocity-enable-p first-column)
-              with delay-enable-p = (delay-enable-p first-column)
               do (setf (aref new-lines i)
                        (make-instance
                         'line
-                        :length length
                         :columns
-                        (make-array
-                         16
-                         :initial-contents
-                         (loop repeat 16
-                               collect (make-instance 'column
-                                                      :velocity-enable-p  velocity-enable-p
-                                                      :delay-enable-p delay-enable-p))))))
+                        (make-array 16
+                                    :initial-contents
+                                    (loop repeat 16
+                                          collect (make-instance 'column))))))
         (setf (.lines self) new-lines)))
-    (setf (.length self) new-length)
-    (setf (.cursor-y (.pattern-editor self)) (1- new-length))))
+    (setf (.nlines self) new-nlines)
+    (setf (.cursor-y (.pattern-editor self)) (1- new-nlines))))
 
 (defmethod shrink-column ((self pattern))
-  (loop with length = (max 1 (1- (.length (aref (.lines self) 0))))
-        for line across (.lines self)
-        do (setf (.length line) length)))
+  (setf (.ncolumns self) (max 1 (1- (.ncolumns self)))))
 
 (defmethod shrink-line ((self pattern))
-  (when (< 1 (.length self))
-    (decf (.length self))))
+  (when (< 1 (.nlines self))
+    (decf (.nlines self))))
 
 (defun midi-events-at-line-frame (pattern-position start-line start-frame end-line end-frame)
-  (setf (.current-line (.pattern pattern-position)) start-line)
-  (let (events)
-    (loop with lines = (.lines (.pattern pattern-position))
-          with delay-unit = (/ (frames-per-line) #x100)
-          for current-line from start-line below (- (.end pattern-position)
-                                                    (.start pattern-position))
-          for current-frame = start-frame then 0
-          while (<= current-line end-line)
-          do (loop with line = (aref lines current-line)
-                   for column across (.columns line)
-                   for i below (.length line)
-                   for note = (.note column)
-                   for last-note = (aref (.last-notes pattern-position) i)
-                   for delay-frame = (* delay-unit (.delay column))
-                   if (or (< start-line current-line end-line)
-                          (if (= start-line current-line end-line)
-                              (and (<= current-frame delay-frame)
-                                   (< delay-frame end-frame))
-                              (if (= start-line current-line)
-                                  (<= current-frame delay-frame)
-                                  (if (= current-line end-line)
-                                      (< delay-frame end-frame)))))
-                     do (let ((midi-frame (round (- delay-frame current-frame))))
-                          (when (or (and (valid-note-p note)
-                                         (valid-note-p last-note))
-                                    (and (= note off) (valid-note-p last-note)))
-                            (push (make-instance 'midi-event :event +midi-event-off+
-                                                             :note last-note
-                                                             :velocity 0
-                                                             :frame midi-frame)
-                                  events))
-                          (when (valid-note-p note)
-                            (push (make-instance 'midi-event :event +midi-event-on+
-                                                             :note note
-                                                             :velocity (.velocity column)
-                                                             :frame midi-frame)
-                                  events))
-                          (when (/= note none)
-                            (setf (aref (.last-notes pattern-position) i) note)))))
-    (sort events (lambda (a b) (if (= (.frame a) (.frame b))
-                                   (< (.event a) (.event b))
-                                   (< (.frame a) (.frame b)))))))
+  (let ((pattern (.pattern pattern-position)))
+    (setf (.current-line (.pattern pattern-position)) start-line)
+    (let (events)
+      (loop with lines = (.lines (.pattern pattern-position))
+            with delay-unit = (/ (frames-per-line) #x100)
+            for current-line from start-line below (- (.end pattern-position)
+                                                      (.start pattern-position))
+            for current-frame = start-frame then 0
+            while (<= current-line end-line)
+            do (loop with line = (aref lines current-line)
+                     for column across (.columns line)
+                     for i below (.ncolumns pattern)
+                     for note = (.note column)
+                     for last-note = (aref (.last-notes pattern-position) i)
+                     for delay-frame = (* delay-unit (.delay column))
+                     if (or (< start-line current-line end-line)
+                            (if (= start-line current-line end-line)
+                                (and (<= current-frame delay-frame)
+                                     (< delay-frame end-frame))
+                                (if (= start-line current-line)
+                                    (<= current-frame delay-frame)
+                                    (if (= current-line end-line)
+                                        (< delay-frame end-frame)))))
+                       do (let ((midi-frame (round (- delay-frame current-frame))))
+                            (when (or (and (valid-note-p note)
+                                           (valid-note-p last-note))
+                                      (and (= note off) (valid-note-p last-note)))
+                              (push (make-instance 'midi-event :event +midi-event-off+
+                                                               :note last-note
+                                                               :velocity 0
+                                                               :frame midi-frame)
+                                    events))
+                            (when (valid-note-p note)
+                              (push (make-instance 'midi-event :event +midi-event-on+
+                                                               :note note
+                                                               :velocity (.velocity column)
+                                                               :frame midi-frame)
+                                    events))
+                            (when (/= note none)
+                              (setf (aref (.last-notes pattern-position) i) note)))))
+      (sort events (lambda (a b) (if (= (.frame a) (.frame b))
+                                     (< (.event a) (.event b))
+                                     (< (.frame a) (.frame b))))))))
 
 
 (defmethod process-in (self (connection builtin-param-connection) left right)

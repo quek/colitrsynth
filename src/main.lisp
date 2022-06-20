@@ -311,7 +311,7 @@
                     'pattern-module
                     :name "Lead"
                     :x 5 :y 250 :height 200
-                    :length line-length
+                    :nlines line-length
                     :lines (list-to-pattern-lines
                             (list a4 none none none e5 none a5 none
                                   a4 off e5 a4 off a4 off e5

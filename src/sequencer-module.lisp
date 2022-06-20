@@ -40,7 +40,7 @@
       (let ((module (.selected-pattern *app*)))
         (if (typep module 'pattern-module)
             (let* ((start (pixcel-to-line x))
-                   (end (+ start (.length module))))
+                   (end (+ start (.nlines module))))
               (when (every (lambda (x)
                              (or (<= end (.start x))
                                  (<= (.end x) start)))
