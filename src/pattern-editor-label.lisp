@@ -8,11 +8,13 @@
       ;; 背景色
       (when (eq (.mode pattern-editor) :insert)
         (apply #'sdl2:set-render-draw-color renderer *insert-mode-color*)
-        (sdl2:render-fill-rect renderer
-                               (sdl2:make-rect (.render-x self)
-                                               (.render-y self)
-                                               (.width pattern-editor)
-                                               (.height pattern-editor))))      ;; play position
+        (sdl2:render-fill-rect
+         renderer
+         (sdl2:make-rect (.render-x self)
+                         (.render-y self)
+                         (.width pattern-editor)
+                         (* *char-height* (max-cursor-y pattern-editor)))))
+      ;; play position
       (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
       (let ((play-x (.render-x self))
             (play-y (+ (.render-y self) (* *char-height* (.current-line pattern))))

@@ -12,38 +12,38 @@
   (or (at-delay-x0-p self index)
       (at-delay-0x-p self index)))
 
-(flet ((f (self index x1 x2)
-         (multiple-value-bind (column x) (current-column self)
+(flet ((f (self x x1 x2)
+         (multiple-value-bind (column column-x column-index) (column-at self x)
            (declare (ignore column))
            (let ((pattern (.pattern self)))
-             (and (delay-enable-p pattern index)
-                  (= (if (velocity-enable-p pattern index) x1 x2)
-                     x))))))
-  
-  (defmethod at-delay-x0-p ((self pattern-editor) index)
+             (and (delay-enable-p pattern column-index)
+                  (= (if (velocity-enable-p pattern column-index) x1 x2)
+                     column-x))))))
+
+  (defmethod at-delay-x0-p ((self pattern-editor) x)
     "C-4 64 *0*0 or C-4 *0*0"
-    (f self index 7 4))
+    (f self x 7 4))
 
-  (defmethod at-delay-0x-p ((self pattern-editor) index)
+  (defmethod at-delay-0x-p ((self pattern-editor) x)
     "C-4 64 0*0* or C-4 0*0*"
-    (f self index 8 5)))
+    (f self x 8 5)))
 
- (defmethod at-velocity-p ((self pattern-editor) index)
-   (or (at-velocity-x0-p self index)
-       (at-velocity-0x-p self index)))
+ (defmethod at-velocity-p ((self pattern-editor) x)
+   (or (at-velocity-x0-p self x)
+       (at-velocity-0x-p self x)))
 
-(flet ((f (self index x1)
-         (multiple-value-bind (column x) (current-column self)
+(flet ((f (self x x1)
+         (multiple-value-bind (column column-x column-index) (column-at self x)
            (declare (ignore column))
            (let ((pattern (.pattern self)))
-             (and (velocity-enable-p pattern index)
-                  (= x x1))))))
+             (and (velocity-enable-p pattern column-index)
+                  (= column-x x1))))))
 
-  (defmethod at-velocity-x0-p ((self pattern-editor) index)
-    (f self index 4))
+  (defmethod at-velocity-x0-p ((self pattern-editor) x)
+    (f self x 4))
 
-  (defmethod at-velocity-0x-p ((self pattern-editor) index)
-    (f self index 5)))
+  (defmethod at-velocity-0x-p ((self pattern-editor) x)
+    (f self x 5)))
 
 (defmethod column-nchars ((self pattern-editor) column-index)
   "先頭のスペースも含んだ文字列単位の幅 [ C-4 64 00]"
@@ -53,20 +53,24 @@
       (if (velocity-enable-p pattern column-index) 3 0)
       (if (delay-enable-p pattern column-index) 3 0))))
 
-(defmethod current-column ((self pattern-editor))
+(defmethod column-at ((self pattern-editor) x)
   "カラム とカラム内での x 文字目と何番目のカラムか"
   (loop with pattern = (.pattern self)
-        with cursor-x = (.cursor-x self)
+        with cursor-x = x
         for i below 16
         for column-nchars = (column-nchars self i)
         for total-nchars = column-nchars then (+ total-nchars column-nchars)
         if (< cursor-x total-nchars)
-          do (return-from current-column
+          do (return-from column-at
                (values (aref (.columns (aref (.lines pattern)
                                              (.cursor-y self)))
                              i)
                        (- cursor-x (- total-nchars column-nchars))
                        i))))
+
+(defmethod current-column ((self pattern-editor))
+  "カラム とカラム内での x 文字目と何番目のカラムか"
+  (column-at self (.cursor-x self)))
 
 (defmethod current-line ((self pattern-editor))
   (aref (.lines (.pattern self)) (.cursor-y self)))
@@ -111,7 +115,7 @@
   (- (loop with pattern = (.pattern self)
            for velocity-enable-p across (.velocity-enables pattern)
            for delay-enable-p across (.delay-enables pattern)
-           repeat (.nlines pattern)
+           repeat (.ncolumns pattern)
            sum (+ 1 3
                   (if velocity-enable-p 3 0)
                   (if delay-enable-p 3 0)))
