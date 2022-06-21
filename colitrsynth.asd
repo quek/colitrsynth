@@ -47,6 +47,7 @@
 
    (:file "import-midi")
    (:file "menu")
+   (:file "command-dialog")
    (:file "audio")
    (:file "view")
    (:file "main")

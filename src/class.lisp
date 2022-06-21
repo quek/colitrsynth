@@ -220,6 +220,16 @@
    (last-left :initform 0.0 :accessor .last-left)
    (last-right :initform 0.0 :accessor .last-right)))
 
+(defstruct builtin-parameter
+  name
+  accessor)
+
+(defstruct plugin-parameter
+  index
+  name
+  value
+  value-as-text)
+
 (defclass plugin-model (model)
   ((plugin-description :initarg :plugin-description :accessor .plugin-description)
    (host-process :accessor .host-process)
@@ -529,12 +539,9 @@
   ((plugin-description :initarg :plugin-description
                        :accessor .plugin-description)))
 
-(defstruct builtin-parameter
-  name
-  accessor)
-
-(defstruct plugin-parameter
-  index
-  name
-  value
-  value-as-text)
+(defclass command-dialog (view)
+  ((text :initform (make-instance 'text :value ":")
+         :accessor .text))
+  (:default-initargs
+   :height (+ *char-height* (* *layout-space* 2))
+   :width (+ (* *char-width* 20) (* *layout-space* 2))))
