@@ -140,10 +140,15 @@
                (points (append aux-points points))
                (rad (radian x1 y1 x2 y2))
                (points (loop for (x . y) in points
-                             for x% = (- (* (the single-float x) (cos rad))
-                                         (* (the single-float y) (sin rad)))
-                             for y% = (+ (* x (sin rad)) (* y (cos rad)))
-                             collect (cons (round (+ x% x1)) (round (+ y% y1)))))
+                             for x% single-float
+                               = (let ((v (- (* (the single-float x) (cos rad))
+                                             (* (the single-float y) (sin rad)))))
+                                   (if (sb-ext:float-infinity-p v) 0.0 v))
+                             for y% single-float
+                               = (let ((v (+ (* x (sin rad)) (* y (cos rad)))))
+                                   (if (sb-ext:float-infinity-p v) 0.0 v))
+                             collect (cons (the fixnum (round (+ x% x1)))
+                                           (the fixnum (round (+ y% y1))))))
                (points (loop for (x . y) in points
                              collect (sdl2:make-point x y))))
           (multiple-value-bind (points num) (apply #'sdl2:points* points)

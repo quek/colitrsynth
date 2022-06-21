@@ -144,6 +144,7 @@
                  (#.sdl2-ffi:+sdl-scancode-f+ #xf)
                  (t nil))))
     (cond ((at-delay-x0-p self (.cursor-x self))
+           (print (.delay (current-column self)))
            (setf (ldb (byte 4 4) (.delay (current-column self)))
                  value)
            (step-next self))

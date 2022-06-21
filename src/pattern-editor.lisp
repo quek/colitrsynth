@@ -84,15 +84,12 @@
                   (/ (.height self) 2)))))
 
 (defmethod keydown ((self pattern-editor) value scancode mod-value)
-  ;; (unless (.focused self)
-  ;;   (return-from keydown 'call-next-method))
-  (let ((*current-key* (list scancode (to-bind-mod-value mod-value))))
-    (aif (or (gethash *current-key* (.keymap self))
-               (gethash *current-key* *pattern-editor-keymap*))
-        (progn
-          (funcall it self)
-          t)
-        (call-next-method))))
+  (aif (or (gethash *current-key* (.keymap self))
+           (gethash *current-key* *pattern-editor-keymap*))
+       (progn
+         (funcall it self)
+         t)
+       (call-next-method)))
 
 (defmethod keyup ((self pattern-editor) value scancode mod-value)
   (cond ((and (.shifting-p self)
@@ -254,7 +251,8 @@
                               (when (velocity-enable-p pattern column-index)
                                 (write-string "   " out))
                               (when (delay-enable-p pattern column-index)
-                                (if (valid-note-p (.note column))
+                                (if (or (valid-note-p (.note column))
+                                        (= (.note column) off))
                                     (format out " ~2,'0X" (.delay column))
                                     (write-string " --" out)))))))))
 
