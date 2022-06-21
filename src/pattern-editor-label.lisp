@@ -3,8 +3,16 @@
 (defmethod render :before ((self pattern-editor-index-label) renderer)
   (let* ((pattern-editor (.pattern-editor self))
          (pattern (.pattern pattern-editor)))
+
     (when (eq self (car (.index-labels pattern-editor)))
-      ;; play position
+      ;; 背景色
+      (when (eq (.mode pattern-editor) :insert)
+        (apply #'sdl2:set-render-draw-color renderer *insert-mode-color*)
+        (sdl2:render-fill-rect renderer
+                               (sdl2:make-rect (.render-x self)
+                                               (.render-y self)
+                                               (.width pattern-editor)
+                                               (.height pattern-editor))))      ;; play position
       (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
       (let ((play-x (.render-x self))
             (play-y (+ (.render-y self) (* *char-height* (.current-line pattern))))
@@ -22,7 +30,7 @@
                                                      (.selection-start pattern-editor)))))
                (cursor-w (* *char-width* (1+ (max-cursor-x pattern-editor))))
                (cursor-h (* *char-height* (1+ (abs (- (.cursor-y pattern-editor)
-                                                   (.selection-start pattern-editor)))))))
+                                                      (.selection-start pattern-editor)))))))
            (sdl2:render-fill-rect
             renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h)))))
       ;; cursor

@@ -92,12 +92,13 @@
 
 (defcmd cmd::delete-at ((self pattern-editor))
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-delete+))
-  (multiple-value-bind (column x) (current-column self)
-    (cond ((at-note-column-p column x)
+  (let ((x (.cursor-x self))
+        (column  (current-column self)))
+    (cond ((at-note-column-p self x)
            (setf (.note column) none))
-          ((at-velocity-p column x)
+          ((at-velocity-p self x)
            (setf (.velocity column) *default-velocity*))
-          ((at-delay-p column x)
+          ((at-delay-p self x)
            (setf (.delay column) 0)))
     (step-next self)))
 
