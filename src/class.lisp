@@ -539,9 +539,11 @@
   ((plugin-description :initarg :plugin-description
                        :accessor .plugin-description)))
 
-(defclass command-dialog (view)
-  ((text :initform (make-instance 'text :value ":")
-         :accessor .text))
+(defclass command-dialog (text)
+  ((command :initform "" :accessor .command))
   (:default-initargs
-   :height (+ *char-height* (* *layout-space* 2))
-   :width (+ (* *char-width* 20) (* *layout-space* 2))))
+   :height (+ *char-height* 4)
+   :width (+ (* *char-width* 20) (* *layout-space* 2))
+   :reader (constantly "")
+   :writer #'identity))
+

@@ -1,5 +1,14 @@
 (in-package :colitrsynth)
 
+(defcmd cmd::command ((self app))
+    (:bind (*app-keymap* sdl2-ffi:+sdl-scancode-apostrophe+))
+  (multiple-value-bind (x y) (sdl2:mouse-state)
+    (let ((command-dialog (make-instance 'command-dialog
+                                         :x (max 0 (- x 50))
+                                         :y (max 0 (- y 22)))))
+      (append-view command-dialog)
+      (setf (.selected-modules *app*) (list command-dialog)))))
+
 (defcmd cmd::delete ((self app))
     (:bind (*app-keymap* sdl2-ffi:+sdl-scancode-delete+ +ctrl+ +shift+))
   (loop for module in (.selected-modules *app*)
