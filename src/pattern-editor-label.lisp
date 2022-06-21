@@ -37,7 +37,7 @@
             renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h)))))
       ;; cursor
       (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
-      (let ((cursor-x (+ (* *char-width* (+ (.cursor-x pattern-editor) 3))))
+      (let ((cursor-x (+ -1 (* *char-width* (+ (.cursor-x pattern-editor) 3))))
             (cursor-y (+ (.render-y self) (* *char-height* (.cursor-y pattern-editor))))
             (cursor-w (if (at-note-column-p pattern-editor (.cursor-x pattern-editor))
                           (* *char-width* 3)
