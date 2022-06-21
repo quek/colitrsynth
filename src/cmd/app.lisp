@@ -1,5 +1,16 @@
 (in-package :colitrsynth)
 
+(defcmd cmd::delete ((self app))
+    (:bind (*app-keymap* sdl2-ffi:+sdl-scancode-delete+ +ctrl+ +shift+))
+  (loop for module in (.selected-modules *app*)
+        if (and (not (eq module (.sequencer *audio*)))
+                (not (eq module (.master *audio*))))
+          do (progn
+               (disconnect-all module)
+               (remove-view module)
+               (close module)))
+  (setf (.selected-modules *app*) nil))
+
 (defcmd cmd::escape ((self app))
     (:bind (*app-keymap* sdl2-ffi:+sdl-scancode-escape+))
   (setf (.cable-src *app*) nil))

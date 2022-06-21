@@ -511,18 +511,6 @@
 (defmethod close ((self module) &key abort)
   (declare (ignore abort)))
 
-(defmethod keydown ((self module) value scancode mod-value)
-  (if (and (sdl2:scancode= scancode :scancode-delete)
-           (not (zerop (logand mod-value sdl2-ffi:+kmod-shift+)))
-           (not (zerop (logand mod-value sdl2-ffi:+kmod-ctrl+)))
-           (not (eq self (.sequencer *audio*)))
-           (not (eq self (.master *audio*))))
-      (progn
-        (disconnect-all self)
-        (remove-view self)
-        (close self))
-      (call-next-method)))
-
 (defmethod mousebuttondown :after ((self module)
                                    (button (eql sdl2-ffi:+sdl-button-right+))
                                    state clicks x y)

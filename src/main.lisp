@@ -176,7 +176,7 @@
 (let ((count 0)
       (last 0)
       (total-sleep-time 0)
-      (fps 60))
+      (fps 30))
   (defun idle-delay ()
     (let* ((now (get-internal-real-time))
            (delta (- now last))
