@@ -7,10 +7,9 @@
                          (setf (.command self) value)))
   (setf (.focused-view *app*) self))
 
-;;; TODO menu-view と共通化
 (defmethod close ((self command-dialog) &key abort)
   (declare (ignore abort))
-  (setf (.selected-modules *app*) (delete self (.selected-modules *app*)))
+  (setf (.selected-modules *app*) (.targets self))
   (remove-view self)
   (call-next-method))
 
@@ -23,16 +22,15 @@
            (re (ppcre:create-scanner
                 (format nil "~{~c~^.*~}" (coerce (car xs) 'list))
                 :case-insensitive-mode t))
-           (symbols (print (loop for symbol being the symbol in (find-package :cmd)
-                                 if (ppcre:scan re (symbol-name symbol))
-                                   collect symbol)))
-           (symbol (print (car (sort symbols #'< :key (lambda (x)
-                                                        (length (symbol-name x))))))))
-      (when (and symbol
-                 (fboundp symbol)
-                 (get symbol :interactive))
+           (symbols (loop for symbol being the symbol in (find-package :cmd)
+                          if (and
+                              (fboundp symbol)
+                              (get symbol :interactive)
+                              (ppcre:scan re (symbol-name symbol)))
+                            collect symbol))
+           (symbol (car (sort symbols #'< :key (lambda (x)
+                                                 (length (symbol-name x)))))))
+      (when symbol
         (loop for x in (.targets self)
-              do (handler-case (apply symbol x args)
-                   (sb-pcl::no-applicable-method-error ())))))
-    (setf (.selected-modules *app*) (.targets self))))
+              do (ignore-errors (apply symbol x args)))))))
 
