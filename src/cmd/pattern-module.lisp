@@ -1,6 +1,6 @@
 (in-package :colitrsynth)
 
-(defcmd cmd::t ((self pattern-module) delta) (:interactive t)
+(defcmd cmd::transpose ((self pattern-module) delta) (:interactive t)
   (loop for line across (.lines self)
         do (loop for column across (.columns line)
                  if (valid-note-p (.note column))
