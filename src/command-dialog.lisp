@@ -16,6 +16,14 @@
 
 (defmethod lost-focuse ((self command-dialog))
   (call-next-method)
-  (print (.command self))
-  (close self))
+  (close self)
+  (when (string/= "" (.command self))
+    (let ((*package* (find-package :cmd)))
+      (destructuring-bind (command &rest args) (read-from-string (format nil "(~a)" (.command self)))
+        (when (and (fboundp command)
+                   (get command :interactive))
+          (loop for x in (.targets self)
+                do (handler-case (apply command x args)
+                     (sb-pcl::no-applicable-method-error ()))))))
+    (setf (.selected-modules *app*) (.targets self))))
 

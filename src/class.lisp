@@ -540,7 +540,8 @@
                        :accessor .plugin-description)))
 
 (defclass command-dialog (text)
-  ((command :initform "" :accessor .command))
+  ((command :initform "" :accessor .command)
+   (targets :initarg :targets :accessor .targets))
   (:default-initargs
    :height (+ *char-height* 4)
    :width (+ (* *char-width* 20) (* *layout-space* 2))

@@ -3,9 +3,12 @@
 (defcmd cmd::command ((self app))
     (:bind (*app-keymap* sdl2-ffi:+sdl-scancode-apostrophe+))
   (multiple-value-bind (x y) (sdl2:mouse-state)
-    (let ((command-dialog (make-instance 'command-dialog
-                                         :x (max 0 (- x 50))
-                                         :y (max 0 (- y 22)))))
+    (let ((command-dialog
+            (make-instance 'command-dialog
+                           :targets (or (.selected-modules *app*)
+                                        (list *app*))
+                           :x (max 0 (- x 50))
+                           :y (max 0 (- y 22)))))
       (append-view command-dialog)
       (setf (.selected-modules *app*) (list command-dialog)))))
 

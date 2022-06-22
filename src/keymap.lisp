@@ -16,7 +16,7 @@
 
 (defvar *current-key* nil)
 
-(defmacro defcmd (name args (&key bind next-keymap) &body body)
+(defmacro defcmd (name args (&key bind next-keymap interactive) &body body)
   `(progn
      (defmethod ,name ,args
        ,@body
@@ -28,4 +28,5 @@
                                                   (list bind))
                collect `(setf (gethash (list ,scancode (+ ,@mod))
                                        ,keymap)
-                              ',name)))))
+                              ',name)))
+     (setf (get ',name :interactive) ,interactive)))

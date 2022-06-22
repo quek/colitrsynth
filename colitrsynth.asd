@@ -57,4 +57,5 @@
     :pathname "cmd"
     :components
     ((:file "app")
-     (:file "pattern-editor")))))
+     (:file "pattern-editor")
+     (:file "pattern-module")))))
