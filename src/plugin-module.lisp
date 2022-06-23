@@ -23,6 +23,23 @@
   (when (slot-boundp self 'plugin-state)
     (set-plugin-state self)))
 
+(defmethod available-cables-src ((src plugin-module))
+  (let ((cables (loop for i below (.output-nbuses src)
+                      collect (make-instance 'audio-connection
+                                             :src src :dest nil
+                                             :src-bus i))))
+    (when (produces-midi-p src)
+      (setf cables (append cables
+                           (list (make-instance 'midi-connection
+                                                :src src :dest nil)))))
+    cables))
+
+(defmethod available-connections (src (dest plugin-module) cable-src)
+  (loop for param in (.params dest)
+        collect (make-instance 'plugin-param-connection
+                               :src src :dest dest
+                               :param param)))
+
 (defmethod cable-buffer ((module plugin-module) (connection audio-connection))
   (let* ((bus (.src-bus connection)))
     (values (aref (.left-buffer module) bus)
@@ -90,6 +107,16 @@
                         (loop for j fixnum below *frames-per-buffer*
                               with i fixnum = -1
                               do (setf (aref buffer j) (aref in j))))))))
+
+(defmethod route-connection ((connection audio-connection)
+                             (src plugin-model)
+                             dest
+                             left right)
+  (let ((bus (.src-bus connection)))
+    (process dest
+             connection
+             (aref left bus)
+             (aref right bus))))
 
 (defmethod set-plugin-state ((self plugin-model))
   (let* ((io (.host-io self))

@@ -10,6 +10,9 @@
                                               (format nil "~,5f" (funcall f)))))))
     (add-child self value-text)))
 
+(defmethod available-connections (src (dest osc-module-mixin) cable-src)
+  (list (make-instance 'midi-connection :src src :dest dest)))
+
 (defmethod cable-buffer ((module osc-module-mixin) (connection audio-connection))
   (values (.buffer module)
           nil))

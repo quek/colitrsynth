@@ -37,15 +37,14 @@
                   (button (eql sdl2-ffi:+sdl-button-left+))
                   x y)
   (or (call-next-method)
-      (let ((module (.selected-pattern *app*)))
-        (if (typep module 'pattern-module)
-            (let* ((start (pixcel-to-line x))
-                   (end (+ start (.nlines module))))
-              (when (every (lambda (x)
-                             (or (<= end (.start x))
-                                 (<= (.end x) start)))
-                           (.pattern-positions self))
-                (add-pattern self module start end)))))
+      (awhen (.selected-pattern *app*)
+        (let* ((start (pixcel-to-line x))
+               (end (+ start (.nlines it))))
+          (when (every (lambda (x)
+                         (or (<= end (.start x))
+                             (<= (.end x) start)))
+                       (.pattern-positions self))
+            (add-pattern self it start end))))
       t))
 
 (defmethod serialize ((self track-view))
@@ -68,8 +67,7 @@
                   x y)
   (loop for module in (.modules *app*)
         with pattern = (.pattern self)
-        if (and (typep module 'pattern-module)
-                (eq module pattern))
+        if (eq module pattern)
           do (setf (.selected-pattern *app*) module)
              (loop-finish)))
 
@@ -307,9 +305,9 @@
         do (add-new-track-after self track))
   (update-sequencer-end self))
 
-(defmethod add-pattern ((track-view track-view) (pattern-module pattern-module) start end)
+(defmethod add-pattern ((track-view track-view) (pattern pattern-mixin) start end)
   (let ((pattern-position-view (make-instance 'pattern-position-view
-                                              :pattern pattern-module
+                                              :pattern pattern
                                               :start start :end end)))
     (push pattern-position-view
           (.pattern-positions track-view))

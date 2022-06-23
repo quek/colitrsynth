@@ -27,6 +27,7 @@
    (:file "connection")
    (:file "module")
    (:file "adsr-module")
+   (:file "automation-module")
    (:file "constant-module")
    (:file "gain-module")
    (:file "lfo-module")
@@ -42,6 +43,7 @@
    (:file "plugin-module")
    (:file "effect-plugin-module")
    (:file "instrument-plugin-module")
+   (:file "track")
    (:file "sequencer-module")
    (:file "app")
 

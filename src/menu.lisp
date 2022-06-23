@@ -22,52 +22,11 @@
 
 (defgeneric available-cables-src (src)
   (:method (src)
-    (list (make-instance 'audio-connection :src src :dest nil)))
-  (:method ((src track-view))
-    (list (make-instance 'midi-connection :src src :dest nil)))
-  (:method ((src plugin-module))
-    (let ((cables (loop for i below (.output-nbuses src)
-                        collect (make-instance 'audio-connection
-                                               :src src :dest nil
-                                               :src-bus i))))
-      (when (produces-midi-p src)
-        (setf cables (append cables
-                             (list (make-instance 'midi-connection
-                                                  :src src :dest nil)))))
-      cables)))
+    (list (make-instance 'audio-connection :src src :dest nil))))
 
-(defgeneric available-connections (src dest cable-src)
-  (:method (src (dest module) cable-src)
-    (list (make-instance 'audio-connection :src src :dest dest
-                                           :src-bus (.src-bus cable-src))))
-  (:method (src (dest osc-module-mixin) cable-src)
-    (list (make-instance 'midi-connection :src src :dest dest)))
-  (:method (src (dest adsr-module) cable-src)
-    (list (make-instance 'midi-connection :src src :dest dest)))
-  (:method (src (dest plugin-module) cable-src)
-    (loop for param in (.params dest)
-          collect (make-instance 'plugin-param-connection
-                                 :src src :dest dest
-                                 :param param)))
-  (:method (src (dest instrument-plugin-model) cable-src)
-    (cons (make-instance 'midi-connection :src src :dest dest)
-          (call-next-method)))
-  (:method (src (dest effect-plugin-model) cable-src)
-    (append
-     (loop for i below (.input-nbuses dest)
-           collect (make-instance 'audio-connection
-                                  :src src :dest dest
-                                  :src-bus (.src-bus cable-src)
-                                  :dest-bus i))
-     (call-next-method))))
+(defgeneric available-connections (src dest cable-src))
 
-(defmethod available-connections (src (dest gain-module) cable-src)
-  (append (call-next-method)
-          (list (make-instance
-                 'builtin-param-connection
-                 :src src :dest dest
-                 :param (make-builtin-parameter :name "Gain"
-                                                :accessor '.volume)))))
+
 
 (defmethod initialize-instance :after ((self connector-menu-view) &key)
   (mapc (lambda (connection)
@@ -107,6 +66,7 @@
                ("Sin" sin-osc-module)
                ("Saw" saw-osc-module)
                ("Adsr" adsr-module)
+               ("Automation" automation-module)
                ("Lfo" lfo-module)
                ("Op Add" op-add-module)
                ("Op Multi" op-multi-module)

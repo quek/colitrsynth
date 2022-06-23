@@ -1,5 +1,12 @@
 (in-package :colitrsynth)
 
+(defmethod available-connections (src (dest gain-module) (cable-src param-connection))
+  (list (make-instance
+         'builtin-param-connection
+         :src src :dest dest
+         :param (make-builtin-parameter :name "Gain"
+                                        :accessor '.volume))))
+
 (defmethod cable-buffer ((module gain-module) (connection audio-connection))
   (values (.left module)
           (.right module)))

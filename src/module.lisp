@@ -1,5 +1,9 @@
 (in-package :colitrsynth)
 
+(defmethod available-connections (src (dest module) cable-src)
+  (list (make-instance 'audio-connection :src src :dest dest
+                                         :src-bus (.src-bus cable-src))))
+
 (defmethod click ((self module)
                   (button (eql sdl2-ffi:+sdl-button-left+))
                   x y)

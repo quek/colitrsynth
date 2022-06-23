@@ -145,11 +145,13 @@
             :initform (make-array 16 :initial-contents
                                   (loop repeat 16 collect (make-instance 'column))))))
 
-(defclass pattern (model)
+(defclass pattern-mixin (model)
   ((nlines :initarg :nlines :initform #x40 :accessor .nlines)
    (lines :initarg :lines :accessor .lines)
-   (ncolumns :initarg :ncolums :initform 1 :accessor .ncolumns)
-   (current-line :initform 0 :accessor .current-line)
+   (current-line :initform 0 :accessor .current-line)))
+
+(defclass pattern (pattern-mixin)
+  ((ncolumns :initarg :ncolums :initform 1 :accessor .ncolumns)
    (velocity-enables :initarg :velocity-enables
                      :accessor .velocity-enables
                      :initform (make-array 16 :initial-element nil)
@@ -477,6 +479,9 @@
 (defclass adsr-module (adsr connector-mixin module)
   ()
   (:default-initargs :name "Adsr" :height 100))
+
+(defclass automation-module (pattern-mixin module)
+  ())
 
 (defclass plugin-module (connector-mixin module)
   ()

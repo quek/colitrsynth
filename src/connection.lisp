@@ -12,6 +12,9 @@
 (defmethod .name-as-src ((self audio-connection))
   (format nil "Out ~d" (.src-bus self)))
 
+(defmethod .name-as-src ((self param-connection))
+  (format nil "Out ~d" (.name (.param self))))
+
 (defmethod .name ((self builtin-param-connection))
   (builtin-parameter-name (.param self)))
 

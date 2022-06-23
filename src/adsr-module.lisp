@@ -28,6 +28,9 @@
                                       :width width :height height
                                       :onchange (lambda (x) (setf (.r self) x))))))
 
+(defmethod available-connections (src (dest adsr-module) cable-src)
+  (list (make-instance 'midi-connection :src src :dest dest)))
+
 (defmethod cable-buffer ((module adsr-module) (connection audio-connection))
   (values (.buffer module)
           nil))

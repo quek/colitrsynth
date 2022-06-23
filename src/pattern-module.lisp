@@ -36,7 +36,7 @@
 (defmethod (setf delay-enable-p) (value (self pattern-module) column)
   (setf (aref (.delay-enables self) column) value))
 
-(defmethod mousebuttondown :before ((self pattern-module) button state clicks x y)
+(defmethod mousebuttondown :before ((self pattern-mixin) button state clicks x y)
   (setf (.selected-pattern *app*) self))
 
 (defmethod keydown ((self pattern-module) value scancode mod-value)
@@ -48,6 +48,8 @@
 
 (defmethod (setf .height) :after (value (self pattern-module))
   (setf (.height (.pattern-editor self)) (- (.height self) (+ 10 *font-size*))))
+
+(defmethod process ((self pattern-mixin) (connection null) left right))
 
 (defmethod serialize ((self pattern-module))
   `((setf (.nlines x) ,(.nlines self)

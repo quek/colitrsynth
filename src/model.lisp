@@ -19,7 +19,6 @@
 
 
 (defmethod process ((self sequencer-module) (connection null) left right))
-(defmethod process ((self pattern-module) (connection null) left right))
 
 (defmethod process ((self model) connection left right)
   (declare (optimize (speed 3) (safety 0)))
@@ -43,17 +42,6 @@
 (defmethod route-connection (connection src dest left right)
   (process dest connection left right))
 
-(defmethod route-connection ((connection audio-connection)
-                             (src plugin-model)
-                             dest
-                             left right)
-  (let ((bus (.src-bus connection)))
-    (process dest
-             connection
-             (aref left bus)
-             (aref right bus))))
-
-;; TODO tracker の MIDI 出力も統一したい
 (defmethod route-connection ((connection midi-connection)
                              (src instrument-plugin-model)
                              dest
@@ -74,34 +62,38 @@
   (let* ((frames-per-line (frames-per-line))
          (midi-events
            (loop for pattern-position in (.pattern-positions track)
-                 nconc (with-slots (start end) pattern-position
-                         (cond ((< end-line start-line) ;ループしている場合
-                                (append
-                                 (if (and (<= start start-line)
-                                          (< start-line end))
-                                     (midi-events-at-line-frame pattern-position
-                                                                (- start-line start) start-frame
-                                                                (- start-line start) frames-per-line))
-                                 (if (and (<= start end-line)
-                                          (< end-line end))
-                                     (midi-events-at-line-frame pattern-position
-                                                                (- end-line start) 0
-                                                                (- end-line start)
-                                                                end-frame))))
-                               ((and (<= start end-line)
-                                     (< start-line end))
-                                (let ((start-line (- start-line start))
-                                      (start-frame start-frame))
-                                  (when (minusp start-line)
-                                    (setf start-line 0)
-                                    (setf start-frame 0))
-                                  (midi-events-at-line-frame pattern-position
-                                                             start-line start-frame
-                                                             (- end-line start) end-frame))))))))
+                 ;; TODO
+                 if (typep (.pattern pattern-position) 'pattern-module)
+                   nconc (with-slots (start end) pattern-position
+                           (cond ((< end-line start-line) ;ループしている場合
+                                  (append
+                                   (if (and (<= start start-line)
+                                            (< start-line end))
+                                       (midi-events-at-line-frame pattern-position
+                                                                  (- start-line start) start-frame
+                                                                  (- start-line start) frames-per-line))
+                                   (if (and (<= start end-line)
+                                            (< end-line end))
+                                       (midi-events-at-line-frame pattern-position
+                                                                  (- end-line start) 0
+                                                                  (- end-line start)
+                                                                  end-frame))))
+                                 ((and (<= start end-line)
+                                       (< start-line end))
+                                  (let ((start-line (- start-line start))
+                                        (start-frame start-frame))
+                                    (when (minusp start-line)
+                                      (setf start-line 0)
+                                      (setf start-frame 0))
+                                    (midi-events-at-line-frame pattern-position
+                                                               start-line start-frame
+                                                               (- end-line start) end-frame))))))))
     #+nil
     (when midi-events
       (print midi-events))
-    (route track midi-events start-frame)))
+    ;; TODO
+    (let ((param-events nil))
+      (route track (cons midi-events param-events) start-frame))))
 
 (defun play-track-all-off (track start-frame)
   (route track (list (midi-event-all-notes-off)) start-frame))
@@ -264,6 +256,10 @@
            ;; TODO 先頭の値でいい？ 平均とかの方がいい？
            (aref left 0)
            self))
+
+(defmethod process-in (self (connection builtin-param-connection) (left null) right)
+  ;; デフォルト値設定したいかも
+  )
 
 (defmethod process-in ((self midi-input-mixin)
                        (connection midi-connection)

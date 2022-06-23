@@ -1,5 +1,14 @@
 (in-package :colitrsynth)
 
+(defmethod available-connections (src (dest effect-plugin-model) cable-src)
+  (append
+   (loop for i below (.input-nbuses dest)
+         collect (make-instance 'audio-connection
+                                :src src :dest dest
+                                :src-bus (.src-bus cable-src)
+                                :dest-bus i))
+   (call-next-method)))
+
 (defmethod get-params :after ((self effect-plugin-model))
   (setf (.out-buffer self)
         (make-array (.out-length self) :element-type 'single-float)))
