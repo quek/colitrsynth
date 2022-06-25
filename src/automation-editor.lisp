@@ -26,7 +26,7 @@
         (setf (.value-labels self)
               (loop for y below nlines
                     collect (make-instance 'label
-                                           :value "--"
+                                           :value "XX"
                                            :x x
                                            :y (* *char-height* y)
                                            :width width
@@ -36,4 +36,6 @@
           for value = (aref (.lines model) index)
           for value-label in (.value-labels self)
           do (setf (.value value-label)
-                   (format nil "~2,'0X" (round (* #xff value)))))))
+                   (if (= value -1.0)
+                       "--"
+                       (format nil "~2,'0X" (round (* #xff value))))))))

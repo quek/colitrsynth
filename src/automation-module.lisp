@@ -1,20 +1,20 @@
 (in-package :colitrsynth)
 
-(defmethod keydown ((self automation-module) value scancode mod-value)
-  (unless (keydown (.editor self) value scancode mod-value)
-    (call-next-method)))
-
 (defmethod initialize-instance :after ((self automation-module) &key)
   (unless (slot-boundp self 'lines)
     (setf (.lines self)
           (make-array (.nlines self)
-                      :initial-element 0.0
+                      :initial-element -1.0
                       :element-type 'single-float)))
   (let ((editor (make-instance 'automation-editor
                                :model self)))
     (setf (.editor self) editor)
     (add-child self editor))
   (resized self))
+
+(defmethod keydown ((self automation-module) value scancode mod-value)
+  (unless (keydown (.editor self) value scancode mod-value)
+    (call-next-method)))
 
 (defmethod process ((self automation-module) (connection null) left right))
 

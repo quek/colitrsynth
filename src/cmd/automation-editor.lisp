@@ -9,7 +9,8 @@
         (mod (1+ (.cursor-x self)) 2)))
 
 (defcmd cmd::insert-mode ((self automation-editor))
-    (:next-keymap *automation-insert-keymap*))
+    (:next-keymap *automation-insert-keymap*)
+  (call-next-method))
 
 (defcmd cmd::insert-value ((self automation-editor))
     (:bind ((*automation-insert-keymap* sdl2-ffi:+sdl-scancode-0+)
@@ -48,8 +49,11 @@
                  (t nil))))
     (let  ((position (if (at-value-x0-p self (.cursor-x self))
                          4 0)))
-      (let ((current-value (round (* #xff (current-line self)))))
-             (setf (ldb (byte 4 position) current-value)
-                   value)
+      (let* ((current-value (current-line self))
+             (current-value (if (= current-value -1.0)
+                                0
+                                (round (* #xff current-value)))))
+        (setf (ldb (byte 4 position) current-value)
+              value)
         (setf (current-line self) (float (/ current-value #xff))))
       (step-next self))))

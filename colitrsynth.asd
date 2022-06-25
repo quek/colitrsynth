@@ -62,5 +62,6 @@
     :components
     ((:file "app")
      (:file "editor-mixin")
+     (:file "automation-editor")
      (:file "pattern-editor")
      (:file "pattern-module")))))
