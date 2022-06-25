@@ -48,7 +48,8 @@
 (defmethod process-in ((self plugin-model)
                        (connection plugin-param-connection)
                        value _)
-  (set-param self (.param connection) (aref value 0)))
+  (when (plusp (length value))
+    (set-param self (.param connection) (aref value 0))))
 
 (defmethod process-out ((self plugin-model))
   (declare (optimize (speed 3) (safety 0)))

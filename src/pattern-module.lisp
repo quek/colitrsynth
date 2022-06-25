@@ -36,6 +36,49 @@
 (defmethod (setf delay-enable-p) (value (self pattern-module) column)
   (setf (aref (.delay-enables self) column) value))
 
+(defmethod events-at-line-frame ((pattern pattern) pattern-position start-line start-frame end-line end-frame)
+  (let (events)
+    (loop with lines = (.lines pattern)
+          with delay-unit = (/ (frames-per-line) #x100)
+          for current-line from start-line below (- (.end pattern-position)
+                                                    (.start pattern-position))
+          for current-frame = start-frame then 0
+          while (<= current-line end-line)
+          do (loop with line = (aref lines current-line)
+                   for column across (.columns line)
+                   for i below (.ncolumns pattern)
+                   for note = (.note column)
+                   for last-note = (aref (.last-notes pattern-position) i)
+                   for delay-frame = (* delay-unit (.delay column))
+                   if (or (< start-line current-line end-line)
+                          (if (= start-line current-line end-line)
+                              (and (<= current-frame delay-frame)
+                                   (< delay-frame end-frame))
+                              (if (= start-line current-line)
+                                  (<= current-frame delay-frame)
+                                  (if (= current-line end-line)
+                                      (< delay-frame end-frame)))))
+                     do (let ((midi-frame (round (- delay-frame current-frame))))
+                          (when (or (and (valid-note-p note)
+                                         (valid-note-p last-note))
+                                    (and (= note off) (valid-note-p last-note)))
+                            (push (make-instance 'midi-event :event +midi-event-off+
+                                                             :note last-note
+                                                             :velocity 0
+                                                             :frame midi-frame)
+                                  events))
+                          (when (valid-note-p note)
+                            (push (make-instance 'midi-event :event +midi-event-on+
+                                                             :note note
+                                                             :velocity (.velocity column)
+                                                             :frame midi-frame)
+                                  events))
+                          (when (/= note none)
+                            (setf (aref (.last-notes pattern-position) i) note)))))
+    (sort events (lambda (a b) (if (= (.frame a) (.frame b))
+                                   (< (.event a) (.event b))
+                                   (< (.frame a) (.frame b)))))))
+
 (defmethod mousebuttondown :before ((self pattern-mixin) button state clicks x y)
   (setf (.selected-pattern *app*) self))
 
