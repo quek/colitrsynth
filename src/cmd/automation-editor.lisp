@@ -8,6 +8,11 @@
     (setf (.cursor-x self)
         (mod (1+ (.cursor-x self)) 2)))
 
+(defcmd cmd::delete-at ((self automation-editor))
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-delete+))
+  (setf (aref (.lines (.model self)) (.cursor-y self)) -1.0)
+  (step-next self))
+
 (defcmd cmd::insert-mode ((self automation-editor))
     (:next-keymap *automation-insert-keymap*)
   (call-next-method))

@@ -10,8 +10,8 @@
     :accessor .device-api)
    (device-name
     :initarg :device-name
-    :initform "Prism Sound USB Audio Class 2.0"
-    ;; :initform "FL Studio ASIO"
+    ;;:initform "Prism Sound USB Audio Class 2.0"
+    :initform "FL Studio ASIO"
     ;; :initform "Realtek Digital Output (Realtek"
     :accessor .device-name)
    (sample-rate

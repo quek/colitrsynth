@@ -24,6 +24,14 @@
   (when (minusp (decf (.cursor-y self)))
     (setf (.cursor-y self) (max-cursor-y self))))
 
+(defcmd cmd::edit-step-double ((self editor-mixin))
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f4+))
+  (setf (.edit-step self) (max 1 (* (.edit-step self) 2))))
+
+(defcmd cmd::edit-step-half ((self editor-mixin))
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f3+))
+  (setf (.edit-step self) (floor (/ (.edit-step self) 2))))
+
 (defcmd cmd::escape ((self editor-mixin))
     (:bind ((*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-escape+))
       :next-keymap *pattern-editor-command-keymap*)

@@ -63,5 +63,6 @@
     ((:file "app")
      (:file "editor-mixin")
      (:file "automation-editor")
+     (:file "automation-module")
      (:file "pattern-editor")
      (:file "pattern-module")))))

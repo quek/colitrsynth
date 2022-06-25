@@ -70,11 +70,9 @@
     (setf (delay-enable-p (.pattern self) index)
           (not (delay-enable-p (.pattern self) index)))))
 
-
 (defcmd cmd::delete ((self pattern-editor))
     (:bind (*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-d+)
       :next-keymap *pattern-editor-delete-keymap*))
-
 
 (defcmd cmd::delete-at ((self pattern-editor))
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-delete+))
@@ -291,14 +289,6 @@
 (defcmd cmd::octave-up ((self pattern-editor))
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f2+))
   (setf (.octave self) (mod (1+ (.octave self)) 10)))
-
-(defcmd cmd::edit-step-double ((self pattern-editor))
-    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f4+))
-  (setf (.edit-step self) (max 1 (* (.edit-step self) 2))))
-
-(defcmd cmd::edit-step-half ((self pattern-editor))
-    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f3+))
-  (setf (.edit-step self) (floor (/ (.edit-step self) 2))))
 
 (defcmd cmd::paste ((self pattern-editor))
     (:bind (*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-p+))
