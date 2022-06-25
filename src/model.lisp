@@ -96,7 +96,7 @@
       (route track (cons midi-events param-events) start-frame))))
 
 (defun play-track-all-off (track start-frame)
-  (route track (list (midi-event-all-notes-off)) start-frame))
+  (route track (cons (list (midi-event-all-notes-off)) nil) start-frame))
 
 (defun play-track-no-notes (track start-frame)
   (route track nil start-frame))

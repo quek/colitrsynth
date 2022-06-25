@@ -404,24 +404,33 @@
   ((pattern-editor :initarg :pattern-editor :accessor .pattern-editor))
   (:default-initargs :color *delay-color*))
 
-(defclass pattern-editor (focus-mixin partial-view)
-  ((pattern :accessor .pattern)
+(defclass editor-mixin (partial-view)
+  ((model :initarg :model :accessor .model
+          ;; 暫定で
+          :accessor .pattern)
    (index-labels :initform nil :accessor .index-labels)
-   (note-labels :initform nil :accessor .note-labels)
-   (velocity-labels :initform nil :accessor .velocity-labels)
-   (delay-labels :initform nil :accessor .delay-labels)
    (cursor-x :initform 0 :accessor .cursor-x)
    (cursor-y :initform 0 :accessor .cursor-y)
-   (octave :initform 4 :accessor .octave)
    (edit-step :initform 0 :accessor .edit-step)
-   (shifting-p :initform nil :accessor .shifting-p)
-   (keymap :initform *pattern-editor-command-keymap* :accessor .keymap)
+   (keymap :initarg :keymap :accessor .keymap)
    (selection-start :initform nil :accessor .selection-start)
    (selection-end :initform nil :accessor .selection-end)
    (mode :initform :command :accessor .mode
          :type (member :command :insert))
    (selection-mode :initform nil :accessor .selection-mode
                    :type (member nil :line :block))))
+
+(defclass automation-editor (editor-mixin)
+  ((value-labels :initform nil :accessor .note-labels))
+  (:default-initargs :keymap *pattern-editor-command-keymap*))
+
+(defclass pattern-editor (editor-mixin)
+  ((note-labels :initform nil :accessor .note-labels)
+   (velocity-labels :initform nil :accessor .velocity-labels)
+   (delay-labels :initform nil :accessor .delay-labels)
+   (octave :initform 4 :accessor .octave)
+   (shifting-p :initform nil :accessor .shifting-p))
+  (:default-initargs :keymap *pattern-editor-command-keymap*))
 
 (defclass track-view (track
                       drag-mixin
@@ -481,7 +490,7 @@
   (:default-initargs :name "Adsr" :height 100))
 
 (defclass automation-module (pattern-mixin module)
-  ())
+  ((editor :accessor .editor)))
 
 (defclass plugin-module (connector-mixin module)
   ()
