@@ -388,20 +388,20 @@
    (offset-x :initarg :offset-x :initform 0 :accessor .offset-x)
    (offset-y :initarg :offset-y :initform 0 :accessor .offset-y)))
 
-(defclass pattern-editor-index-label (label)
-  ((pattern-editor :initarg :pattern-editor :accessor .pattern-editor))
+(defclass editor-index-label (label)
+  ((editor :initarg :editor :accessor .editor))
   (:default-initargs :color *index-color*))
 
 (defclass pattern-editor-note-label (label)
-  ((pattern-editor :initarg :pattern-editor :accessor .pattern-editor))
+  ((editor :initarg :editor :accessor .editor))
   (:default-initargs :color *note-color*))
 
 (defclass pattern-editor-velocity-label (label)
-  ((pattern-editor :initarg :pattern-editor :accessor .pattern-editor))
+  ((editor :initarg :editor :accessor .editor))
   (:default-initargs :color *velocity-color*))
 
 (defclass pattern-editor-delay-label (label)
-  ((pattern-editor :initarg :pattern-editor :accessor .pattern-editor))
+  ((editor :initarg :editor :accessor .editor))
   (:default-initargs :color *delay-color*))
 
 (defclass editor-mixin (partial-view)
@@ -421,7 +421,7 @@
                    :type (member nil :line :block))))
 
 (defclass automation-editor (editor-mixin)
-  ((value-labels :initform nil :accessor .note-labels))
+  ((value-labels :initform nil :accessor .value-labels))
   (:default-initargs :keymap *pattern-editor-command-keymap*))
 
 (defclass pattern-editor (editor-mixin)

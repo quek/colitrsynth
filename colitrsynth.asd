@@ -38,6 +38,8 @@
    (:file "saw-osc-module")
    (:file "master-module")
    (:file "pattern-editor-label")
+   (:file "editor-mixin")
+   (:file "automation-editor")
    (:file "pattern-editor")
    (:file "pattern-module")
    (:file "plugin-module")

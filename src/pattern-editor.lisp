@@ -118,9 +118,6 @@
                   (if delay-enable-p 3 0)))
      2))
 
-(defmethod max-cursor-y ((self pattern-editor))
-  (1- (.nlines (.pattern self))))
-
 (defmethod set-note ((self pattern-editor) note)
   (when (at-note-column-p self (.cursor-x self))
     (setf (.note (current-column self))
@@ -148,15 +145,11 @@
                                                3)))))))))
       (step-next self)))
 
-(defmethod step-next ((self pattern-editor))
-  (setf (.cursor-y self) (mod (+ (.cursor-y self) (.edit-step self))
-                              (length (.lines (.pattern self))))))
-
 (defmethod update-labels ((self pattern-editor))
-  (let* ((pattern (.pattern self))
-         (pattern-length (.nlines pattern)))
+  (let* ((model (.model self))
+         (nlines (.nlines model)))
     (when (/= (length (.index-labels self))
-              pattern-length)
+              nlines)
       (loop for child in (append (.index-labels self)
                                  (.note-labels self)
                                  (.velocity-labels self)
@@ -164,37 +157,37 @@
             do (remove-child self child))
       (let ((x (* *char-width* 2))
             (width (* *char-width* (max-cursor-x self)))
-            (height (* *char-width* pattern-length)))
+            (height (* *char-width* nlines)))
         (setf (.index-labels self)
-              (loop for y below pattern-length
-                    collect (make-instance 'pattern-editor-index-label
-                                           :pattern-editor self
+              (loop for y below nlines
+                    collect (make-instance 'editor-index-label
+                                           :editor self
                                            :value (format nil "~2,'0X" y)
                                            :x 0 :y (* *char-height* y)
                                            :width (* *char-width* 3)
                                            :height *char-height*)))
         (setf (.note-labels self)
-              (loop for y below pattern-length
+              (loop for y below nlines
                     collect (make-instance 'pattern-editor-note-label
-                                           :pattern-editor self
+                                           :editor self
                                            :value "-"
                                            :x x
                                            :y (* *char-height* y)
                                            :width width
                                            :height height)))
         (setf (.velocity-labels self)
-              (loop for y below pattern-length
+              (loop for y below nlines
                     collect (make-instance 'pattern-editor-velocity-label
-                                           :pattern-editor self
+                                           :editor self
                                            :value "-"
                                            :x x
                                            :y (* *char-height* y)
                                            :width width
                                            :height height)))
         (setf (.delay-labels self)
-              (loop for y below pattern-length
+              (loop for y below nlines
                     collect (make-instance 'pattern-editor-delay-label
-                                           :pattern-editor self
+                                           :editor self
                                            :value "-"
                                            :x x
                                            :y (* *char-height* y)
@@ -206,8 +199,8 @@
                                  (.delay-labels self))
             do (add-child self child)))
 
-    (loop for index below pattern-length
-          for line = (aref (.lines pattern) index)
+    (loop for index below nlines
+          for line = (aref (.lines model) index)
           for index-label in (.index-labels self)
           for note-label in (.note-labels self)
           for velocity-label in (.velocity-labels self)
@@ -218,7 +211,7 @@
                    (with-output-to-string (out)
                      (loop for column across (.columns line)
                            for note = (.note column)
-                           for column-index below (.ncolumns pattern)
+                           for column-index below (.ncolumns model)
                            do (cond ((= note off) (write-string " OFF" out))
                                     ((= note none) (write-string " ---" out))
                                     (t (let* ((c-s-o (format nil "~a" (midino-to-note note)))
@@ -228,29 +221,29 @@
                                                      #\-))
                                               (o (char c-s-o (if (char= s #\#) 2 1))))
                                          (format out " ~c~c~c" c s o))))
-                              (when (velocity-enable-p pattern column-index)
+                              (when (velocity-enable-p model column-index)
                                 (write-string "   " out))
-                              (when (delay-enable-p pattern column-index)
+                              (when (delay-enable-p model column-index)
                                 (write-string "   " out)))))
              (setf (.value velocity-label)
                    (with-output-to-string (out)
                      (loop for column across (.columns line)
-                           for column-index below (.ncolumns pattern)
+                           for column-index below (.ncolumns model)
                            do (write-string "    " out)
-                              (when (velocity-enable-p pattern column-index)
+                              (when (velocity-enable-p model column-index)
                                 (if (valid-note-p (.note column))
                                     (format out " ~2,'0X" (.velocity column))
                                     (write-string " --" out)))
-                              (when (delay-enable-p pattern column-index)
+                              (when (delay-enable-p model column-index)
                                 (write-string "   " out)))))
              (setf (.value delay-label)
                    (with-output-to-string (out)
                      (loop for column across (.columns line)
-                           for column-index below (.ncolumns pattern)
+                           for column-index below (.ncolumns model)
                            do (write-string "    " out)
-                              (when (velocity-enable-p pattern column-index)
+                              (when (velocity-enable-p model column-index)
                                 (write-string "   " out))
-                              (when (delay-enable-p pattern column-index)
+                              (when (delay-enable-p model column-index)
                                 (if (or (valid-note-p (.note column))
                                         (= (.note column) off))
                                     (format out " ~2,'0X" (.delay column))
