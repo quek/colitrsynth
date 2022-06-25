@@ -13,17 +13,7 @@
     (setf (.cursor-x self) 0)
     (cmd::cursor-left self)))
 
-(defcmd cmd::cursor-down ((self pattern-editor))
-    (:bind ((*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-j+)
-            (*pattern-editor-visual-keymap* sdl2-ffi:+sdl-scancode-j+)
-            (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-down+)))
-  (when (< (max-cursor-y self) (incf (.cursor-y self)))
-    (setf (.cursor-y self) 0)))
-
-(defcmd cmd::cursor-left ((self pattern-editor))
-    (:bind ((*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-h+)
-            (*pattern-editor-visual-keymap* sdl2-ffi:+sdl-scancode-h+)
-            (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-left+)))
+(defcmd cmd::cursor-left ((self pattern-editor)) ()
   (multiple-value-bind (column x index) (current-column self)
     (declare (ignore column x))
     (let* ((pattern (.pattern self))
@@ -54,10 +44,7 @@
             (setf (.cursor-x self)
                   (- (max-cursor-x self) delata)))))))
 
-(defcmd cmd::cursor-right ((self pattern-editor))
-    (:bind ((*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-l+)
-            (*pattern-editor-visual-keymap* sdl2-ffi:+sdl-scancode-l+)
-            (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-right+)))
+(defcmd cmd::cursor-right ((self pattern-editor)) ()
   (let* ((x (.cursor-x self))
          (delta (cond ((at-note-column-p self x)
                        4)
@@ -75,13 +62,6 @@
           (if (<= value (max-cursor-x self))
               value
               0))))
-
-(defcmd cmd::cursor-up ((self pattern-editor))
-    (:bind ((*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-k+)
-            (*pattern-editor-visual-keymap* sdl2-ffi:+sdl-scancode-k+)
-            (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-up+)))
-  (when (minusp (decf (.cursor-y self)))
-    (setf (.cursor-y self) (max-cursor-y self))))
 
 (defcmd cmd::delay-toggle ((self pattern-editor))
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-d+ +alt+))
@@ -130,12 +110,6 @@
                       (setf (.velocity column) *default-velocity*)
                       (setf (.delay column) 0)))))
 
-(defcmd cmd::escape ((self pattern-editor))
-    (:bind ((*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-escape+))
-      :next-keymap *pattern-editor-command-keymap*)
-  (setf (.mode self) :command)
-  (setf (.selection-mode self) nil))
-
 (defcmd cmd::insert-delay ((self pattern-editor))
     (:bind ((*pattern-editor-insert-delay-keymap* sdl2-ffi:+sdl-scancode-0+)
             (*pattern-editor-insert-delay-keymap* sdl2-ffi:+sdl-scancode-1+)
@@ -181,9 +155,8 @@
                  value)
            (step-next self)))))
 
-(defcmd cmd::insert-mode ((self pattern-editor))
-    (:bind (*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-i+))
-  (setf (.mode self) :insert)
+(defcmd cmd::insert-mode ((self pattern-editor)) ()
+  (call-next-method)
   (setf (.keymap self)
         (cond ((at-note-column-p self (.cursor-x self))
                *pattern-editor-insert-note-keymap*)
@@ -311,23 +284,6 @@
                  value)
            (step-next self)))))
 
-(defcmd cmd::jump-0 ((self pattern-editor))
-    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f9+))
-  (setf (.cursor-y self) 0))
-
-(defcmd cmd::jump-1/4 ((self pattern-editor))
-    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f10+))
-  (setf (.cursor-y self) (floor (* (.nlines (.pattern self)) 1/4))))
-
-(defcmd cmd::jump-2/4 ((self pattern-editor))
-    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f11+))
-  (setf (.cursor-y self) (floor (* (.nlines (.pattern self)) 2/4))))
-
-(defcmd cmd::jump-3/4 ((self pattern-editor))
-    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f12+))
-  (setf (.cursor-y self) (floor (* (.nlines (.pattern self)) 3/4))))
-
-
 (defcmd cmd::octave-down ((self pattern-editor))
     (:bind ((*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f1+)))
   (setf (.octave self) (mod (1- (.octave self)) 10)))
@@ -367,44 +323,9 @@
   (when (< (max-cursor-y self) (.cursor-y self))
     (setf (.cursor-y self) (max-cursor-y self))))
 
-(defcmd cmd::selection-mode-block ((self pattern-editor))
-    (:bind (*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-v+ +ctrl+)
-      :next-keymap *pattern-editor-visual-keymap*)
-  (setf (.selection-mode self) :block)
-  (setf (.selection-start self) (.cursor-y self)))
-
-(defcmd cmd::selection-mode-line ((self pattern-editor))
-    (:bind (*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-v+ +shift+)
-     :next-keymap *pattern-editor-visual-keymap*)
-  (setf (.selection-mode self) :line)
-  (setf (.selection-start self) (.cursor-y self)))
-
 (defcmd cmd::velocity-toggle ((self pattern-editor))
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-v+ +alt+))
   (multiple-value-bind (column x index) (current-column self)
     (declare (ignore column x))
     (setf (velocity-enable-p (.pattern self) index)
           (not (velocity-enable-p (.pattern self) index)))))
-
-(defcmd cmd::yank ((self pattern-editor))
-    (:bind (*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-y+)
-      :next-keymap *pattern-editor-yank-keymap*))
-
-(defcmd cmd::yank-line ((self pattern-editor))
-    (:bind (*pattern-editor-yank-keymap* sdl2-ffi:+sdl-scancode-y+)
-      :next-keymap *pattern-editor-command-keymap*)
-  (sdl2-ffi.functions:sdl-set-clipboard-text
-   (with-serialize-context (out)
-     (write (serialize (current-line self)) :stream out))))
-
-(defcmd cmd::yank-selection-lines ((self pattern-editor))
-    (:bind (*pattern-editor-visual-keymap* sdl2-ffi:+sdl-scancode-y+)
-      :next-keymap *pattern-editor-command-keymap*)
-  (let* ((start  (.cursor-y self))
-         (end (.selection-start self))
-         (lines (loop for i from (min start end) to (max start end)
-                      collect (aref (.lines (.pattern self)) i))))
-    (sdl2-ffi.functions:sdl-set-clipboard-text
-     (with-serialize-context (out)
-       (write (serialize lines) :stream out))))
-  (setf (.selection-mode self) nil))

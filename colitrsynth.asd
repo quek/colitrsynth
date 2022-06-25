@@ -61,5 +61,6 @@
     :pathname "cmd"
     :components
     ((:file "app")
+     (:file "editor-mixin")
      (:file "pattern-editor")
      (:file "pattern-module")))))

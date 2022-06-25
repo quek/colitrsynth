@@ -1,7 +1,16 @@
 (in-package :colitrsynth)
 
+(defmethod at-value-x0-p ((self automation-editor) x)
+  (zerop x))
+
+(defmethod at-value-0x-p ((self automation-editor) x)
+  (= x 1))
+
 (defmethod cursor-width ((self automation-editor))
-  (* *char-width* 2))
+  *char-width*)
+
+(defmethod max-cursor-x ((self automation-editor))
+  1)
 
 (defmethod update-labels ((self automation-editor))
   (call-next-method)

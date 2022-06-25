@@ -1,5 +1,9 @@
 (in-package :colitrsynth)
 
+(defmethod keydown ((self automation-module) value scancode mod-value)
+  (unless (keydown (.editor self) value scancode mod-value)
+    (call-next-method)))
+
 (defmethod initialize-instance :after ((self automation-module) &key)
   (unless (slot-boundp self 'lines)
     (setf (.lines self)

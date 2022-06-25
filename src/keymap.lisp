@@ -15,6 +15,8 @@
 (defvar *pattern-editor-yank-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-visual-keymap* (make-hash-table :test #'equal))
 
+(defvar *automation-insert-keymap* (make-hash-table :test #'equal))
+
 (defvar *current-key* nil)
 
 (defmacro defcmd (name args (&key bind next-keymap interactive) &body body)

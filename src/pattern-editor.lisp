@@ -1,8 +1,5 @@
 (in-package :colitrsynth)
 
-;;;; 処理の都合上必要なこ
-(defvar *pattern-scroll-lock* nil)
-
 (defmethod at-note-column-p ((self pattern-editor) index)
   (multiple-value-bind (column x) (current-column self)
     (declare (ignore column))
@@ -72,29 +69,10 @@
   "カラム とカラム内での x 文字目と何番目のカラムか"
   (column-at self (.cursor-x self)))
 
-(defmethod current-line ((self pattern-editor))
-  (aref (.lines (.pattern self)) (.cursor-y self)))
-
-(defmethod (setf current-line) (line (self pattern-editor))
-  (setf (aref (.lines (.pattern self)) (.cursor-y self)) line))
-
-(defmethod (setf .cursor-y) :after (value (self pattern-editor))
-  (setf (.offset-y self)
-        (round (- (* *char-height* (+ value 0.7)) ;なんで 0.7?
-                  (/ (.height self) 2)))))
-
 (defmethod cursor-width ((self pattern-editor))
   (if (at-note-column-p self (.cursor-x self))
       (* *char-width* 3)
       *char-width*))
-
-(defmethod keydown ((self pattern-editor) value scancode mod-value)
-  (aif (or (gethash *current-key* (.keymap self))
-           (gethash *current-key* *pattern-editor-keymap*))
-       (progn
-         (funcall it self)
-         t)
-       (call-next-method)))
 
 (defmethod keyup ((self pattern-editor) value scancode mod-value)
   (cond ((and (.shifting-p self)
@@ -104,13 +82,6 @@
          (step-next self)
          (setf (.cursor-x self) 0))
         (t (call-next-method))))
-
-(defmethod render :before ((self pattern-editor) renderer)
-  (when (and (.playing *audio*)
-             (not *pattern-scroll-lock*))
-    (setf (.cursor-y self) (.current-line (.pattern self))))
-  ;; TODO まいかい呼ぶ必要はない
-  (update-labels self))
 
 (defmethod max-cursor-x ((self pattern-editor))
   "2 引くのは cursor-x が 0 オリジンと column の最初のスペース"

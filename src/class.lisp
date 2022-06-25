@@ -464,10 +464,13 @@
   ((partial-view :accessor .partial-view))
   (:default-initargs :x 5 :y 5 :width 700 :height 200))
 
+(defclass automation-module (pattern-mixin module)
+  ((editor :accessor .editor)))
+
 (defclass pattern-module (pattern module)
   ((pattern-editor :accessor .pattern-editor
                    :initform (make-instance 'pattern-editor)))
-  (:default-initargs :name "Pattern" :height 300))
+  (:default-initargs :height 300))
 
 (defclass lfo-module (lfo connector-mixin module)
   ((frequency-slider :initarg :frequency-slide :accessor .frequency-slider))
@@ -488,9 +491,6 @@
 (defclass adsr-module (adsr connector-mixin module)
   ()
   (:default-initargs :name "Adsr" :height 100))
-
-(defclass automation-module (pattern-mixin module)
-  ((editor :accessor .editor)))
 
 (defclass plugin-module (connector-mixin module)
   ()
