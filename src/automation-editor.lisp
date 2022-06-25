@@ -1,5 +1,8 @@
 (in-package :colitrsynth)
 
+(defmethod cursor-width ((self automation-editor))
+  (* *char-width* 2))
+
 (defmethod update-labels ((self automation-editor))
   (call-next-method)
   (let* ((model (.model self))

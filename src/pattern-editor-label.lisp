@@ -39,9 +39,7 @@
       (apply #'sdl2:set-render-draw-color renderer *cursor-color*)
       (let ((cursor-x (+ -1 (* *char-width* (+ (.cursor-x editor) 3))))
             (cursor-y (+ (.render-y self) (* *char-height* (.cursor-y editor))))
-            (cursor-w (if (at-note-column-p editor (.cursor-x editor))
-                          (* *char-width* 3)
-                          *char-width*))
+            (cursor-w (cursor-width editor))
             (cursor-h *char-height*))
         (sdl2:render-fill-rect
          renderer (sdl2:make-rect cursor-x cursor-y cursor-w cursor-h))))))

@@ -83,6 +83,11 @@
         (round (- (* *char-height* (+ value 0.7)) ;なんで 0.7?
                   (/ (.height self) 2)))))
 
+(defmethod cursor-width ((self pattern-editor))
+  (if (at-note-column-p self (.cursor-x self))
+      (* *char-width* 3)
+      *char-width*))
+
 (defmethod keydown ((self pattern-editor) value scancode mod-value)
   (aif (or (gethash *current-key* (.keymap self))
            (gethash *current-key* *pattern-editor-keymap*))
@@ -146,26 +151,18 @@
       (step-next self)))
 
 (defmethod update-labels ((self pattern-editor))
+  (call-next-method)
   (let* ((model (.model self))
          (nlines (.nlines model)))
-    (when (/= (length (.index-labels self))
+    (when (/= (length (.note-labels self))
               nlines)
-      (loop for child in (append (.index-labels self)
-                                 (.note-labels self)
+      (loop for child in (append (.note-labels self)
                                  (.velocity-labels self)
                                  (.delay-labels self))
             do (remove-child self child))
       (let ((x (* *char-width* 2))
             (width (* *char-width* (max-cursor-x self)))
             (height (* *char-width* nlines)))
-        (setf (.index-labels self)
-              (loop for y below nlines
-                    collect (make-instance 'editor-index-label
-                                           :editor self
-                                           :value (format nil "~2,'0X" y)
-                                           :x 0 :y (* *char-height* y)
-                                           :width (* *char-width* 3)
-                                           :height *char-height*)))
         (setf (.note-labels self)
               (loop for y below nlines
                     collect (make-instance 'pattern-editor-note-label
@@ -193,21 +190,17 @@
                                            :y (* *char-height* y)
                                            :width width
                                            :height height))))
-      (loop for child in (append (.index-labels self)
-                                 (.note-labels self)
+      (loop for child in (append (.note-labels self)
                                  (.velocity-labels self)
                                  (.delay-labels self))
             do (add-child self child)))
 
     (loop for index below nlines
           for line = (aref (.lines model) index)
-          for index-label in (.index-labels self)
           for note-label in (.note-labels self)
           for velocity-label in (.velocity-labels self)
           for delay-label in (.delay-labels self)
-          do (setf (.value index-label)
-                   (format nil "~2,'0X" index))
-             (setf (.value note-label)
+          do (setf (.value note-label)
                    (with-output-to-string (out)
                      (loop for column across (.columns line)
                            for note = (.note column)
