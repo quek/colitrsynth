@@ -107,8 +107,14 @@
                (draw-cable r connection xs ys xe ye)
                (when (and (= xs original-xs) (= ys original-ys))
                  (apply #'sdl2:set-render-draw-color r *connection-point-color*)
-                 (sdl2:render-fill-rect r
-                                        (sdl2:make-rect (- xs 3) (- ys 3) 7 7))))))
+                 (let ((x (- xs 3))
+                       (y (if (typep self 'track)
+                              (if (<= ys (.screen-y  self))
+                                  ys
+                                  (- ys 7))
+                              (- ys 3))))
+                   (sdl2:render-fill-rect r
+                                          (sdl2:make-rect x y 7 7)))))))
   (call-next-method))
 
 (defmethod draw-cable (renderer
