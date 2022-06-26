@@ -62,6 +62,13 @@
 (defun play-track-no-notes (track start-frame)
   (route track (cons nil (.buffer track)) start-frame))
 
+(defmethod route-connection (connection
+                             (src track)
+                             dest
+                             midi-events-param-events start-frame)
+  (let ((buffer (cdr midi-events-param-events)))
+    (process dest connection buffer buffer)))
+
 (defmethod route-connection ((connection midi-connection)
                              (src track)
                              dest
@@ -70,10 +77,3 @@
            connection
            (car midi-events-param-events)
            start-frame))
-
-(defmethod route-connection ((connection audio-connection)
-                             (src track)
-                             dest
-                             midi-events-param-events start-frame)
-  (let ((buffer (cdr midi-events-param-events)))
-   (process dest connection buffer buffer)))

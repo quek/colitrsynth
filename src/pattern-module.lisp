@@ -94,11 +94,14 @@
 
 (defmethod process ((self pattern-mixin) (connection null) left right))
 
-(defmethod serialize ((self pattern-module))
+(defmethod serialize ((self pattern-mixin))
   `((setf (.nlines x) ,(.nlines self)
           (.lines x) ,(serialize (.lines self))
-          (.current-line x) 0
-          (.ncolumns x) ,(.ncolumns self)
+          (.current-line x) 0)
+    ,@(call-next-method)))
+
+(defmethod serialize ((self pattern-module))
+  `((setf (.ncolumns x) ,(.ncolumns self)
           (.velocity-enables x) ,(.velocity-enables self)
           (.delay-enables x) ,(.delay-enables self))
     (setf (.octave (.pattern-editor x)) ,(.octave (.pattern-editor self))

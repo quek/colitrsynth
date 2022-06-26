@@ -468,8 +468,10 @@
   ((editor :accessor .editor)))
 
 (defclass pattern-module (pattern module)
-  ((pattern-editor :accessor .pattern-editor
-                   :initform (make-instance 'pattern-editor)))
+  ((editor :accessor .editor
+           ;; TODO delete
+           :accessor .pattern-editor
+           :initform (make-instance 'pattern-editor)))
   (:default-initargs :height 300))
 
 (defclass lfo-module (lfo connector-mixin module)

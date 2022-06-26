@@ -50,3 +50,6 @@
          (.width editor) (- (.width self) 10)
          (.height editor) (- (.height self) (+ 15 *font-size*)))))
 
+(defmethod serialize ((self automation-module))
+  `((setf (.edit-step (.editor x)) ,(.edit-step (.editor self)))
+    ,@(call-next-method)))
