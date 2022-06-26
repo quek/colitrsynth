@@ -12,7 +12,7 @@
 (flet ((f (self x x1 x2)
          (multiple-value-bind (column column-x column-index) (column-at self x)
            (declare (ignore column))
-           (let ((pattern (.pattern self)))
+           (let ((pattern (.model self)))
              (and (delay-enable-p pattern column-index)
                   (= (if (velocity-enable-p pattern column-index) x1 x2)
                      column-x))))))
@@ -32,7 +32,7 @@
 (flet ((f (self x x1)
          (multiple-value-bind (column column-x column-index) (column-at self x)
            (declare (ignore column))
-           (let ((pattern (.pattern self)))
+           (let ((pattern (.model self)))
              (and (velocity-enable-p pattern column-index)
                   (= column-x x1))))))
 
@@ -44,7 +44,7 @@
 
 (defmethod column-nchars ((self pattern-editor) column-index)
   "先頭のスペースも含んだ文字列単位の幅 [ C-4 64 00]"
-  (let ((pattern (.pattern self)))
+  (let ((pattern (.model self)))
    (+ 1
       3
       (if (velocity-enable-p pattern column-index) 3 0)
@@ -52,7 +52,7 @@
 
 (defmethod column-at ((self pattern-editor) x)
   "カラム とカラム内での x 文字目と何番目のカラムか"
-  (loop with pattern = (.pattern self)
+  (loop with pattern = (.model self)
         with cursor-x = x
         for i below 16
         for column-nchars = (column-nchars self i)
@@ -85,7 +85,7 @@
 
 (defmethod max-cursor-x ((self pattern-editor))
   "2 引くのは cursor-x が 0 オリジンと column の最初のスペース"
-  (- (loop with pattern = (.pattern self)
+  (- (loop with pattern = (.model self)
            for velocity-enable-p across (.velocity-enables pattern)
            for delay-enable-p across (.delay-enables pattern)
            repeat (.ncolumns pattern)
@@ -101,7 +101,7 @@
 
 (defmethod set-note :after ((self pattern-editor) note)
   (if (shift-key-p)
-      (let ((pattern (.pattern self))
+      (let ((pattern (.model self))
             (max-line-length 16))
         (multiple-value-bind (column x i) (current-column self)
           (declare (ignore column x))
@@ -109,7 +109,7 @@
           (let ((new-column (1+ i)))
             (when (< new-column max-line-length)
               (when (<= (.ncolumns pattern) new-column)
-                (extend-column (.pattern self)))
+                (extend-column (.model self)))
               (setf (.cursor-x self)
                     (loop for i below new-column
                           sum (column-nchars self i)))

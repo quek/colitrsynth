@@ -4,10 +4,10 @@
 (defvar *pattern-scroll-lock* nil)
 
 (defmethod current-line ((self editor-mixin))
-  (aref (.lines (.pattern self)) (.cursor-y self)))
+  (aref (.lines (.model self)) (.cursor-y self)))
 
 (defmethod (setf current-line) (line (self editor-mixin))
-  (setf (aref (.lines (.pattern self)) (.cursor-y self)) line))
+  (setf (aref (.lines (.model self)) (.cursor-y self)) line))
 
 (defmethod (setf .cursor-y) :after (value (self editor-mixin))
   (setf (.offset-y self)
@@ -23,12 +23,12 @@
        (call-next-method)))
 
 (defmethod max-cursor-y ((self editor-mixin))
-  (1- (.nlines (.pattern self))))
+  (1- (.nlines (.model self))))
 
 (defmethod render :before ((self editor-mixin) renderer)
   (when (and (.playing *audio*)
              (not *pattern-scroll-lock*))
-    (setf (.cursor-y self) (.current-line (.pattern self))))
+    (setf (.cursor-y self) (.current-line (.model self))))
   ;; TODO まいかい呼ぶ必要はない
   (update-labels self))
 

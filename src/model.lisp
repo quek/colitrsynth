@@ -151,7 +151,7 @@
                                           collect (make-instance 'column))))))
         (setf (.lines self) new-lines)))
     (setf (.nlines self) new-nlines)
-    (setf (.cursor-y (.pattern-editor self)) (1- new-nlines))))
+    (setf (.cursor-y (.editor self)) (1- new-nlines))))
 
 (defmethod shrink-column ((self pattern))
   (setf (.ncolumns self) (max 1 (1- (.ncolumns self)))))

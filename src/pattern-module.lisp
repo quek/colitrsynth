@@ -1,25 +1,25 @@
 (in-package :colitrsynth)
 
 (defmethod initialize-instance :after ((self pattern-module) &key)
-  (let* ((pattern-editor (.pattern-editor self))
+  (let* ((editor (.editor self))
          (octave (make-instance 'label
                                 :value (lambda ()
-                                         (format nil "~d" (.octave pattern-editor)))
+                                         (format nil "~d" (.octave editor)))
                                 :x (- (.width self) (* *char-width* 4) *layout-space*)
                                 :y *layout-space*))
          (edit-step (make-instance 'label
                                    :value (lambda ()
-                                            (format nil "~2,'0d" (.edit-step pattern-editor)))
+                                            (format nil "~2,'0d" (.edit-step editor)))
                                    :x (- (.width self) (* *char-width* 2) *layout-space*)
                                    :y *layout-space*)))
-    (add-child self pattern-editor)
+    (add-child self editor)
     (add-child self octave)
     (add-child self edit-step)
-    (setf (.pattern pattern-editor) self
-          (.x pattern-editor) *layout-space*
-          (.y pattern-editor) (+ *font-size* (* *layout-space* 2))
-          (.width pattern-editor) (- (.width self) 10)
-          (.height pattern-editor) (- (.height self) (+ 15 *font-size*)))))
+    (setf (.model editor) self
+          (.x editor) *layout-space*
+          (.y editor) (+ *font-size* (* *layout-space* 2))
+          (.width editor) (- (.width self) 10)
+          (.height editor) (- (.height self) (+ 15 *font-size*)))))
 
 (defmethod close ((self pattern-module) &key abort)
   (declare (ignore abort))
@@ -83,14 +83,14 @@
   (setf (.selected-pattern *app*) self))
 
 (defmethod keydown ((self pattern-module) value scancode mod-value)
-  (unless (keydown (.pattern-editor self) value scancode mod-value)
+  (unless (keydown (.editor self) value scancode mod-value)
     (call-next-method)))
 
 (defmethod (setf .width) :after (value (self pattern-module))
-  (setf (.width (.pattern-editor self)) (- (.width self) 10)))
+  (setf (.width (.editor self)) (- (.width self) 10)))
 
 (defmethod (setf .height) :after (value (self pattern-module))
-  (setf (.height (.pattern-editor self)) (- (.height self) (+ 10 *font-size*))))
+  (setf (.height (.editor self)) (- (.height self) (+ 10 *font-size*))))
 
 (defmethod process ((self pattern-mixin) (connection null) left right))
 
@@ -104,8 +104,8 @@
   `((setf (.ncolumns x) ,(.ncolumns self)
           (.velocity-enables x) ,(.velocity-enables self)
           (.delay-enables x) ,(.delay-enables self))
-    (setf (.octave (.pattern-editor x)) ,(.octave (.pattern-editor self))
-          (.edit-step (.pattern-editor x)) ,(.edit-step (.pattern-editor self)))
+    (setf (.octave (.editor x)) ,(.octave (.editor self))
+          (.edit-step (.editor x)) ,(.edit-step (.editor self)))
     ,@(call-next-method)))
 
 (defmethod velocity-enable-p ((self pattern-module) column)

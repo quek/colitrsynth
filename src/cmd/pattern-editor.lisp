@@ -3,12 +3,12 @@
 (defcmd cmd::column-extend ((self pattern-editor))
     (:bind (*pattern-editor-keymap*
             sdl2-ffi:+sdl-scancode-right+ +alt+))
-  (extend-column (.pattern self)))
+  (extend-column (.model self)))
 
 (defcmd cmd::column-shrink ((self pattern-editor))
     (:bind (*pattern-editor-keymap*
             sdl2-ffi:+sdl-scancode-left+ +alt+))
-  (shrink-column (.pattern self))
+  (shrink-column (.model self))
   (when (< (max-cursor-x self) (.cursor-x self))
     (setf (.cursor-x self) 0)
     (cmd::cursor-left self)))
@@ -16,7 +16,7 @@
 (defcmd cmd::cursor-left ((self pattern-editor)) ()
   (multiple-value-bind (column x index) (current-column self)
     (declare (ignore column x))
-    (let* ((pattern (.pattern self))
+    (let* ((pattern (.model self))
            (cursor-x (.cursor-x self)))
       (if (or (plusp index)
               (not (at-note-column-p self cursor-x)))
@@ -67,8 +67,8 @@
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-d+ +alt+))
   (multiple-value-bind (column x index) (current-column self)
     (declare (ignore column x))
-    (setf (delay-enable-p (.pattern self) index)
-          (not (delay-enable-p (.pattern self) index)))))
+    (setf (delay-enable-p (.model self) index)
+          (not (delay-enable-p (.model self) index)))))
 
 (defcmd cmd::delete ((self pattern-editor))
     (:bind (*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-d+)
@@ -102,7 +102,7 @@
   (let* ((start  (.cursor-y self))
          (end (.selection-start self)))
     (loop for i from (min start end) to (max start end)
-          for line = (aref (.lines (.pattern self)) i)
+          for line = (aref (.lines (.model self)) i)
           do (loop for column across (.columns line)
                    do (setf (.note column) none)
                       (setf (.velocity column) *default-velocity*)
@@ -297,19 +297,19 @@
            (setf (current-line self) it))
           ((and (typep it 'cons)
                 (typep (car it) 'line))
-           (loop for i from (.cursor-y self) below (.nlines (.pattern self))
+           (loop for i from (.cursor-y self) below (.nlines (.model self))
                  for line in it
-                 do (setf (aref (.lines (.pattern self)) i) line))))))
+                 do (setf (aref (.lines (.model self)) i) line))))))
 
 (defcmd cmd::line-extend ((self pattern-editor))
     (:bind (*pattern-editor-keymap*
             sdl2-ffi:+sdl-scancode-down+ +alt+))
-  (extend-line (.pattern self)))
+  (extend-line (.model self)))
 
 (defcmd cmd::line-shrink ((self pattern-editor))
     (:bind (*pattern-editor-keymap*
             sdl2-ffi:+sdl-scancode-up+ +alt+))
-  (shrink-line (.pattern self))
+  (shrink-line (.model self))
   (when (< (max-cursor-y self) (.cursor-y self))
     (setf (.cursor-y self) (max-cursor-y self))))
 
@@ -317,5 +317,5 @@
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-v+ +alt+))
   (multiple-value-bind (column x index) (current-column self)
     (declare (ignore column x))
-    (setf (velocity-enable-p (.pattern self) index)
-          (not (velocity-enable-p (.pattern self) index)))))
+    (setf (velocity-enable-p (.model self) index)
+          (not (velocity-enable-p (.model self) index)))))

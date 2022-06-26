@@ -48,15 +48,15 @@
 
 (defcmd cmd::jump-1/4 ((self editor-mixin))
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f10+))
-  (setf (.cursor-y self) (floor (* (.nlines (.pattern self)) 1/4))))
+  (setf (.cursor-y self) (floor (* (.nlines (.model self)) 1/4))))
 
 (defcmd cmd::jump-2/4 ((self editor-mixin))
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f11+))
-  (setf (.cursor-y self) (floor (* (.nlines (.pattern self)) 2/4))))
+  (setf (.cursor-y self) (floor (* (.nlines (.model self)) 2/4))))
 
 (defcmd cmd::jump-3/4 ((self editor-mixin))
     (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-f12+))
-  (setf (.cursor-y self) (floor (* (.nlines (.pattern self)) 3/4))))
+  (setf (.cursor-y self) (floor (* (.nlines (.model self)) 3/4))))
 
 (defcmd cmd::selection-mode-block ((self editor-mixin))
     (:bind (*pattern-editor-command-keymap* sdl2-ffi:+sdl-scancode-v+ +ctrl+)
@@ -87,7 +87,7 @@
   (let* ((start  (.cursor-y self))
          (end (.selection-start self))
          (lines (loop for i from (min start end) to (max start end)
-                      collect (aref (.lines (.pattern self)) i))))
+                      collect (aref (.lines (.model self)) i))))
     (sdl2-ffi.functions:sdl-set-clipboard-text
      (with-serialize-context (out)
        (write (serialize lines) :stream out))))

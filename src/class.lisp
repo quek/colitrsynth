@@ -405,9 +405,7 @@
   (:default-initargs :color *delay-color*))
 
 (defclass editor-mixin (partial-view)
-  ((model :initarg :model :accessor .model
-          ;; 暫定で
-          :accessor .pattern)
+  ((model :initarg :model :accessor .model)
    (index-labels :initform nil :accessor .index-labels)
    (cursor-x :initform 0 :accessor .cursor-x)
    (cursor-y :initform 0 :accessor .cursor-y)
@@ -469,8 +467,6 @@
 
 (defclass pattern-module (pattern module)
   ((editor :accessor .editor
-           ;; TODO delete
-           :accessor .pattern-editor
            :initform (make-instance 'pattern-editor)))
   (:default-initargs :height 300))
 
