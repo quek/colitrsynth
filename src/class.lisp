@@ -85,13 +85,13 @@
 (defclass midi-connection (connection)
   ())
 
-(defclass param-connection (connection)
+(defclass param-connection-mixin (connection)
   ((param :initarg :param :accessor .param)))
 
-(defclass builtin-param-connection (param-connection)
+(defclass builtin-param-connection (param-connection-mixin)
   ())
 
-(defclass plugin-param-connection (param-connection)
+(defclass plugin-param-connection (param-connection-mixin)
   ())
 
 (defclass model (name-mixin)
@@ -114,8 +114,8 @@
 
 (defclass track (model)
   ((pattern-positions :initform nil :accessor .pattern-positions)
-   (buffer :accessor .buffer
-           :initform (make-buffer :initial-element nil :element-type t))))
+   (buffer :initform (make-buffer) :accessor .buffer
+           :documentation "automation 用")))
 
 (defclass sequencer (model)
   ((bpm :initarg :bpm :initform 140.0 :accessor .bpm
@@ -155,11 +155,11 @@
    (velocity-enables :initarg :velocity-enables
                      :accessor .velocity-enables
                      :initform (make-array 16 :initial-element nil)
-                     :type (simple-array bool (16)))
+                     :type (simple-array t (16)))
    (delay-enables :initarg :delay-enables
                   :accessor .delay-enables
                   :initform (make-array 16 :initial-element nil)
-                  :type (simple-array bool (16)))))
+                  :type (simple-array t (16)))))
 
 (defclass lfo (model)
   ((buffer :initform (make-buffer) :accessor .buffer)

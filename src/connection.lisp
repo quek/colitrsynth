@@ -12,7 +12,7 @@
 (defmethod .name-as-src ((self audio-connection))
   (format nil "Out ~d" (.src-bus self)))
 
-(defmethod .name-as-src ((self param-connection))
+(defmethod .name-as-src ((self param-connection-mixin))
   (format nil "Out ~d" (.name (.param self))))
 
 (defmethod .name ((self builtin-param-connection))
@@ -175,6 +175,6 @@
   `((setf (.src-bus x) ,(.src-bus self))
     (setf (.dest-bus x) ,(.dest-bus self))))
 
-(defmethod serialize ((self param-connection))
+(defmethod serialize ((self param-connection-mixin))
   `((setf (.param x) ,(.param self))))
 

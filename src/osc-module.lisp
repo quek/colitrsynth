@@ -27,7 +27,7 @@
           for on-event = (midi-event i +midi-event-on+)
           for off-event = (midi-event i +midi-event-off+)
           for value = (cond (on-event
-                             (setf (.phase self) 0
+                             (setf (.phase self) 0.0
                                    (.note self) (.note on-event))
                              (osc-frame-value self))
                             (off-event

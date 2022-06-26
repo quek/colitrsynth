@@ -711,7 +711,7 @@
 (defmethod cable-color ((self midi-connection))
   *cable-color-midi*)
 
-(defmethod cable-color ((self param-connection))
+(defmethod cable-color ((self param-connection-mixin))
   *cable-color-param*)
 
 (defmethod initialize-instance :after ((self label) &key)

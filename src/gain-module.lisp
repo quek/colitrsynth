@@ -1,6 +1,6 @@
 (in-package :colitrsynth)
 
-(defmethod available-connections (src (dest gain-module) (cable-src param-connection))
+(defmethod available-connections (src (dest gain-module) (cable-src param-connection-mixin))
   (list (make-instance
          'builtin-param-connection
          :src src :dest dest
