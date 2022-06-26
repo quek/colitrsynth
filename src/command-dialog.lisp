@@ -32,5 +32,9 @@
                                                  (length (symbol-name x)))))))
       (when symbol
         (loop for x in (.targets self)
-              do (ignore-errors (apply symbol x args)))))))
+              do (multiple-value-bind (returned error)
+                     (ignore-errors (apply symbol x args))
+                   (declare (ignore returned))
+                   (when error
+                     (warn "command error ~a ~a ~a~%~a" symbol x args error))))))))
 

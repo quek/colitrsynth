@@ -22,6 +22,7 @@
    (:file "keymap")
    
    (:file "class")
+   (:file "view")
    (:file "model")
    (:file "column")
    (:file "connection")
@@ -53,7 +54,7 @@
    (:file "menu")
    (:file "command-dialog")
    (:file "audio")
-   (:file "view")
+   (:file "tracker")
    (:file "main")
 
    (:module "cmd"
