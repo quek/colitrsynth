@@ -1,8 +1,14 @@
 (in-package :colitrsynth)
 
-(defmethod available-connections (src (dest module) cable-src)
+(defmethod available-connections (src dest cable-src)
   (list (make-instance 'audio-connection :src src :dest dest
                                          :src-bus (.src-bus cable-src))))
+
+(defmethod available-connections (src dest (cable-src midi-connection))
+  nil)
+
+(defmethod available-connections (src (dest midi-input-mixin) (cable-src midi-connection))
+  (list (make-instance 'midi-connection :src src :dest dest)))
 
 (defmethod click ((self module)
                   (button (eql sdl2-ffi:+sdl-button-left+))

@@ -232,7 +232,6 @@
 
 (defun view-at-mouse (app)
   (loop for view in (reverse (.views app))
-        ;; TODO connector はみ出させたい
           thereis (and (at-x-y-p view (.mouse-x app)(.mouse-y app))
                        view)))
 
@@ -456,20 +455,21 @@
   (let ((cable-src (.cable-src *app*)))
     (cond ((null cable-src)
            (let ((available-cables (available-cables-src (.module self))))
-            (if (ctrl-key-p)
-                (open-output-menu available-cables)
-                (setf (.cable-src *app*) (car available-cables)))))
+             (if (ctrl-key-p)
+                 (open-output-menu available-cables)
+                 (setf (.cable-src *app*) (car available-cables)))))
           ((eq (.module self) (.src cable-src)))
           (t
            (let* ((src (.src cable-src))
                   (dest (.module self))
                   (available-connections (available-connections src dest cable-src)))
-             (if (ctrl-key-p)
-                 (open-connector-menu available-connections)
-                 (let ((connection (car available-connections)))
-                   (if (connected-p connection)
-                       (disconnect connection)
-                       (connect connection))))
+             (when available-connections
+               (if (ctrl-key-p)
+                   (open-connector-menu available-connections)
+                   (let ((connection (car available-connections)))
+                     (if (connected-p connection)
+                         (disconnect connection)
+                         (connect connection)))))
              (setf (.cable-src *app*) nil)))))
   t)
 

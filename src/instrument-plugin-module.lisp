@@ -4,10 +4,6 @@
   (setf (.out-buffer self)
         (make-array (.out-length self) :element-type '(unsigned-byte 8))))
 
-(defmethod available-connections (src (dest instrument-plugin-model) cable-src)
-  (cons (make-instance 'midi-connection :src src :dest dest)
-        (call-next-method)))
-
 (defmethod process-out ((self instrument-plugin-model))
   (let* ((midi-events (sort (.midi-events self)
                             (lambda (a b)
