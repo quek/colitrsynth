@@ -34,7 +34,7 @@
                                                 :src src :dest nil)))))
     cables))
 
-(defmethod available-connections (src (dest plugin-module) cable-src)
+(defmethod available-connections (src (dest plugin-module) (cable-src param-connection))
   (loop for param in (.params dest)
         collect (make-instance 'plugin-param-connection
                                :src src :dest dest

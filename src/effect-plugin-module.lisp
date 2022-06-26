@@ -1,6 +1,6 @@
 (in-package :colitrsynth)
 
-(defmethod available-connections (src (dest effect-plugin-model) cable-src)
+(defmethod available-connections (src (dest effect-plugin-model) (cable-src audio-connection))
   (append
    (loop for i below (.input-nbuses dest)
          collect (make-instance 'audio-connection

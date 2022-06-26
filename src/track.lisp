@@ -17,8 +17,7 @@
                         pattern-position start-line start-frame end-line end-frame))
 
 (defun play-track (track start-line start-frame end-line end-frame)
-  (let* ((frames-per-line (frames-per-line))
-         (midi-events
+  (let* ((midi-events
            (loop for pattern-position in (.pattern-positions track)
                  if (typep (.pattern pattern-position) 'pattern-module)
                    nconc (with-slots (start end) pattern-position
@@ -28,7 +27,7 @@
                                             (< start-line end))
                                        (midi-events-at-line-frame pattern-position
                                                                   (- start-line start) start-frame
-                                                                  (- start-line start) frames-per-line))
+                                                                  (1+ (- start-line start)) 0))
                                    (if (and (<= start end-line)
                                             (< end-line end))
                                        (midi-events-at-line-frame pattern-position
@@ -46,6 +45,8 @@
                                                                start-line start-frame
                                                                (- end-line start) end-frame)))))))
          (automation-events
+           ;; TODO LFO や Constant と同じくオーディオ信号出力しなきゃだった
+           ;; 下で coerce してるのも違う
            (loop for pattern-position in (.pattern-positions track)
                  if (typep (.pattern pattern-position) 'automation-module)
                    nconc (with-slots (start end) pattern-position
@@ -55,7 +56,7 @@
                                             (< start-line end))
                                        (midi-events-at-line-frame pattern-position
                                                                   (- start-line start) start-frame
-                                                                  (- start-line start) frames-per-line))
+                                                                  (1+ (- start-line start)) 0))
                                    (if (and (<= start end-line)
                                             (< end-line end))
                                        (midi-events-at-line-frame pattern-position
@@ -76,6 +77,7 @@
     (when midi-events
       (print midi-events))
     (route track (cons midi-events
+                       ;; TODO なのでこれも違う
                        (coerce automation-events '(simple-array single-float (*))))
            start-frame)))
 
