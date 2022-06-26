@@ -465,8 +465,7 @@
   (:default-initargs :x 5 :y 5 :width 700 :height 200))
 
 (defclass automation-module (pattern-mixin module)
-  ((editor :accessor .editor)
-   (buffer :initform (make-buffer) :accessor .buffer)))
+  ((editor :accessor .editor)))
 
 (defclass pattern-module (pattern module)
   ((pattern-editor :accessor .pattern-editor
