@@ -1,10 +1,11 @@
 (in-package :colitrsynth)
 
-(defclass tracks-partial-view (partial-view)
+(defclass tracks-partial-view (pattern-editor)
   ())
 
-(defclass tracker-timeline-view-mixin (view)
-  ((labels :initform nil :accessor .labels)))
+(defclass tracker-timeline-view-mixin (render-border-mixin view)
+  ((labels :initform nil :accessor .labels))
+  (:default-initargs :width 15))
 
 (defclass tracker-timeline-left-view (tracker-timeline-view-mixin)
   ())
@@ -12,7 +13,7 @@
 (defclass tracker-timeline-rigth-view (tracker-timeline-view-mixin)
   ())
 
-(defclass tracker-partial-view (partial-view)
+(defclass tracker-partial-view (render-border-mixin  partial-view)
   ((timeline-left :initarg :timeline-left :accessor .timeline-left)
    (timeline-rigth :initarg :timeline-rigth :accessor .timeline-rigth)
    (view :initarg :view :accessor .view)))
@@ -40,15 +41,12 @@
 
 (defmethod initialize ((self tracker))
   (let* ((tracks-partial-view (make-instance 'tracks-partial-view
-                                             :tracks (.tracks (.sequencer *audio*))))
-         (timeline-left (make-instance 'tracker-timeline-left-view
-                                       :tracker self))
-         (timeline-rigth (make-instance 'tracker-timeline-rigth-view
-                                        :tracker self))
+                                             :model (make-instance 'pattern-module)))
+         (timeline-left (make-instance 'tracker-timeline-left-view))
+         (timeline-rigth (make-instance 'tracker-timeline-rigth-view))
          (tracker-partial-view (make-instance 'tracker-partial-view
-                                              :tracker self
                                               :x *layout-space*
-                                              :y *layout-space*
+                                              :y (+ *char-height* (* *layout-space* 4))
                                               :timeline-left timeline-left
                                               :timeline-rigth timeline-rigth
                                               :view tracks-partial-view)))
@@ -61,10 +59,12 @@
 
 (defmethod nlines ((self tracker))
   (apply #'max
+         0
          (mapcar (lambda (x)
-                   (mapcar (lambda (x) (.end x))
-                           (.pattern-positions x)))
-                 (.tracks (.view (.view self))))))
+                   (apply #'max
+                          (mapcar (lambda (x) (.end x))
+                                  (.pattern-positions x))))
+                 (.tracks self))))
 
 (defmethod process ((self tracker) (connection null) left right))
 
@@ -93,8 +93,8 @@
 
 (defmethod resized ((self tracker-timeline-view-mixin))
   (setf (.y self) 0)
-  (setf (.width self) 15)
-  (setf (.height self) (* *char-height* (nlines (tracker self)))))
+  (setf (.height self) (* *char-height* (nlines (tracker self))))
+  (call-next-method))
 
 (defmethod resized ((self tracker-timeline-left-view))
   (call-next-method)
@@ -105,15 +105,26 @@
   (setf (.x self) (- (.width (.parent self)) (.width self))))
 
 (defmethod resized ((self tracker-partial-view))
-  (let ((view (.view self)))
-    (setf (.width view) (- (.width self) (* *layout-space* 2)))
-    (setf (.height view) (- (.height self) (* *layout-space* 2)))))
+  (let ((parent (.parent self)))
+    (setf (.width self) (- (.width parent) (* *layout-space* 2)))
+    (setf (.height self) (- (.height parent) *layout-space* (.y self))))
+  (call-next-method))
+
+(defmethod resized ((self tracks-partial-view))
+  (let ((parent (.parent self)))
+    (setf (.x self) 15)
+    (setf (.y self) 0)
+    (setf (.width self) (- (.width parent) 30))
+    (setf (.height self) (.height parent)))
+  (call-next-method))
 
 (defmethod tracker ((self view))
   (.parent-by-class self 'tracker))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defcmd cmd::tracker ((self app)) (:interactive t)
   (awhen (find-if (lambda (x) (typep x 'tracker)) (.views *app*))
     (remove-view it))

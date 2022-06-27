@@ -55,7 +55,7 @@
    (:file "menu")
    (:file "command-dialog")
    (:file "audio")
-   (:file "tracker")
+   ;; (:file "tracker")
    (:file "main")
 
    (:module "cmd"
