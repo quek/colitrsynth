@@ -13,7 +13,8 @@
   :pathname "src"
   :serial t
   :components
-  ((:file "package")
+  ((:file "sdl2-ttf")
+   (:file "package")
    (:file "ffi")
    (:file "prelude")
    (:file "parameter")
