@@ -600,6 +600,30 @@
           (drag self xrel yrel (.button drag-state)))
         (call-next-method))))
 
+(defmethod mousemotion ((self drag-resize-mixin) x y xrel yrel state)
+  (let ((system-cursor-id
+          (cond ((and (<= x 5) (<= y 5))
+                 sdl2-ffi:+sdl-system-cursor-sizenwse+)
+                ((and (<= (- (.width self) 5) x) (<= y 5))
+                 sdl2-ffi:+sdl-system-cursor-sizenesw+)
+                ((and (<= (- (.width self) 5) x) (<= (- (.height self) 5) y))
+                 sdl2-ffi:+sdl-system-cursor-sizenwse+)
+                ((and (<= x 5) (<= (- (.height self) 5) y))
+                 sdl2-ffi:+sdl-system-cursor-sizenesw+)
+                ((<= x 5)
+                 sdl2-ffi:+sdl-system-cursor-sizewe+)
+                ((<= y 5)
+                 sdl2-ffi:+sdl-system-cursor-sizens+)
+                ((<= (- (.width self) 5) x)
+                 sdl2-ffi:+sdl-system-cursor-sizewe+)
+                ((<= (- (.height self) 5) y)
+                 sdl2-ffi:+sdl-system-cursor-sizens+)
+                (t sdl2-ffi:+sdl-system-cursor-arrow+))))
+    (sdl2-ffi.functions:sdl-set-cursor
+     (sdl2-ffi.functions:sdl-create-system-cursor
+      system-cursor-id)))
+  (call-next-method))
+
 (defmethod mousebuttonup ((self drag-mixin) button state clicks x y)
   (let ((drag-state (.drag-state *app*)))
     (if (eq self (.target drag-state))
