@@ -600,40 +600,49 @@
           (drag self xrel yrel (.button drag-state)))
         (call-next-method))))
 
+(let ((old-cursor nil))
+  (defun set-cursor (cursor-type)
+    (let* ((cursor-id
+             (case cursor-type
+               ((:north-west :south-east)
+                sdl2-ffi:+sdl-system-cursor-sizenwse+)
+               ((:north-east :south-west)
+                sdl2-ffi:+sdl-system-cursor-sizenesw+)
+               ((:west :east)
+                sdl2-ffi:+sdl-system-cursor-sizewe+)
+               ((:north :south)
+                sdl2-ffi:+sdl-system-cursor-sizens+)
+               (t
+                sdl2-ffi:+sdl-system-cursor-arrow+)))
+           (new-cursor (sdl2-ffi.functions:sdl-create-system-cursor cursor-id)))
+      (sdl2-ffi.functions:sdl-set-cursor new-cursor)
+      (when old-cursor
+        (sdl2-ffi.functions:sdl-free-cursor old-cursor)
+        (setf old-cursor new-cursor)))))
+
 (defmethod mousemotion ((self drag-resize-mixin) x y xrel yrel state)
   (let ((drag-state (.drag-state *app*)))
     (when (or (null drag-state) (not (.dragging drag-state)))
-      (multiple-value-bind (direction system-cursor-id)
-          (cond ((and (<= x 5) (<= y 5))
-                 (values :north-west
-                         sdl2-ffi:+sdl-system-cursor-sizenwse+))
-                ((and (<= (- (.width self) 5) x) (<= y 5))
-                 (values :north-east
-                         sdl2-ffi:+sdl-system-cursor-sizenesw+))
-                ((and (<= (- (.width self) 5) x) (<= (- (.height self) 5) y))
-                 (values :south-east
-                         sdl2-ffi:+sdl-system-cursor-sizenwse+))
-                ((and (<= x 5) (<= (- (.height self) 5) y))
-                 (values :south-west
-                         sdl2-ffi:+sdl-system-cursor-sizenesw+))
-                ((<= x 5)
-                 (values :west
-                         sdl2-ffi:+sdl-system-cursor-sizewe+))
-                ((<= y 5)
-                 (values :north
-                         sdl2-ffi:+sdl-system-cursor-sizens+))
-                ((<= (- (.width self) 5) x)
-                 (values :east
-                         sdl2-ffi:+sdl-system-cursor-sizewe+))
-                ((<= (- (.height self) 5) y)
-                 (values :south
-                         sdl2-ffi:+sdl-system-cursor-sizens+))
-                (t (values nil sdl2-ffi:+sdl-system-cursor-arrow+)))
-        (when direction
-          (setf (.drag-resize-direction *app*) direction))
-        (sdl2-ffi.functions:sdl-set-cursor
-         (sdl2-ffi.functions:sdl-create-system-cursor
-          system-cursor-id)))))
+      (let ((direction
+              (cond ((and (<= x 5) (<= y 5))
+                     :north-west)
+                    ((and (<= (- (.width self) 5) x) (<= y 5))
+                     :north-east)
+                    ((and (<= (- (.width self) 5) x) (<= (- (.height self) 5) y))
+                     :south-east)
+                    ((and (<= x 5) (<= (- (.height self) 5) y))
+                     :south-west)
+                    ((<= x 5)
+                     :west)
+                    ((<= y 5)
+                     :north)
+                    ((<= (- (.width self) 5) x)
+                     :east)
+                    ((<= (- (.height self) 5) y)
+                     :south)
+                    (t nil))))
+        (setf (.drag-resize-direction *app*) direction)
+        (set-cursor direction))))
   (call-next-method))
 
 (defmethod mousebuttonup ((self drag-mixin) button state clicks x y)
@@ -658,7 +667,8 @@
           do (move module xrel yrel)))
 
 (defmethod drag-start ((self drag-resize-mixin) x y (button (eql 1)))
-  (setf (.drag-resize-module *app*) self))
+  (when (.drag-resize-direction *app*)
+    (setf (.drag-resize-module *app*) self)))
 
 (defmethod drag ((self drag-resize-mixin) xrel yrel (button (eql 1)))
   (if (eq self (.drag-resize-module *app*))

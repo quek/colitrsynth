@@ -296,8 +296,8 @@
    (drag-resize-module :initform nil :accessor .drag-resize-module)
    (drag-resize-direction
     :initform :north :accessor .drag-resize-direction
-    :type (member :north :north-east :east :south-east :south
-                  :south-west :west :north-west))
+    :type (member nil :north :north-east :east :south-east
+                      :south :south-west :west :north-west))
    (dragging :initform nil :accessor .dragging)
    (drag-state :initform nil :accessor .drag-state)
    (cable-src :initform nil :accessor .cable-src)
