@@ -7,7 +7,8 @@
 (defmethod mousemotion ((self app) x y xrel yrel state)
   (sdl2-ffi.functions:sdl-set-cursor
    (sdl2-ffi.functions:sdl-create-system-cursor
-    sdl2-ffi:+sdl-system-cursor-arrow+)))
+    sdl2-ffi:+sdl-system-cursor-arrow+))
+  (call-next-method))
 
 (defmethod render ((self app) renderer)
   (let ((drag-state (.drag-state *app*)))
