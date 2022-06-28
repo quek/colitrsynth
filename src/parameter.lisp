@@ -1,6 +1,6 @@
 (in-package :colitrsynth)
 
-(defparameter *frames-per-buffer* 2048)
+(defparameter *frames-per-buffer* 512)
 (defparameter *sample-rate* 48000.0)
 ;; (defparameter *sample-rate* 44100.0)
 

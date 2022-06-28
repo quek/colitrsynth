@@ -323,8 +323,21 @@
   (incf (.y self) yrel))
 
 (defmethod resize ((self view) xrel yrel)
-  (setf (.width self) (max 20 (+ (.width self) xrel)))
-  (setf (.height self) (max 20 (+ (.height self) yrel))))
+  (let  ((direction (.drag-resize-direction *app*)))
+    (when (member direction '(:north-west :west :south-west))
+      (incf (.x self) xrel)
+      (when (< (decf (.width self) xrel) 20)
+        (decf (.x self) (- 20 (.width self)))
+        (setf (.width self) 20)))
+    (when (member direction '(:north-east :east :south-east))
+      (setf (.width self) (max 20 (+ (.width self) xrel))))
+    (when (member direction '(:north-west :north :north-east))
+      (incf (.y self) yrel)
+      (when (< (decf (.height self) yrel) 20)
+        (decf (.y self) (- 20 (.height self)))
+        (setf (.height self) 20)))
+    (when (member direction '(:south-east :south :south-west))
+      (setf (.height self) (max 20 (+ (.height self) yrel))))))
 
 (defmethod add-child ((parent view) (child view))
   (unless (eq parent (.parent child))
@@ -373,21 +386,27 @@
   (+ (.y self)
      (.screen-y (.parent self))))
 
+(defmethod .center-x ((self view))
+  (round (/ (.width self) 2)))
+
 (defmethod .render-center-x ((self view))
   (+ (.render-x self)
-     (round (/ (.width self) 2))))
+     (.center-x self)))
 
 (defmethod .screen-center-x ((self view))
   (+ (.screen-x self)
-     (round (/ (.width self) 2))))
+     (.center-x self)))
+
+(defmethod .center-y ((self view))
+  (round (/ (.height self) 2)))
 
 (defmethod .render-center-y ((self view))
   (+ (.render-y self)
-     (round (/ (.height self) 2))))
+     (.center-y self)))
 
 (defmethod .screen-center-y ((self view))
   (+ (.screen-y self)
-     (round (/ (.height self) 2))))
+     (.center-y self)))
 
 (defmethod translate-child-x ((self view) (child view) x)
   (- x (.x child)))
@@ -603,10 +622,40 @@
           do (move module xrel yrel)))
 
 (defmethod drag-start ((self drag-resize-mixin) x y (button (eql 1)))
-  (if (and (< (.width self) (+ 10 x))
-           (< (.height self) (+ 10 y)))
-      (setf (.drag-resize-module *app*) self)
-      (call-next-method)))
+  (multiple-value-bind (direction system-cursor-id)
+      (cond ((and (<= x 5) (<= y 5))
+             (values :north-west
+                     sdl2-ffi:+sdl-system-cursor-sizenwse+))
+            ((and (<= (- (.width self) 5) x) (<= y 5))
+             (values :north-east
+                     sdl2-ffi:+sdl-system-cursor-sizenesw+))
+            ((and (<= (- (.width self) 5) x) (<= (- (.height self) 5) y))
+             (values :south-east
+                     sdl2-ffi:+sdl-system-cursor-sizenwse+))
+            ((and (<= x 5) (<= (- (.height self) 5) y))
+             (values :south-west
+                     sdl2-ffi:+sdl-system-cursor-sizenesw+))
+            ((<= x 5)
+             (values :west
+                     sdl2-ffi:+sdl-system-cursor-sizewe+))
+            ((<= y 5)
+             (values :north
+                     sdl2-ffi:+sdl-system-cursor-sizens+))
+            ((<= (- (.width self) 5) x)
+             (values :east
+                     sdl2-ffi:+sdl-system-cursor-sizewe+))
+            ((<= (- (.height self) 5) y)
+             (values :south
+                     sdl2-ffi:+sdl-system-cursor-sizens+))
+            (t (values nil nil)))
+    (if direction
+        (progn
+          (setf (.drag-resize-module *app*) self)
+          (setf (.drag-resize-direction *app*) direction)
+          (sdl2-ffi.functions:sdl-set-cursor
+           (sdl2-ffi.functions:sdl-create-system-cursor
+            system-cursor-id)))
+        (call-next-method))))
 
 (defmethod drag ((self drag-resize-mixin) xrel yrel (button (eql 1)))
   (if (eq self (.drag-resize-module *app*))
@@ -617,7 +666,10 @@
 
 (defmethod drag-end ((self drag-resize-mixin) x y (button (eql 1)))
   (when (eq self (.drag-resize-module *app*))
-    (setf (.drag-resize-module *app*) nil))
+    (setf (.drag-resize-module *app*) nil)
+    (sdl2-ffi.functions:sdl-set-cursor
+     (sdl2-ffi.functions:sdl-create-system-cursor
+      sdl2-ffi:+sdl-system-cursor-arrow+)))
   (call-next-method))
 
 (defmethod render ((self drag-resize-mixin) renderer)
