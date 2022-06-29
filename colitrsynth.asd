@@ -63,6 +63,7 @@
     :pathname "cmd"
     :components
     ((:file "app")
+     (:file "module")
      (:file "editor-mixin")
      (:file "automation-editor")
      (:file "automation-module")

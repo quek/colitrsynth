@@ -16,6 +16,10 @@
 (defgeneric render (self renderer)
   (:method (self renderer)))
 
+(defmethod render :around ((self view) renderer)
+  (when (show-p self)
+    (call-next-method)))
+
 (defgeneric resized (self)
   (:method (self)))
 

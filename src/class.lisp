@@ -324,7 +324,8 @@
    (width :initarg :width :initform 100 :accessor .width)
    (height :initarg :height :initform 80 :accessor .height)
    (parent :initarg :parent :initform nil :accessor .parent)
-   (children :initarg :children :initform nil :accessor .children)))
+   (children :initarg :children :initform nil :accessor .children)
+   (show-p :initarg :show-p :initform t :accessor show-p)))
 
 (defclass render-border-mixin () ())
 
@@ -542,6 +543,9 @@
   ((cables :initarg :cables :accessor .cables)))
 
 (defclass module-menu-view (menu-view)
+  ())
+
+(defclass find-module-menu-view (menu-view)
   ())
 
 (defclass menu-button (button)

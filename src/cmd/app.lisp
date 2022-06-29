@@ -48,6 +48,10 @@
     (:bind (*app-keymap* sdl2-ffi:+sdl-scancode-f+))
   (open-module-menu))
 
+(defcmd cmd::open-find-module-menu ((self app))
+    (:bind (*app-keymap* sdl2-ffi:+sdl-scancode-e+))
+  (open-find-module-menu))
+
 (defcmd cmd::open-song ((self app))
     (:bind (*app-keymap* sdl2-ffi:+sdl-scancode-o+ +ctrl+))
   (sb-thread:make-thread (lambda (*app*)

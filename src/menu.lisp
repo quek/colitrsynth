@@ -1,10 +1,5 @@
 (in-package :colitrsynth)
 
-(defmethod initialize-instance :around ((self menu-view) &key)
-  (call-next-method)
-  (setf (.buttons self) (sort (.buttons self) #'string<
-                              :key (lambda (x) (string-downcase (.label x))))))
-
 (defun open-menu (class &rest args)
   (multiple-value-bind (window-width window-height)
       (sdl2:get-window-size (.win *app*))
@@ -125,7 +120,14 @@
                      (remove-child self button)    
                      (add-child self button))
             else
-              do (remove-child self button)))))
+              do (remove-child self button))
+      (setf (.children self)
+            (sort (.children self)
+                  #'string<
+                  :key (lambda (x)
+                         (if (typep x 'button)
+                             (string-downcase (.label x))
+                             "")))))))
 
 (defmethod keydown ((self menu-view) value scancode mod-value)
   (cond ((sdl2:scancode= scancode :scancode-escape)
@@ -181,3 +183,21 @@
 
 (defun open-module-menu ()
   (open-menu 'module-menu-view))
+
+(defmethod initialize-instance :after ((self find-module-menu-view) &key)
+  (mapc (lambda (module)
+          (let ((button (make-instance
+                         'menu-button
+                         :label (if (typep module 'sequencer-module)
+                                    "Sequencer"
+                                    (.name module))
+                         :onclick (lambda ()
+                                    (setf (show-p module) t)
+                                    (move-to-front module)
+                                    (setf (.selected-modules *app*) (list module))))))
+            (add-child self button)
+            (push button (.buttons self))))
+        (.modules *app*)))
+
+(defun open-find-module-menu ()
+  (open-menu 'find-module-menu-view))
