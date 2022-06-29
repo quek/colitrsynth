@@ -47,6 +47,7 @@
    (:file "plugin-module")
    (:file "effect-plugin-module")
    (:file "instrument-plugin-module")
+   (:file "pattern-position")
    (:file "track")
    (:file "sequencer-module")
    (:file "app")
