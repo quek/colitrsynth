@@ -10,14 +10,12 @@
 (defmethod resized ((self track-view))
   (let* ((parent (.parent self))
          (sequencer-module (.parent-by-class self 'sequencer-module))
-         (timeline (.timeline parent))
          (index (position self (.tracks sequencer-module))))
     (setf (.x self) 0)
-    (setf (.y self) (+ (* *track-height* index) (.height timeline)))
+    (setf (.y self) (+ (* *track-height* index)))
     (setf (.height self) *track-height*)
     (setf (.width self) (max (.width parent) (* (+ 16 (.end sequencer-module))
-                                                *pixcel-per-line*)))
-    (setf (.width timeline) (.width self)))
+                                                *pixcel-per-line*))))
   (call-next-method)
   (let ((connector (.connector self)))
     (setf (.x connector)
@@ -184,9 +182,22 @@
              (push label (.labels self))))
   (call-next-method))
 
+(defmethod resized ((self sequencer-tracks-view))
+  (let* ((parent (.parent self))
+         (timeline (.timeline parent)))
+    (print (list (.render-x self) (.render-y self)))
+    (setf (.x self) 0)
+    (setf (.y self) (.height timeline))
+    (setf (.width self) (multiple-value-bind (x1 y1 x2 y2)
+                            (children-bounds self)
+                          (declare (ignore x1 y1 y2))
+                          x2))
+    (setf (.height self) (- (.height parent) (.height timeline))))
+  (call-next-method))
 
 (defmethod initialize-instance :after ((self sequencer-partial-view) &key)
-  (add-child self (.timeline self)))
+  (add-child self (.timeline self))
+  (add-child self (.tracks-view self)))
 
 (defmethod render :after ((self sequencer-partial-view) renderer)
   (let* ((sequencer (.root-parent self))
@@ -247,7 +258,8 @@
                              :x 115 :y *layout-space*))
          (partial-view (make-instance 'sequencer-partial-view
                                       :timeline  (make-instance 'sequencer-timeline-view
-                                                                :sequencer self))))
+                                                                :sequencer self)
+                                      :tracks-view (make-instance 'sequencer-tracks-view))))
     (add-child self play-button)
     (add-child self loop-button)
     (add-child self add-track-button)
@@ -285,7 +297,8 @@
     track))
 
 (defmethod add-new-track-after ((self sequencer-module) (track-view track-view))
-  (add-child (.partial-view self) track-view)
+  (let ((tracks-view (.tracks-view (.partial-view self))))
+    (add-child tracks-view track-view))
   track-view)
 
 (defmethod serialize ((self sequencer-module))
@@ -327,3 +340,10 @@
   (update-sequencer-end *sequencer-module*)
   (remove-child track-view pattern-position-view))
 
+(defmethod wheel ((self sequencer-partial-view) delta)
+  (if (.shift-key-p *app*)
+      (call-next-method)
+      (awhen (child-view-at self
+                            (- (.mouse-x *app*) (.render-x self))
+                            (- (.mouse-y *app*) (.render-y self)))
+        (wheel it delta))))

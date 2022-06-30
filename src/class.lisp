@@ -456,7 +456,11 @@
    (sequencer :initarg :sequencer :accessor .sequencer)))
 
 (defclass sequencer-partial-view (partial-view)
-  ((timeline :initarg :timeline :accessor .timeline)))
+  ((timeline :initarg :timeline :accessor .timeline)
+   (tracks-view :initarg :tracks-view :accessor .tracks-view)))
+
+(defclass sequencer-tracks-view (partial-view)
+  ())
 
 (defclass loop-button (button)
   ((fill-color :accessor .fill-color)

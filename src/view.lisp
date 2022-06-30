@@ -267,16 +267,30 @@
   (loop for child in (.children self)
         maximize (.height child)))
 
-(defmethod .children-bounds ((self view))
-  (values
-   (loop for child in (.children self)
-         minimize (.x child))
-   (loop for child in (.children self)
-         minimize (.y child))
-   (loop for child in (.children self)
-         maximize (+ (.x child) (.width child)))
-   (loop for child in (.children self)
-         maximize (+ (.y child) (.height child)))))
+(defmethod bounds ((self view))
+  (values (.x self)
+          (.y self)
+          (+ (.x self) (.width self))
+          (+ (.y self) (.height self))))
+
+(defmethod bounds ((self partial-view))
+  (children-bounds self))
+
+(defmethod children-bounds ((self view))
+  (let ((x1 most-positive-fixnum)
+        (y1 most-positive-fixnum)
+        (x2 0)
+        (y2 0))
+    (loop for child in (.children self)
+          do (multiple-value-bind (ax1 ay1 ax2 ay2)
+                 (bounds child)
+               (setf x1 (min x1 ax1))
+               (setf y1 (min y1 ay1))
+               (setf x2 (max x2 ax2))
+               (setf y2 (max y2 ay2))))
+    (if (= x1 most-positive-fixnum)
+        (values 0 0 0 0)
+        (values x1 y1 x2 y2))))
 
 (defmethod mousebuttondown ((self view) button state clicks x y)
   (call-next-method)
@@ -936,7 +950,8 @@
          (texture (sdl2:create-texture renderer :rgba8888 :target
                                        texture-width texture-height)))
     (unwind-protect
-         (let ()
+         (let ((original-renderer-target
+                 (sdl2-ffi.functions:sdl-get-render-target renderer)))
            (sdl2:set-render-target renderer texture)
            (sdl2:set-texture-blend-mode texture :add)
            (sdl2:set-render-draw-color renderer #x00 #x00 #x00 #xff)
@@ -944,7 +959,7 @@
 
            (call-next-method)
 
-           (sdl2:set-render-target renderer nil)
+           (sdl2:set-render-target renderer original-renderer-target)
            (let* ((src-x (.offset-x self))
                   (src-y (max 0 (.offset-y self)))
                   (dst-x (.render-x self))
@@ -982,14 +997,14 @@
        (.width self)))
 
 (defmethod wheel ((self partial-view) delta)
-  (multiple-value-bind (x1 y1 x2 y2) (.children-bounds self)
+  (multiple-value-bind (x1 y1 x2 y2) (children-bounds self)
     (declare (ignore x1 y1))
     (if (.shift-key-p *app*)
         (progn
           (setf (.offset-x self)
-               (max 0 (min
-                       (- (.offset-x self) (* 5 delta))
-                       (- x2 (+ (.render-x self) (.width self))))))
+                (max 0 (min
+                        (- (.offset-x self) (* 5 delta))
+                        (- x2 (+ (.render-x self) (.width self))))))
           (resized self))               ;connector の位置調整
         (setf (.offset-y self)
               (max 0 (min
