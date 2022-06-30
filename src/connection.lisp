@@ -95,7 +95,7 @@
              (let ((original-xs xs)
                    (original-ys ys))
                (when (typep self 'track-view)
-                 (let ((partial-view (.parent self)))
+                 (let ((partial-view (.parent-by-class self 'sequencer-partial-view)))
                    (setf xs (min (max xs (.render-x partial-view))
                                  (+ (.render-x partial-view)
                                     (.width partial-view))))
@@ -131,7 +131,7 @@
                (buffer-length (min distance (float (length left-buffer))))
                (scale (/ distance buffer-length))
                (aux-points nil)
-               (points (loop for i from 0 below buffer-length
+               (points (loop for i fixnum from 0 below (floor buffer-length)
                              for left single-float  = (aref left-buffer i)
                              for right single-float = (if right-buffer (aref right-buffer i) 0.0)
                              for value single-float = (+ left right)
@@ -144,7 +144,7 @@
                                           collect (cons (* x scale) i)))
                              finally (setf aux-points
                                            (if x
-                                               (loop for i from (min y 0.0) to (max y 0)
+                                               (loop for i from (min y 0.0) to (max y 0.0)
                                                      collect (cons (* x scale) i))))))
                (points (append aux-points points))
                (rad (radian x1 y1 x2 y2))
