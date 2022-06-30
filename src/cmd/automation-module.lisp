@@ -13,7 +13,6 @@
              (end-value (aref (.lines self) end))
              (delta (/ (- end-value start-value)
                        (- end start))))
-        (print (list start-value end-value delta))
         (loop for y from (1+ start) below end
               for value = (+ start-value delta) then (+ value delta)
               do (setf (aref (.lines self) y) value))))))

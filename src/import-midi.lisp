@@ -33,7 +33,6 @@
                                 :y (- (.mouse-y *app*) 10)))
          (lines (.lines module))
          (max-column 1))
-    (print (list max-time division lpb nlines))
     ;; TODO トラック名を取り出してパターン名にする
     (loop for event in events
           with column = 0

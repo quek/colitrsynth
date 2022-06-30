@@ -185,7 +185,6 @@
 (defmethod resized ((self sequencer-tracks-view))
   (let* ((parent (.parent self))
          (timeline (.timeline parent)))
-    (print (list (.render-x self) (.render-y self)))
     (setf (.x self) 0)
     (setf (.y self) (.height timeline))
     (setf (.width self) (multiple-value-bind (x1 y1 x2 y2)
