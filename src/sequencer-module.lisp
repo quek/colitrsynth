@@ -129,7 +129,8 @@
 
 (defmethod drag-end ((self track-head-view) x y
                      (button (eql sdl2-ffi:+sdl-button-left+)))
-  (let* ((track-heads-view (.parent self))
+  (let* ((sequencer (.parent-by-class self 'sequencer))
+         (track-heads-view (.parent self))
          (old-position (position self (.children track-heads-view)))
          (new-position (max 0 (min (round (/ (.y self) *track-height*))
                                    (1- (length (.children track-heads-view)))))))
@@ -140,11 +141,16 @@
                         (= i new-position))
                   collect self
                 if (not (eq self child))
-                collect child
+                  collect child
                 if (and (<= old-position new-position)
                         (= i new-position))
                   collect self))
-    (resized track-heads-view)))
+    (setf (slot-value sequencer 'tracks)
+          (sort (.tracks sequencer) #'<
+                :key (lambda (x)
+                       (position x (.children track-heads-view)
+                                 :key #'.track))))
+    (resized sequencer)))
 
 
 (defmethod drop ((self track-view) (pattern-position-view pattern-position-view) x y button)
@@ -240,8 +246,6 @@
                                     x
                                     (+ (.render-y self) (.height self))))
     (call-next-method)))
-
-
 
 (defmethod render :after ((self sequencer-partial-view) renderer)
   (let* ((sequencer (.root-parent self))
