@@ -118,10 +118,34 @@
     (setf (.x self) rounded-pixcel
           (.move-delta-x self) (- pixcel rounded-pixcel))))
 
+(defmethod drag ((self track-head-view) xrel yrel
+                 (button (eql sdl2-ffi:+sdl-button-left+)))
+  (incf (.y self) yrel))
+
 (defmethod drag-end ((self pattern-position) x y
                      (button (eql sdl2-ffi:+sdl-button-left+)))
   (setf (.move-delta-x self) 0)
   (call-next-method))
+
+(defmethod drag-end ((self track-head-view) x y
+                     (button (eql sdl2-ffi:+sdl-button-left+)))
+  (let* ((track-heads-view (.parent self))
+         (old-position (position self (.children track-heads-view)))
+         (new-position (max 0 (min (round (/ (.y self) *track-height*))
+                                   (1- (length (.children track-heads-view)))))))
+    (setf (.children track-heads-view)
+          (loop for child in (.children track-heads-view)
+                for i from 0
+                if (and (> old-position new-position)
+                        (= i new-position))
+                  collect self
+                if (not (eq self child))
+                collect child
+                if (and (<= old-position new-position)
+                        (= i new-position))
+                  collect self))
+    (resized track-heads-view)))
+
 
 (defmethod drop ((self track-view) (pattern-position-view pattern-position-view) x y button)
   (let* ((pattern-position pattern-position-view)

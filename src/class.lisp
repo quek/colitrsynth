@@ -438,7 +438,7 @@
 (defclass track-heads-view (partial-view)
   ())
 
-(defclass track-head-view (render-border-mixin view)
+(defclass track-head-view (render-border-mixin drag-mixin view)
   ((track :initarg :track :accessor .track))
   (:default-initargs :height *track-height*))
 
