@@ -1,5 +1,55 @@
 (in-package :colitrsynth)
 
+(defmethod initialize-instance :after ((self sequencer-module) &key)
+  (let* ((play-button (make-instance 'button :label "▶" :x 5 :y *layout-space*))
+         (loop-button (make-instance 'loop-button :x 30 :y *layout-space*
+                                                  :sequencer self))
+         (add-track-button (make-instance 'button :label "+track" :x 55 :y *layout-space*))
+         (bpm (make-instance 'label
+                             :value (lambda ()
+                                      (format nil "BPM ~f" (.bpm self)))
+                             :x 115 :y *layout-space*))
+         (track-heads-view (make-instance 'track-heads-view))
+         (partial-view (make-instance 'sequencer-partial-view
+                                      :timeline  (make-instance 'sequencer-timeline-view
+                                                                :sequencer self)
+                                      :tracks-view (make-instance 'sequencer-tracks-view))))
+    (add-child self play-button)
+    (add-child self loop-button)
+    (add-child self add-track-button)
+    (add-child self bpm)
+    (add-child self track-heads-view)
+    (add-child self partial-view)
+    (setf (.track-heads-view self) track-heads-view)
+    (setf (.partial-view self) partial-view)
+    (loop for track in (.tracks self)
+          do (add-new-track-after self track))
+    (defmethod click ((play-button (eql play-button)) (button (eql 1)) x y)
+      (if (.playing *audio*)
+          (stop)
+          (play-with-key)))
+    (defmethod click ((add-track-button (eql add-track-button)) (button (eql 1)) x y)
+      (add-new-track self))
+    (resized self)))
+
+(defmethod initialize-instance :after ((self pattern-position-view) &key)
+  (add-child self
+             (make-instance 'label
+                            :value (lambda () (.name self))
+                            :x *layout-space*
+                            :y *layout-space*)))
+
+(defmethod initialize-instance :after ((self sequencer-partial-view) &key)
+  (add-child self (.timeline self))
+  (add-child self (.tracks-view self)))
+
+(defmethod initialize-instance :after ((self loop-button) &key)
+  (setf (.fill-color self)
+        (if (.looping (.sequencer self))
+            *loop-color*
+            *background-color*)))
+
+
 (defmethod mousebuttondown ((self track-view)
                             (button (eql sdl2-ffi:+sdl-button-right+))
                             state clicks x y)
@@ -7,29 +57,21 @@
         (make-instance 'drag-state :target self :button button
                                    :x x :y y :state state)))
 
-(defmethod resized ((self track-view))
-  (let* ((parent (.parent self))
-         (sequencer-module (.parent-by-class self 'sequencer-module))
-         (index (position self (.tracks sequencer-module))))
-    (setf (.x self) 0)
-    (setf (.y self) (+ (* *track-height* index)))
-    (setf (.height self) *track-height*)
-    (setf (.width self) (max (.width parent) (* (+ 16 (.end sequencer-module))
-                                                *pixcel-per-line*))))
-  (call-next-method)
-  (let ((connector (.connector self)))
-    (setf (.x connector)
-          (let ((partial-view (.parent-by-class self 'sequencer-partial-view)))
-            (round (+ (/ (.width partial-view) 2)
-                      (.offset-x partial-view)))))
-    (setf (.y connector) (- (.height self) (.height connector)))))
-
 (defun pixcel-to-line (pixcel)
   ;; 16 ラインにグリッド
   (* (round (/ pixcel *pixcel-per-line*) 16) 16))
 
 (defun line-to-pixcel (line)
   (* *pixcel-per-line* line))
+
+(defmethod click ((self track-head-view)
+                  (button (eql sdl2-ffi:+sdl-button-left+))
+                  x y)
+  (let ((sequencer (.parent-by-class self 'sequencer-module))
+        (track (.track self)))
+    (if (ctrl-key-p)
+        (push track (.selected-tracks sequencer))
+        (setf (.selected-tracks sequencer) (list track)))))
 
 (defmethod click ((self track-view)
                   (button (eql sdl2-ffi:+sdl-button-left+))
@@ -52,13 +94,6 @@
     ,@(call-next-method)))
 
 
-
-(defmethod initialize-instance :after ((self pattern-position-view) &key)
-  (add-child self
-             (make-instance 'label
-                            :value (lambda () (.name self))
-                            :x *layout-space*
-                            :y *layout-space*)))
 
 (defmethod click ((self pattern-position-view)
                   (button (eql sdl2-ffi:+sdl-button-left+))
@@ -95,8 +130,6 @@
     (incf (.end pattern-position) delta)
     (update-sequencer-end *sequencer-module*)))
 
-(defmethod resized ((self pattern-position-view))
-  (setf (.height self) (- (.height (.parent self)) 4)))
 
 (defmethod serialize ((self pattern-position-view))
   `((setf (.start x) ,(.start self)
@@ -125,6 +158,12 @@
     (setf (.loop-start-line sequencer) 0)
     (setf (.loop-end-line sequencer) 0)))
 
+(defmethod click ((self loop-button) (button (eql 1)) x y)
+  (setf (.fill-color self)
+        (if (setf (.looping (.sequencer self))
+                  (not (.looping (.sequencer self))))
+            *loop-color*
+            *background-color*)))
 
 (defmethod drag-start ((self sequencer-timeline-view) x y
                        (button (eql sdl2-ffi:+sdl-button-left+)))
@@ -146,6 +185,13 @@
     (setf (.loop-end-line sequencer) line)
     (when (< (.loop-end-line sequencer) (.loop-start-line sequencer))
       (rotatef (.loop-end-line sequencer) (.loop-start-line sequencer)))))
+
+(defmethod render :before ((self track-head-view) renderer)
+  (let ((sequencer (.parent-by-class self 'sequencer-module)))
+    (setf (.color self)
+          (if (member (.track self) (.selected-tracks sequencer))
+              *selected-module-color*
+              *default-color*))))
 
 (defmethod render ((self sequencer-timeline-view) renderer)
   (let* ((sequencer (.sequencer self))
@@ -171,32 +217,7 @@
                                     (+ (.render-y self) (.height self))))
     (call-next-method)))
 
-(defmethod resized ((self sequencer-timeline-view))
-  (setf (.height self) 15)     ;width track-view の resized で設定する
-  (let ((end-line (max (.end (.parent-by-class self 'sequencer-module))
-                       (/ (.width self) *pixcel-per-line*))))
-    (loop for i from (length (.labels self)) to (/ end-line 4)
-          for label = (make-instance 'label :value (princ-to-string (1+ i))
-                                            :x (+ (* *pixcel-per-line* i 4 4 4) 3))
-          do (add-child self label)
-             (push label (.labels self))))
-  (call-next-method))
 
-(defmethod resized ((self sequencer-tracks-view))
-  (let* ((parent (.parent self))
-         (timeline (.timeline parent)))
-    (setf (.x self) 0)
-    (setf (.y self) (.height timeline))
-    (setf (.width self) (multiple-value-bind (x1 y1 x2 y2)
-                            (children-bounds self)
-                          (declare (ignore x1 y1 y2))
-                          x2))
-    (setf (.height self) (- (.height parent) (.height timeline))))
-  (call-next-method))
-
-(defmethod initialize-instance :after ((self sequencer-partial-view) &key)
-  (add-child self (.timeline self))
-  (add-child self (.tracks-view self)))
 
 (defmethod render :after ((self sequencer-partial-view) renderer)
   (let* ((sequencer (.root-parent self))
@@ -212,30 +233,6 @@
     (apply #'sdl2:set-render-draw-color renderer *play-position-color*)
     (sdl2:render-draw-line renderer x y x (+ y (.height self)))))
 
-(defmethod resized ((self sequencer-partial-view))
-  (let ((sequencer-module (.root-parent self)))
-    (setf (.x self) *layout-space*)
-    (setf (.y self) 26)
-    (setf (.width self) (- (.width sequencer-module) (* *layout-space* 2)))
-    (setf (.height self) (- (.height sequencer-module)
-                            (.y self)
-                            *layout-space*)))
-  (call-next-method))
-
-
-(defmethod initialize-instance :after ((self loop-button) &key)
-  (setf (.fill-color self)
-        (if (.looping (.sequencer self))
-            *loop-color*
-            *background-color*)))
-
-(defmethod click ((self loop-button) (button (eql 1)) x y)
-  (setf (.fill-color self)
-        (if (setf (.looping (.sequencer self))
-                  (not (.looping (.sequencer self))))
-            *loop-color*
-            *background-color*)))
-
 (defmethod render ((self loop-button) render)
   (apply #'sdl2:set-render-draw-color render (.fill-color self))
   (sdl2:render-fill-rect render
@@ -245,35 +242,6 @@
                                          (.height self)))
   (call-next-method))
 
-
-(defmethod initialize-instance :after ((self sequencer-module) &key)
-  (let* ((play-button (make-instance 'button :label "▶" :x 5 :y *layout-space*))
-         (loop-button (make-instance 'loop-button :x 30 :y *layout-space*
-                                                  :sequencer self))
-         (add-track-button (make-instance 'button :label "+track" :x 55 :y *layout-space*))
-         (bpm (make-instance 'label
-                             :value (lambda ()
-                                      (format nil "BPM ~f" (.bpm self)))
-                             :x 115 :y *layout-space*))
-         (partial-view (make-instance 'sequencer-partial-view
-                                      :timeline  (make-instance 'sequencer-timeline-view
-                                                                :sequencer self)
-                                      :tracks-view (make-instance 'sequencer-tracks-view))))
-    (add-child self play-button)
-    (add-child self loop-button)
-    (add-child self add-track-button)
-    (add-child self bpm)
-    (add-child self partial-view)
-    (setf (.partial-view self) partial-view)
-    (loop for track in (.tracks self)
-          do (add-new-track-after self track))
-    (defmethod click ((play-button (eql play-button)) (button (eql 1)) x y)
-      (if (.playing *audio*)
-          (stop)
-          (play-with-key)))
-    (defmethod click ((add-track-button (eql add-track-button)) (button (eql 1)) x y)
-      (add-new-track self))
-    (resized self)))
 
 (defmethod keydown ((self sequencer-module) value scancode mod-value)
   (cond ((sdl2:scancode= scancode :scancode-1)
@@ -289,16 +257,30 @@
 
 (defmethod add-new-track ((self sequencer-module))
   (let ((track (make-instance 'track-view)))
-    (setf (.tracks self)
+    (setf (slot-value self 'tracks)
           (append (.tracks self) (list track)))
     (add-new-track-after self track)
     (resized self)
     track))
 
 (defmethod add-new-track-after ((self sequencer-module) (track-view track-view))
-  (let ((tracks-view (.tracks-view (.partial-view self))))
-    (add-child tracks-view track-view))
+  (let* ((tracks-view (.tracks-view (.partial-view self)))
+         (track-heads-view (.track-heads-view self))
+         (track-head-view (make-instance 'track-head-view :track track-view)))
+    (add-child tracks-view track-view)
+    (add-child track-heads-view track-head-view))
   track-view)
+
+(defmethod (setf .offset-y) :after (value (self track-heads-view))
+  (let* ((sequencer (.parent-by-class self 'sequencer-module))
+         (tracks-view (.tracks-view (.partial-view sequencer))))
+    (setf (slot-value tracks-view 'offset-y) value)))
+
+(defmethod (setf .offset-y) :after (value (self sequencer-tracks-view))
+  (let* ((sequencer (.parent-by-class self 'sequencer-module))
+         (track-heads-view (.track-heads-view sequencer)))
+    (setf (slot-value track-heads-view 'offset-y) value)))
+
 
 (defmethod serialize ((self sequencer-module))
   `((setf (.bpm x) ,(.bpm self)
@@ -338,6 +320,75 @@
         (remove pattern-position-view (.pattern-positions track-view)))
   (update-sequencer-end *sequencer-module*)
   (remove-child track-view pattern-position-view))
+
+(defmethod resized ((self track-heads-view))
+  (let ((sequencer-module (.root-parent self)))
+    (setf (.x self) *layout-space*)
+    (setf (.y self) (+ 26 15))
+    (setf (.width self) 100)
+    (setf (.height self) (- (.height sequencer-module)
+                            (.y self)
+                            *layout-space*)))
+  (call-next-method))
+
+(defmethod resized ((self sequencer-partial-view))
+  (let* ((sequencer-module (.root-parent self))
+         (track-heads-view (.track-heads-view sequencer-module)))
+    (setf (.x self) (+ (.x track-heads-view) (.width track-heads-view)))
+    (setf (.y self) 26)
+    (setf (.width self) (- (.width sequencer-module)
+                           (.width track-heads-view)
+                           (* *layout-space* 2)))
+    (setf (.height self) (.height track-heads-view)))
+  (call-next-method))
+
+(defmethod resized ((self track-view))
+  (let* ((parent (.parent self))
+         (sequencer-module (.parent-by-class self 'sequencer-module))
+         (index (position self (.tracks sequencer-module))))
+    (setf (.x self) 0)
+    (setf (.y self) (+ (* *track-height* index)))
+    (setf (.height self) *track-height*)
+    (setf (.width self) (max (.width parent) (* (+ 16 (.end sequencer-module))
+                                                *pixcel-per-line*))))
+  (call-next-method)
+  (let ((connector (.connector self)))
+    (setf (.x connector)
+          (let ((partial-view (.parent-by-class self 'sequencer-partial-view)))
+            (round (+ (/ (.width partial-view) 2)
+                      (.offset-x partial-view)))))
+    (setf (.y connector) (- (.height self) (.height connector)))))
+
+(defmethod resized ((self track-head-view))
+  (let ((position (position self (.children (.parent self)))))
+    (setf (.y self) (* *track-height* position)))
+  (call-next-method))
+
+(defmethod resized ((self pattern-position-view))
+  (setf (.height self) (- (.height (.parent self)) 4)))
+
+(defmethod resized ((self sequencer-timeline-view))
+  (setf (.height self) 15)     ;width track-view の resized で設定する
+  (let ((end-line (max (.end (.parent-by-class self 'sequencer-module))
+                       (/ (.width self) *pixcel-per-line*))))
+    (loop for i from (length (.labels self)) to (/ end-line 4)
+          for label = (make-instance 'label :value (princ-to-string (1+ i))
+                                            :x (+ (* *pixcel-per-line* i 4 4 4) 3))
+          do (add-child self label)
+             (push label (.labels self))))
+  (call-next-method))
+
+(defmethod resized ((self sequencer-tracks-view))
+  (let* ((parent (.parent self))
+         (timeline (.timeline parent)))
+    (setf (.x self) 0)
+    (setf (.y self) (.height timeline))
+    (setf (.width self) (multiple-value-bind (x1 y1 x2 y2)
+                            (children-bounds self)
+                          (declare (ignore x1 y1 y2))
+                          x2))
+    (setf (.height self) (- (.height parent) (.height timeline))))
+  (call-next-method))
 
 (defmethod wheel ((self sequencer-partial-view) delta)
   (if (.shift-key-p *app*)

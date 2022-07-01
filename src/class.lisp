@@ -435,6 +435,13 @@
    (shifting-p :initform nil :accessor .shifting-p))
   (:default-initargs :keymap *pattern-editor-command-keymap*))
 
+(defclass track-heads-view (partial-view)
+  ())
+
+(defclass track-head-view (render-border-mixin view)
+  ((track :initarg :track :accessor .track))
+  (:default-initargs :height *track-height*))
+
 (defclass track-view (track
                       drag-mixin
                       drop-mixin
@@ -468,7 +475,9 @@
   (:default-initargs :label "L"))
 
 (defclass sequencer-module (sequencer module)
-  ((partial-view :accessor .partial-view))
+  ((track-heads-view :accessor .track-heads-view)
+   (partial-view :accessor .partial-view)
+   (selected-tracks :initform nil :accessor .selected-tracks))
   (:default-initargs :x 5 :y 5 :width 700 :height 200))
 
 (defclass automation-module (pattern-mixin module)
