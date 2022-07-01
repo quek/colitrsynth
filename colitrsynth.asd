@@ -22,6 +22,7 @@
    (:file "midi")
    (:file "keymap")
    
+   (:file "protocol")
    (:file "class")
    (:file "view")
    (:file "model")
