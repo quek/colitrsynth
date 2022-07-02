@@ -6,6 +6,8 @@
 
 (defvar *app-keymap* (make-hash-table :test #'equal))
 
+(defvar *sequencer-keymap* (make-hash-table :test #'equal))
+
 (defvar *pattern-editor-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-command-keymap* (make-hash-table :test #'equal))
 (defvar *pattern-editor-delete-keymap* (make-hash-table :test #'equal))

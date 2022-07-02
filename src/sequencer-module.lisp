@@ -49,6 +49,14 @@
             *loop-color*
             *background-color*)))
 
+(defmethod delete-track ((self sequencer-module) track)
+  (disconnect-all track)
+  (setf (slot-value self 'tracks) (remove track (.tracks self)))
+  (let ((view (.track-heads-view self)))
+    (setf (.children view)
+          (remove track (.children view) :key #'.track)))
+  (let ((view (.tracks-view (.partial-view self))))
+    (setf (.children view) (remove track (.children view)))))
 
 (defmethod mousebuttondown ((self track-view)
                             (button (eql sdl2-ffi:+sdl-button-right+))
@@ -272,11 +280,9 @@
 
 
 (defmethod keydown ((self sequencer-module) value scancode mod-value)
-  (cond ((sdl2:scancode= scancode :scancode-1)
-         (decf (.bpm self)))
-        ((sdl2:scancode= scancode :scancode-2)
-         (incf (.bpm self)))
-        (t (call-next-method))))
+  (awhen (gethash *current-key* *sequencer-keymap*)
+    (funcall it self))
+  t)
 
 (defmethod drag-start ((self sequencer-module) x y (button (eql 3)))
   "track-view にディスパッチする。"

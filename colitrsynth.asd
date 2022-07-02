@@ -70,4 +70,5 @@
      (:file "automation-editor")
      (:file "automation-module")
      (:file "pattern-editor")
-     (:file "pattern-module")))))
+     (:file "pattern-module")
+     (:file "sequencer")))))
