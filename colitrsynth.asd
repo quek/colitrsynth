@@ -16,6 +16,7 @@
   ((:file "sdl2-ttf")
    (:file "package")
    (:file "ffi")
+   (:file "midi-device")
    (:file "prelude")
    (:file "parameter")
    (:file "util")
