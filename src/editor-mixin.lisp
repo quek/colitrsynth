@@ -52,13 +52,10 @@
         (nlines (.nlines (.model self))))
     (when (/= (/ (.height index-label) *char-height*)
               nlines)
-      (setf (.width index-label) (* *char-width*
-                                    (if (< nlines #x100) 3 4)))
+      (setf (.width index-label) (* *char-width* 4))
       (setf (.height index-label) (* *char-height* nlines))
       (setf (.value index-label)
             (with-output-to-string (out)
               (loop for i below nlines
                     do (format out
-                               (if (< nlines #x100)
-                                   "~2,'0X"
-                                   "~3,'0X") i)))))))
+                               "~2,'0X~c" i #\cr)))))))
