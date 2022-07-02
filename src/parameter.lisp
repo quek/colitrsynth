@@ -31,6 +31,9 @@
 (defparameter *mute-color* (list #xff 0 0 *transparency*))
 (defparameter *loop-color* (list #x00 #x50 #x20 *transparency*))
 
+(defparameter *solo-background-color* (list #x00 #xcc #x00 *transparency*))
+(defparameter *mute-background-color* (list #xcc #x00 #x00 *transparency*))
+
 (defparameter *font-size* 14)
 (defparameter *char-width* (/ *font-size* 2))
 (defparameter *char-height* *font-size*)

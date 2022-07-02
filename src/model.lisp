@@ -105,7 +105,13 @@
         (progn
           (cond ((playing)
                  (loop for track in (.tracks self)
-                       do (play-track track start-line start-frame end-line end-frame)))
+                       with some-solo-p = (some #'solo-p (.tracks self))
+                       if (or (mute-p track)
+                              (and (not (solo-p track))
+                                   some-solo-p))
+                         do (play-track-all-off  track start-frame)
+                       else
+                         do (play-track track start-line start-frame end-line end-frame)))
                 ((played)
                  (loop for track in (.tracks self)
                        do (play-track-all-off track start-frame)))

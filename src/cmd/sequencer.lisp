@@ -12,4 +12,5 @@
     (:bind (*sequencer-keymap* sdl2-ffi:+sdl-scancode-delete+ +ctrl+ +shift+))
   (mapc (lambda (track)
           (delete-track self track))
-        (.selected-tracks self)))
+        (.selected-tracks self))
+  (resized self))

@@ -72,14 +72,6 @@
 (defun line-to-pixcel (line)
   (* *pixcel-per-line* line))
 
-(defmethod click ((self track-head-view)
-                  (button (eql sdl2-ffi:+sdl-button-left+))
-                  x y)
-  (let ((sequencer (.parent-by-class self 'sequencer-module))
-        (track (.track self)))
-    (if (ctrl-key-p)
-        (push track (.selected-tracks sequencer))
-        (setf (.selected-tracks sequencer) (list track)))))
 
 (defmethod click ((self track-view)
                   (button (eql sdl2-ffi:+sdl-button-left+))
@@ -96,7 +88,9 @@
       t))
 
 (defmethod serialize ((self track-view))
-  `((setf (.pattern-positions x) ,(serialize (.pattern-positions self)))
+  `((setf (.pattern-positions x) ,(serialize (.pattern-positions self))
+          (solo-p x) ,(solo-p self)
+          (mute-p x) ,(mute-p self))
     (loop for i in (.pattern-positions x)
           do (add-child x i))
     ,@(call-next-method)))
@@ -126,40 +120,10 @@
     (setf (.x self) rounded-pixcel
           (.move-delta-x self) (- pixcel rounded-pixcel))))
 
-(defmethod drag ((self track-head-view) xrel yrel
-                 (button (eql sdl2-ffi:+sdl-button-left+)))
-  (incf (.y self) yrel))
-
 (defmethod drag-end ((self pattern-position) x y
                      (button (eql sdl2-ffi:+sdl-button-left+)))
   (setf (.move-delta-x self) 0)
   (call-next-method))
-
-(defmethod drag-end ((self track-head-view) x y
-                     (button (eql sdl2-ffi:+sdl-button-left+)))
-  (let* ((sequencer (.parent-by-class self 'sequencer))
-         (track-heads-view (.parent self))
-         (old-position (position self (.children track-heads-view)))
-         (new-position (max 0 (min (round (/ (.y self) *track-height*))
-                                   (1- (length (.children track-heads-view)))))))
-    (setf (.children track-heads-view)
-          (loop for child in (.children track-heads-view)
-                for i from 0
-                if (and (> old-position new-position)
-                        (= i new-position))
-                  collect self
-                if (not (eq self child))
-                  collect child
-                if (and (<= old-position new-position)
-                        (= i new-position))
-                  collect self))
-    (setf (slot-value sequencer 'tracks)
-          (sort (.tracks sequencer) #'<
-                :key (lambda (x)
-                       (position x (.children track-heads-view)
-                                 :key #'.track))))
-    (resized sequencer)))
-
 
 (defmethod drop ((self track-view) (pattern-position-view pattern-position-view) x y button)
   (let* ((pattern-position pattern-position-view)
@@ -224,13 +188,6 @@
     (when (< (.loop-end-line sequencer) (.loop-start-line sequencer))
       (rotatef (.loop-end-line sequencer) (.loop-start-line sequencer)))))
 
-(defmethod render :before ((self track-head-view) renderer)
-  (let ((sequencer (.parent-by-class self 'sequencer-module)))
-    (setf (.color self)
-          (if (member (.track self) (.selected-tracks sequencer))
-              *selected-module-color*
-              *default-color*))))
-
 (defmethod render ((self sequencer-timeline-view) renderer)
   (let* ((sequencer (.sequencer self))
          (end-line (.end sequencer))
@@ -278,11 +235,12 @@
                                          (.height self)))
   (call-next-method))
 
-
 (defmethod keydown ((self sequencer-module) value scancode mod-value)
-  (awhen (gethash *current-key* *sequencer-keymap*)
-    (funcall it self))
-  t)
+  (aif (gethash *current-key* *sequencer-keymap*)
+       (progn
+         (funcall it self)
+         t)
+       (call-next-method)))
 
 (defmethod drag-start ((self sequencer-module) x y (button (eql 3)))
   "track-view にディスパッチする。"
@@ -393,10 +351,6 @@
                       (.offset-x partial-view)))))
     (setf (.y connector) (- (.height self) (.height connector)))))
 
-(defmethod resized ((self track-head-view))
-  (let ((position (position self (.children (.parent self)))))
-    (setf (.y self) (* *track-height* position)))
-  (call-next-method))
 
 (defmethod resized ((self pattern-position-view))
   (setf (.height self) (- (.height (.parent self)) 4)))

@@ -115,7 +115,9 @@
 (defclass track (model)
   ((pattern-positions :initform nil :accessor .pattern-positions)
    (buffer :initform (make-buffer) :accessor .buffer
-           :documentation "automation 用")))
+           :documentation "automation 用")
+   (solo :initarg :solo :initform nil :accessor solo-p)
+   (mute :initarg :mute :initform nil :accessor mute-p)))
 
 (defclass sequencer (model)
   ((bpm :initarg :bpm :initform 140.0 :accessor .bpm
@@ -442,7 +444,9 @@
   ())
 
 (defclass track-head-view (render-border-mixin drag-mixin view)
-  ((track :initarg :track :accessor .track))
+  ((track :initarg :track :accessor .track)
+   (solo-button :initarg :solo-button :accessor .solo-button)
+   (mute-button :initarg :mute-button :accessor .mute-button))
   (:default-initargs :height *track-height*))
 
 (defclass track-view (track

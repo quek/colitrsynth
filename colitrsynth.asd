@@ -50,6 +50,7 @@
    (:file "instrument-plugin-module")
    (:file "pattern-position")
    (:file "track")
+   (:file "track-head-view")
    (:file "sequencer-module")
    (:file "app")
 
