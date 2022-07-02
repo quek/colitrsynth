@@ -3,6 +3,17 @@
 ;;;; 処理の都合上必要なこ
 (defvar *pattern-scroll-lock* nil)
 
+(defmethod initialize-instance :after ((self editor-mixin) &key)
+  (let ((index-label
+          (make-instance 'editor-index-label
+                         :editor self
+                         :value "00"
+                         :x 0
+                         :y 0)))
+    (setf (.index-label self) index-label)
+    (add-child self index-label)))
+
+
 (defmethod current-line ((self editor-mixin))
   (aref (.lines (.model self)) (.cursor-y self)))
 
@@ -37,25 +48,17 @@
                               (length (.lines (.model self))))))
 
 (defmethod update-labels ((self editor-mixin))
-  (let* ((model (.model self))
-         (nlines (.nlines model)))
-    (when (/= (length (.index-labels self))
+  (let ((index-label (.index-label self))
+        (nlines (.nlines (.model self))))
+    (when (/= (/ (.height index-label) *char-height*)
               nlines)
-      (loop for child in (.index-labels self)
-            do (remove-child self child))
-      (let ((width (* *char-width* 5))
-            (height *char-height*))
-        (setf (.index-labels self)
-              (loop for y below nlines
-                    collect (make-instance 'editor-index-label
-                                           :editor self
-                                           :value (format nil "~2,'0X" y)
-                                           :x 0
-                                           :y (* *char-height* y)
-                                           :width width
-                                           :height height)))
-        (mapc (lambda (x) (add-child self x)) (.index-labels self))))
-    (loop for index below nlines
-          for index-label in (.index-labels self)
-          do (setf (.value index-label)
-                   (format nil "~2,'0X" index)))))
+      (setf (.width index-label) (* *char-width*
+                                    (if (< nlines #x100) 3 4)))
+      (setf (.height index-label) (* *char-height* nlines))
+      (setf (.value index-label)
+            (with-output-to-string (out)
+              (loop for i below nlines
+                    do (format out
+                               (if (< nlines #x100)
+                                   "~2,'0X"
+                                   "~3,'0X") i)))))))

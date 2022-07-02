@@ -360,6 +360,9 @@
    (texture :initform nil :accessor .texture))
   (:default-initargs :width 0 :height 0 :value "くえっ"))
 
+(defclass muliti-line-label (label)
+  ())
+
 (defclass button (render-border-mixin view)
   ((label-view :accessor .label-view))
   (:default-initargs :width 50 :height 30))
@@ -393,7 +396,7 @@
    (offset-x :initarg :offset-x :initform 0 :accessor .offset-x)
    (offset-y :initarg :offset-y :initform 0 :accessor .offset-y)))
 
-(defclass editor-index-label (label)
+(defclass editor-index-label (muliti-line-label)
   ((editor :initarg :editor :accessor .editor))
   (:default-initargs :color *index-color*))
 
@@ -411,7 +414,7 @@
 
 (defclass editor-mixin (partial-view)
   ((model :initarg :model :accessor .model)
-   (index-labels :initform nil :accessor .index-labels)
+   (index-label :accessor .index-label)
    (cursor-x :initform 0 :accessor .cursor-x)
    (cursor-y :initform 0 :accessor .cursor-y)
    (edit-step :initform 0 :accessor .edit-step)

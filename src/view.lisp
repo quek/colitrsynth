@@ -678,10 +678,7 @@
         (setf (.last-color self) (.color self))
         (awhen (.texture self)
           (sdl2:destroy-texture it))
-        (let ((surface (apply #'sdl2-ttf:render-utf8-solid
-                              (.font *app*)
-                              value
-                              (.color self))))
+        (let ((surface (render-font self)))
           (setf (.width self) (sdl2:surface-width surface)
                 (.height self) (sdl2:surface-height surface)
                 (.texture self) (sdl2:create-texture-from-surface renderer surface))))
@@ -690,6 +687,19 @@
                         :source-rect nil
                         :dest-rect (sdl2:make-rect (.render-x self) (.render-y self)
                                                    (.width self) (.height self))))))
+
+(defmethod render-font ((self label))
+  (apply #'sdl2-ttf:render-utf8-solid
+         (.font *app*)
+         (.value self)
+         (.color self)))
+
+(defmethod render-font ((self muliti-line-label))
+  (apply #'sdl2-ttf:render-utf8-solid-wrapped
+         (.font *app*)
+         (.value self)
+         (.width self)
+         (.color self)))
 
 
 (defmethod initialize-instance :after ((self button) &key label)
