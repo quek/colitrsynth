@@ -82,12 +82,33 @@
 (cffi:defcfun ("midiInReset" midi-in-reset) MMRESULT
   (handle HMIDIIN))
 
+(cffi:defcallback midi-in-callback :void ((handle HMIDIIN)
+                                          (msg :unsigned-int)
+                                          (instance :pointer)
+                                          (param1 :pointer)
+                                          (param2 :pointer))
+  (print (list 'midi-in-callback msg)))
 
+#|
+void CALLBACK MidiInProc(
+   HMIDIIN   hMidiIn,
+   UINT      wMsg,
+   DWORD_PTR dwInstance,
+   DWORD_PTR dwParam1,
+   DWORD_PTR dwParam2
+);
+|#
 
 
 #+nil
 (cffi:with-foreign-object (phandle '(:pointer HMIDIIN))
-  (print (midi-in-open phandle 0 (cffi:null-pointer) (cffi:null-pointer) CALLBACK_NULL))
+  (print (midi-in-open phandle 0
+                       (cffi:callback midi-in-callback)
+                       (cffi:null-pointer) CALLBACK_FUNCTION))
   (let ((handle (cffi:mem-aref phandle 'HMIDIIN 0)))
     (print handle)
+    (print (midi-in-start handle))
+    (sleep 5)
+    (print (midi-in-stop handle))
+    (print (midi-in-reset handle))
     (print (midi-in-close handle))))
