@@ -337,14 +337,6 @@
                  :event +midi-cc+
                  :note +midi-cc-all-notes-off+))
 
-;; TODO delete
-;; (defun write-midi-event (midi-event stream)
-;;   (write-byte (.event midi-event) stream)
-;;   (write-byte (.channel midi-event) stream)
-;;   (write-byte (.note midi-event) stream)
-;;   (write-byte (.velocity midi-event) stream)
-;;   (write-byte (.frame midi-event) stream))
-
 #+nil
 (flex:with-output-to-sequence (out)
  (write-midi-event (make-instance 'midi-event) out))

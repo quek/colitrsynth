@@ -33,13 +33,36 @@
 #+nil
 (loop for i below (midi-in-get-num-devs)
       collect (cffi:with-foreign-object (caps '(:struct tag-midi-in-caps))
-                (unless (= (midi-in-get-dev-caps i caps (cffi:foreign-type-size 'tag-midi-in-caps))
+                (unless (= (midi-in-get-dev-caps i caps (cffi:foreign-type-size '(:struct tag-midi-in-caps)))
                            +mmsyserr-noerror+)
                   (error "midi-in-get-dev-caps"))
                 (cffi:with-foreign-slots ((sz-pname) caps (:struct tag-midi-in-caps))
                   (cffi:foreign-string-to-lisp sz-pname))))
-;;⇒ ("FL STUDIO FIRE" "ESI MIDIMATE eX" "MIDIIN2 (ESI MIDIMATE eX)")
 
+(defun midi-device-id (name)
+  (loop for i below (midi-in-get-num-devs)
+        thereis (cffi:with-foreign-object (caps '(:struct tag-midi-in-caps))
+                  (unless (= (midi-in-get-dev-caps i caps (cffi:foreign-type-size '(:struct tag-midi-in-caps)))
+                             +mmsyserr-noerror+)
+                    (error "midi-in-get-dev-caps"))
+                  (cffi:with-foreign-slots ((sz-pname) caps (:struct tag-midi-in-caps))
+                    (and (equal (cffi:foreign-string-to-lisp sz-pname)
+                                name)
+                         i)))))
+
+(defun collect-midi-devices ()
+  (loop for i below (midi-in-get-num-devs)
+        collect (cffi:with-foreign-object (caps '(:struct tag-midi-in-caps))
+                  (unless (= (midi-in-get-dev-caps i caps (cffi:foreign-type-size '(:struct tag-midi-in-caps)))
+                             +mmsyserr-noerror+)
+                    (error "midi-in-get-dev-caps"))
+                  (cffi:with-foreign-slots ((sz-pname) caps (:struct tag-midi-in-caps))
+                    (cons i (cffi:foreign-string-to-lisp sz-pname))))))
+#+nil
+(collect-midi-devices)
+
+#+nil
+(midi-device-id "Generic USB MIDI")
 
 ;; /* flags used with waveOutOpen(), waveInOpen(), midiInOpen(), and */
 ;; /* midiOutOpen() to specify the type of the dwCallback parameter. */
@@ -82,12 +105,48 @@
 (cffi:defcfun ("midiInReset" midi-in-reset) MMRESULT
   (handle HMIDIIN))
 
+;;;            /* MIDI input */
+(defconstant MM_MIM_OPEN         #x3C1)
+(defconstant MM_MIM_CLOSE        #x3C2)
+(defconstant MM_MIM_DATA         #x3C3)
+(defconstant MM_MIM_LONGDATA     #x3C4)
+(defconstant MM_MIM_ERROR        #x3C5)
+(defconstant MM_MIM_LONGERROR    #x3C6)
+
 (cffi:defcallback midi-in-callback :void ((handle HMIDIIN)
                                           (msg :unsigned-int)
                                           (instance :pointer)
                                           (param1 :pointer)
                                           (param2 :pointer))
-  (print (list 'midi-in-callback msg)))
+  (declare (ignore instance))
+  (case msg
+    (#.MM_MIM_OPEN
+     (format t "~&MIDI callback open. ~d" handle))
+    (#.MM_MIM_CLOSE
+     (format t "~&MIDI callback close. ~d" handle))
+    (#.MM_MIM_DATA
+     (let* ((message (cffi:pointer-address param1))
+            (time (cffi:pointer-address param2))
+            (event (ash (ldb (byte 4 4) message) 4))
+            (channel (ldb (byte 4 0) message))
+            (note (ldb (byte 8 8) message))
+            (velocity (ldb (byte 8 16) message))
+            (midi-event (make-instance 'colitrsynth::midi-event
+                                       :event event
+                                       :channel channel
+                                       :note note
+                                       :velocity velocity
+                                       :frame time)))
+       (format t "~&MIDI callback data. ~d ~x ~x ~a" handle
+               (cffi:pointer-address param1)
+               (cffi:pointer-address param2)
+               midi-event)))
+    (#.MM_MIM_LONGDATA
+     (format t "~&MIDI callback long data. ~d" handle))
+    (#.MM_MIM_ERROR
+     (format t "~&MIDI callback error. ~d" handle))
+    (#.MM_MIM_LONGERROR
+     (format t "~&MIDI callback log error. ~d" handle))))
 
 #|
 void CALLBACK MidiInProc(
@@ -102,13 +161,13 @@ void CALLBACK MidiInProc(
 
 #+nil
 (cffi:with-foreign-object (phandle '(:pointer HMIDIIN))
-  (print (midi-in-open phandle 0
+  (print (midi-in-open phandle (midi-device-id "Generic USB MIDI")
                        (cffi:callback midi-in-callback)
                        (cffi:null-pointer) CALLBACK_FUNCTION))
   (let ((handle (cffi:mem-aref phandle 'HMIDIIN 0)))
     (print handle)
     (print (midi-in-start handle))
-    (sleep 5)
+    (sleep 10)
     (print (midi-in-stop handle))
     (print (midi-in-reset handle))
     (print (midi-in-close handle))))
