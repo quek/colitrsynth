@@ -36,6 +36,7 @@
    (:file "gain-module")
    (:file "lfo-module")
    (:file "line")
+   (:file "midi-input-module")
    (:file "operand-module")
    (:file "osc-module")
    (:file "sin-osc-module")

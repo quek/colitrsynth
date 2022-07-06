@@ -57,9 +57,10 @@
                              +mmsyserr-noerror+)
                     (error "midi-in-get-dev-caps"))
                   (cffi:with-foreign-slots ((sz-pname) caps (:struct tag-midi-in-caps))
-                    (cons i (cffi:foreign-string-to-lisp sz-pname))))))
+                    (cffi:foreign-string-to-lisp sz-pname)))))
 #+nil
 (collect-midi-devices)
+;;⇒ ("FL STUDIO FIRE" "ESI MIDIMATE eX" "MIDIIN2 (ESI MIDIMATE eX)")
 
 #+nil
 (midi-device-id "Generic USB MIDI")
@@ -113,6 +114,22 @@
 (defconstant MM_MIM_ERROR        #x3C5)
 (defconstant MM_MIM_LONGERROR    #x3C6)
 
+(defvar *midi-input-mailbox-table* (make-hash-table))
+
+(defun open-midi-input (device-name)
+  (let ((handle
+          (cffi:with-foreign-object (phandle '(:pointer colitrsynth.ffi::HMIDIIN))
+            (midi-in-open phandle
+                          (colitrsynth.ffi::midi-device-id device-name)
+                          (cffi:callback midi-in-callback)
+                          (cffi:null-pointer)
+                          colitrsynth.ffi::CALLBACK_FUNCTION)
+            (let ((handle (cffi:mem-aref phandle 'colitrsynth.ffi::HMIDIIN 0)))
+              handle))))
+    (let ((mailbox (sb-concurrency:make-mailbox)))
+      (setf (gethash handle *midi-input-mailbox-table*) mailbox)
+      (values handle mailbox))))
+
 (cffi:defcallback midi-in-callback :void ((handle HMIDIIN)
                                           (msg :unsigned-int)
                                           (instance :pointer)
@@ -140,7 +157,9 @@
        (format t "~&MIDI callback data. ~d ~x ~x ~a" handle
                (cffi:pointer-address param1)
                (cffi:pointer-address param2)
-               midi-event)))
+               midi-event)
+       (let ((mailbox (gethash handle *midi-input-mailbox-table*)))
+         (sb-concurrency:send-message mailbox midi-event))))
     (#.MM_MIM_LONGDATA
      (format t "~&MIDI callback long data. ~d" handle))
     (#.MM_MIM_ERROR
@@ -169,5 +188,4 @@ void CALLBACK MidiInProc(
     (print (midi-in-start handle))
     (sleep 10)
     (print (midi-in-stop handle))
-    (print (midi-in-reset handle))
     (print (midi-in-close handle))))

@@ -551,6 +551,11 @@
   (:default-initargs  :name "Master" :x 695 :y 515
                       :color (list #xff #xa5 #x00 *transparency*)))
 
+(defclass midi-input-module (model connector-mixin module)
+  ((handle :initform nil :accessor .handle)
+   (device-name :initarg :device-name :accessor .device-name)
+   (mailbox :accessor .mailbox)))
+
 (defclass menu-view (render-border-mixin view)
   ((filter :initform nil :accessor .filter)
    (buttons :initform nil :accessor .buttons)))

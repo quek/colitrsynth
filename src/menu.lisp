@@ -66,7 +66,11 @@
                ("Op Add" op-add-module)
                ("Op Multi" op-multi-module)
                ("Gain" gain-module)
-               ("Constant" constant-module))
+               ("Constant" constant-module)
+               ,@(loop for name in (colitrsynth.ffi::collect-midi-devices)
+                       collect `(,(format nil "MIDI Input ~a" name)
+                                 midi-input-module
+                                 :device-name ,name)))
         do (let ((button (make-instance 'menu-builtin-button
                                         :label name
                                         :class class
