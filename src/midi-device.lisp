@@ -128,7 +128,13 @@
               handle))))
     (let ((mailbox (sb-concurrency:make-mailbox)))
       (setf (gethash handle *midi-input-mailbox-table*) mailbox)
+      (colitrsynth.ffi::midi-in-start handle)
       (values handle mailbox))))
+
+(defun close-midi-input (handle)
+  (midi-in-stop handle)
+  (midi-in-close handle)
+  (remhash handle *midi-input-mailbox-table*))
 
 (cffi:defcallback midi-in-callback :void ((handle HMIDIIN)
                                           (msg :unsigned-int)
