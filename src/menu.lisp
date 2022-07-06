@@ -70,6 +70,7 @@
                ,@(loop for name in (colitrsynth.ffi::collect-midi-devices)
                        collect `(,(format nil "MIDI Input ~a" name)
                                  midi-input-module
+                                 :name ,name
                                  :device-name ,name)))
         do (let ((button (make-instance 'menu-builtin-button
                                         :label name
@@ -174,14 +175,14 @@
   (funcall (.onclick self))
   (close (.root-parent self)))
 
-
-
 (defmethod click ((self menu-builtin-button) (button (eql 1)) x y)
   (let ((module (apply #'make-instance (.class self)
-                    :name (.label self)
-                    :x (- (.mouse-x *app*) 10)
-                    :y (- (.mouse-y *app*) 10)
-                    (.initargs self))))
+                       :name (prog1
+                                 (getf (.initargs self) :name (.label self))
+                               (remf (.initargs self) :name))
+                       :x (- (.mouse-x *app*) 10)
+                       :y (- (.mouse-y *app*) 10)
+                       (.initargs self))))
     (append-view module)
     (setf (.selected-modules *app*) (list module)))
   (close (.root-parent self)))

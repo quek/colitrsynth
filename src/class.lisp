@@ -258,9 +258,8 @@
    (midi-effect-p :initform nil :accessor midi-effect-p)
    (mutex :initform (sb-thread:make-mutex) :accessor .mutex)))
 
-(defclass instrument-plugin-model (midi-input-mixin plugin-model)
-  ((midi-events :initform nil :accessor .midi-events)
-   (output-midi-events :initform nil :accessor .output-midi-events)))
+(defclass instrument-plugin-model (midi-output-mixin midi-input-mixin plugin-model)
+  ((midi-events :initform nil :accessor .midi-events)))
 
 (defclass effect-plugin-model (plugin-model)
   ((mix-buffer :accessor .mix-buffer)))
@@ -551,9 +550,13 @@
   (:default-initargs  :name "Master" :x 695 :y 515
                       :color (list #xff #xa5 #x00 *transparency*)))
 
-(defclass midi-input-module (model connector-mixin module)
+(defclass midi-output-mixin ()
+  ((output-midi-events :initform nil :accessor .output-midi-events)))
+
+(defclass midi-input-module (midi-output-mixin model connector-mixin module)
   ((handle :initform nil :accessor .handle)
    (device-name :initarg :device-name :accessor .device-name)
+   (open-time :accessor .open-time)
    (mailbox :accessor .mailbox)))
 
 (defclass menu-view (render-border-mixin view)

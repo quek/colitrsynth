@@ -43,7 +43,7 @@
   (process dest connection left right))
 
 (defmethod route-connection ((connection midi-connection)
-                             (src instrument-plugin-model)
+                             (src midi-output-mixin)
                              dest
                              left right)
   (process dest connection (.output-midi-events src) nil))
