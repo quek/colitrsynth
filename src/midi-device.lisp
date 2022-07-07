@@ -160,10 +160,6 @@
                                        :note note
                                        :velocity velocity
                                        :frame time)))
-       (format t "~&MIDI callback data. ~d ~x ~x ~a" handle
-               (cffi:pointer-address param1)
-               (cffi:pointer-address param2)
-               midi-event)
        (let ((mailbox (gethash handle *midi-input-mailbox-table*)))
          (sb-concurrency:send-message mailbox midi-event))))
     (#.MM_MIM_LONGDATA

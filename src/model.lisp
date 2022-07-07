@@ -138,6 +138,12 @@
              16)))
 
 (defmethod extend-line ((self pattern))
+  (extend-line-inner self)
+  (incf (.nlines self))
+  (setf (.cursor-y (.editor self))
+        (1- (.nlines self))))
+
+(defmethod extend-line-inner ((self pattern))
   (let* ((new-nlines (1+ (.nlines self)))
          (old-lines (.lines self))
          (array-length (length old-lines)))
@@ -147,17 +153,17 @@
               do (setf (aref new-lines i)
                        (aref old-lines i)))
         (loop for i from array-length below (length new-lines)
-              do (setf (aref new-lines i)
-                       (make-instance
-                        'line
-                        :columns
-                        (make-array 16
-                                    :initial-contents
-                                    (loop repeat 16
-                                          collect (make-instance 'column))))))
-        (setf (.lines self) new-lines)))
-    (setf (.nlines self) new-nlines)
-    (setf (.cursor-y (.editor self)) (1- new-nlines))))
+              do (setf (aref new-lines i) (make-line)))
+        (setf (.lines self) new-lines)))))
+
+(defun make-line ()
+  (make-instance
+   'line
+   :columns
+   (make-array 16
+               :initial-contents
+               (loop repeat 16
+                     collect (make-instance 'column)))))
 
 (defmethod shrink-column ((self pattern))
   (setf (.ncolumns self) (max 1 (1- (.ncolumns self)))))

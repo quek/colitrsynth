@@ -153,6 +153,15 @@
                  value)
            (step-next self)))))
 
+(defcmd cmd::insert-line ((self pattern-editor))
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-insert+))
+  (let* ((pattern (.model self)))
+    (extend-line-inner pattern)
+    (let ((lines (.lines pattern)))
+      (loop for i from (.nlines pattern) above (.cursor-y self)
+            do (setf (aref lines i) (aref lines (1- i))))
+      (setf (aref lines (.cursor-y self)) (make-line)))))
+
 (defcmd cmd::insert-mode ((self pattern-editor)) ()
   (call-next-method)
   (setf (.keymap self)
