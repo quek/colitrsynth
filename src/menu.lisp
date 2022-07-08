@@ -127,6 +127,13 @@
     (let ((regex (ppcre:create-scanner
                   (format nil ".*~{~c~^.*~}" (coerce value 'list))
                   :case-insensitive-mode t)))
+      (setf (.buttons self)
+            (sort (.buttons self)
+                  #'string<
+                  :key (lambda (x)
+                         (if (typep x 'button)
+                             (string-downcase (.label x))
+                             ""))))
       (loop for button in (.buttons self)
             with i = 0
             with x = *layout-space*
@@ -142,14 +149,7 @@
                      (remove-child self button)    
                      (add-child self button))
             else
-              do (remove-child self button))
-      (setf (.children self)
-            (sort (.children self)
-                  #'string<
-                  :key (lambda (x)
-                         (if (typep x 'button)
-                             (string-downcase (.label x))
-                             "")))))))
+              do (remove-child self button)))))
 
 (defmethod keydown ((self menu-view) value scancode mod-value)
   (cond ((sdl2:scancode= scancode :scancode-escape)

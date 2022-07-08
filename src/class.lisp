@@ -544,8 +544,8 @@
   ((volume-slider :initarg :volume-slide :accessor .volume-slider)))
 
 (defclass gain-module (gain volume-controller-mixin connector-mixin module)
-  ()
-  (:default-initargs :height 45))
+  ((pan :initarg :pan :initform 0.5 :accessor .pan))
+  (:default-initargs :height 65))
 
 (defclass master-module (master volume-controller-mixin connector-mixin module)
   ()
