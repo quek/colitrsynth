@@ -34,3 +34,8 @@
               (setf (.frame midi-event) time)))
           (.output-midi-events self))
     (route self nil nil)))
+
+(defmethod serialize ((self midi-input-module))
+  `((setf (.device-name x) ,(.device-name self))
+    ,@(call-next-method)
+    (open-midi-input x)))

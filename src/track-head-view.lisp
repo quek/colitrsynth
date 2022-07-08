@@ -1,14 +1,20 @@
 (in-package :colitrsynth)
 
 (defmethod initialize-instance :after ((self track-head-view) &key)
-  (let ((solo-button (make-instance 'button :label "S"
-                                            :x *layout-space*
+  (let ((name (make-instance 'text
+                             :reader (lambda () (.name (.track self)))
+                             :writer (lambda (value) (setf (.name (.track self)) value))
+                             :x *layout-space*
+                             :y *layout-space*))
+        (solo-button (make-instance 'button :label "S"
+                                            :x (+ *layout-space* (* *char-width* 8))
                                             :y *layout-space*))
         (mute-button (make-instance 'button :label "M"
-                                            :x (+ (* *layout-space* 2) (* *char-width* 2))
+                                            :x (+ (* *layout-space* 2) (* *char-width* 10))
                                             :y *layout-space*)))
     (setf (.solo-button self) solo-button)
     (setf (.mute-button self) mute-button)
+    (add-child self name)
     (add-child self solo-button)
     (add-child self mute-button)
     

@@ -89,6 +89,7 @@
 
 (defmethod serialize ((self track-view))
   `((setf (.pattern-positions x) ,(serialize (.pattern-positions self))
+          (.name x) ,(.name self)
           (solo-p x) ,(solo-p self)
           (mute-p x) ,(mute-p self))
     (loop for i in (.pattern-positions x)
@@ -248,7 +249,9 @@
     (drag-start it (- x (.x it)) (- y (.y it)) button)))
 
 (defmethod add-new-track ((self sequencer-module))
-  (let ((track (make-instance 'track-view)))
+  (let ((track (make-instance 'track-view
+                              :name (format nil "Track~a"
+                                            (1+ (length (.tracks self)))) )))
     (setf (slot-value self 'tracks)
           (append (.tracks self) (list track)))
     (add-new-track-after self track)

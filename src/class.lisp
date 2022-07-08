@@ -449,13 +449,15 @@
   (:default-initargs :height *track-height*))
 
 (defclass track-view (track
+                      name-mixin
                       drag-mixin
                       drop-mixin
                       connector-mixin
                       render-border-mixin
                       view)
   ()
-  (:default-initargs :width 690 :height *track-height*))
+  (:default-initargs :width 690 :height *track-height*
+                     :name "Track"))
 
 (defclass pattern-position-view (pattern-position
                                  drag-mixin
