@@ -1,5 +1,14 @@
 (in-package :colitrsynth)
 
+(defcmd cmd::clear-line ((self pattern-editor))
+    (:bind (*pattern-editor-delete-keymap* sdl2-ffi:+sdl-scancode-d+)
+      :next-keymap *pattern-editor-command-keymap*)
+  (cmd::yank-line self)
+  (loop for column across (.columns (current-line self))
+        do (setf (.note column) none)
+           (setf (.velocity column) *default-velocity*)
+           (setf (.delay column) 0)))
+
 (defcmd cmd::column-extend ((self pattern-editor))
     (:bind (*pattern-editor-keymap*
             sdl2-ffi:+sdl-scancode-right+ +alt+))
@@ -87,13 +96,12 @@
     (step-next self)))
 
 (defcmd cmd::delete-line ((self pattern-editor))
-    (:bind (*pattern-editor-delete-keymap* sdl2-ffi:+sdl-scancode-d+)
-      :next-keymap *pattern-editor-command-keymap*)
-  (cmd::yank-line self)
-  (loop for column across (.columns (current-line self))
-        do (setf (.note column) none)
-           (setf (.velocity column) *default-velocity*)
-           (setf (.delay column) 0)))
+    (:bind (*pattern-editor-keymap* sdl2-ffi:+sdl-scancode-backspace+ ))
+  (let* ((pattern (.model self))
+         (lines (.lines pattern)))
+    (loop for i from (.cursor-y self) below (1- (length lines))
+          do (setf (aref lines i) (aref lines (1+ i))))
+    (setf (aref lines (1- (length lines))) (make-line))))
 
 (defcmd cmd::delete-selection-lines ((self pattern-editor))
     (:bind (*pattern-editor-visual-keymap* sdl2-ffi:+sdl-scancode-d+)
