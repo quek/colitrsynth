@@ -15,13 +15,17 @@
   (values (.buffer module) nil))
 
 (defmethod process-out ((self lfo))
-  (loop for i below *frames-per-buffer*
-        for value = (let ((value (sin (incf (.phase self)
-                                            (/ (* 2 pi (.frequency self)) *sample-rate*)))))
-                      (if (.unipolar-p self)
-                          (/ (1+ value) 2)
-                          value))
-        do (setf (aref (.buffer self) i) value))
+  (let ((old-phase (.phase self)))
+    (loop for i below *frames-per-buffer*
+          for last-phase = (.phase self)
+          for value = (let ((value (sin (incf (.phase self)
+                                              (/ (* 2 pi (.frequency self)) *sample-rate*)))))
+                        (if (.unipolar-p self)
+                            (/ (1+ value) 2)
+                            value))
+          do (setf (aref (.buffer self) i) value))
+    (when (= old-phase (.phase self))
+      (setf (.phase self) 0.0)))
   (route self (.buffer self) (.buffer self)))
 
 (defmethod resized ((self lfo-module))
