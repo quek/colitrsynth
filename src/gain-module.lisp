@@ -25,7 +25,12 @@
                  'builtin-param-connection
                  :src src :dest dest
                  :param (make-builtin-parameter :name "Gain"
-                                                :accessor '.volume)))))
+                                                :accessor '.volume))
+                (make-instance
+                 'builtin-param-connection
+                 :src src :dest dest
+                 :param (make-builtin-parameter :name "Pan"
+                                                :accessor '.pan)))))
 
 (defmethod cable-buffer ((module gain-module) (connection audio-connection))
   (values (.left module)
