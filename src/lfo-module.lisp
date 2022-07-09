@@ -11,7 +11,7 @@
                                               (setf (.frequency self) x)))))
   (resized self))
 
-(defmethod cable-buffer ((module lfo-module) (connection audio-connection))
+(defmethod cable-buffer ((module lfo-module) connection)
   (values (.buffer module) nil))
 
 (defmethod process-out ((self lfo))
