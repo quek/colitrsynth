@@ -45,12 +45,12 @@
            (y2 (.y drag-state))
            (cable
              (loop for module in (.modules *app*)
-                   for x3 = (.screen-x module)
-                   for y3 = (.screen-y module)
+                   for x3 = (.screen-center-x module)
+                   for y3 = (.screen-center-y module)
                      thereis (loop for cable in (.out module)
                                    for dest = (.dest cable)
-                                   for x4 = (.screen-x dest)
-                                   for y4 = (.screen-y dest)
+                                   for x4 = (.screen-center-x dest)
+                                   for y4 = (.screen-center-y dest)
                                      thereis (and (crossover-p x1 y1 x2 y2 x3 y3 x4 y4)
                                                   cable)))))
       (when cable
