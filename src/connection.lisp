@@ -75,7 +75,8 @@
 (defmethod render-connection ((self connector) renderer)
   (when (eq (.module self) (aif (.cable-src *app*)
                                 (.src it)))
-    (apply #'sdl2:set-render-draw-color renderer *connection-line-color*)
+    (apply #'sdl2:set-render-draw-color renderer
+           (cable-color (.cable-src *app*)))
     (multiple-value-bind (x y) (sdl2:mouse-state)
       (sdl2:render-draw-line renderer
                              (.screen-center-x self)
