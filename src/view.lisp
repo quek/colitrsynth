@@ -161,6 +161,12 @@
                        (<= (.y view) y (+ (.y view) (.height view)))
                        view)))
 
+(defmethod children-view-at ((self view) x y)
+  (loop for view in (.children self)
+        if (and (<= (.x view) x (+ (.x view) (.width view)))
+                (<= (.y view) y (+ (.y view) (.height view))))
+          collect view))
+
 (defmethod .root-parent ((self view))
   (aif (.parent self)
        (.root-parent it)
@@ -224,10 +230,10 @@
 
 (defmethod click ((self view) button x y)
   (or (call-next-method)
-      (awhen (child-view-at self x y)
-        (click it button
-               (translate-child-x self it x)
-               (translate-child-y self it y)))))
+      (loop for child in (children-view-at self x y)
+            do (click child button
+                      (translate-child-x self child x)
+                      (translate-child-y self child y)))))
 
 (defmethod double-click ((self view) button x y)
   (call-next-method)
@@ -742,7 +748,7 @@
 
 (defmethod click ((self text) button x y)
   ;; single click ではフォーカスしない
-  )
+  nil)
 
 (defmethod .edit-buffer :around ((self text))
   (if (.focused self)
@@ -869,6 +875,13 @@
           thereis (and (<= (.x view) x (+ (.x view) (.width view)))
                        (<= (.y view) (+ y (.offset-y self)) (+ (.y view) (.height view)))
                        view)))
+
+(defmethod children-view-at ((self partial-view) x y)
+  (loop for view in (.children self)
+        ;; なんで x の方はずらさなくていいの？
+        if (and (<= (.x view) x (+ (.x view) (.width view)))
+                (<= (.y view) (+ y (.offset-y self)) (+ (.y view) (.height view))))
+          collect view))
 
 (defmethod render ((self partial-view) renderer)
   (let* ((texture-width (.texture-width self))
